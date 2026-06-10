@@ -3,19 +3,25 @@
 Turn AI sessions into a maintained, inspectable canon.
 
 Every AI session is an unrecorded meeting; natural-language docs drift, go stale, and
-contradict each other. **bureau** fixes that with four moves:
+contradict each other. **bureau** turns sessions into memory you can trust:
 
-1. **Capture** every session to an append-only **logbook** (low authority, faithful record).
-2. **Compile** logbook entries into consistency-checked **cabinet** pages — the SSOT, with
-   provenance back to the session that introduced each claim.
-3. **Review** — the human gate: AI-written claims are never trusted as fact until you approve
-   them. Memory works like version control, not a notepad the AI scribbles in.
-4. **Inspect** the whole thing as a navigable offline board, rendered by **gazette** — the
-   dashboard bundled inside this plugin (nothing else to install).
+- **Write, gated.** **Capture** each session to an append-only **logbook** → **compile** into
+  consistency-checked **cabinet** pages (the SSOT, with provenance) → **review**, the human gate
+  that promotes a claim to `canonical`. AI-written claims are never fact until you approve them —
+  memory works like version control, not a notepad the AI scribbles in.
+- **Read, tier-aware.** **`query`** answers from the canon, citing each claim's trust tier and
+  refusing to state an unverified one as fact. And the **recall rule** `init` installs into your
+  repo makes *every* AI session honor those tiers — so the gate governs all work, not just bureau
+  commands.
+- **Inspect.** A navigable offline board rendered by **gazette**, the dashboard bundled inside
+  this plugin (nothing else to install).
 
 This is the [Karpathy LLM-wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
-(LLM as compiler, not retriever) plus session provenance and a review gate — so the canon is
-current, *traceable*, and *trusted*.
+(LLM as compiler, not retriever) plus session provenance, a review gate, and a recall rule — so
+the canon is current, *traceable*, and *trusted*.
+
+**New here?** Start with the **[User Guide](docs/user-guide.md)** — a 60-second quickstart and a
+worked example.
 
 ## Trust tiers — why memory here is safe
 
