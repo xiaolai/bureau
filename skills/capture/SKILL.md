@@ -68,6 +68,22 @@ transcript: "<transcript path, JSON-escaped if present, else empty>"
 Not a summary of the codebase, not a to-do list, not the truth. It is the **minutes of one
 meeting**. Truth is adjudicated later, in the cabinets, under consistency checks.
 
+## Examples
+
+<example>
+Context: A working session is wrapping up; the agent has full context.
+user: "bureau:file-session"
+assistant: "Filing this session. Logbook entry at logbook/2026/06/<id>.md — Intent: harden the capture script; Decisions: drop git from the hook (implies cabinet page **Capture design**); Changes: scripts/capture-stub.mjs; Open: none. I named the cabinet page in plain text since it doesn't exist yet — compile will create and link it."
+<commentary>The rich entry is written in-session where context is live; a not-yet-existing target is plain text, not a dangling [[link]].</commentary>
+</example>
+
+<example>
+Context: The SessionEnd hook already wrote a mechanical stub for this session.
+user: "Record what we did this session into the logbook."
+assistant: "A stub exists for this session, so I'll enrich it in place — re-deriving a clean sanitized frontmatter block and replacing the body with the full Intent/Decisions/Changes/Open entry."
+<commentary>Enrichment preserves meaning, not the stub's raw bytes; other sessions' entries are never touched.</commentary>
+</example>
+
 ## Scope note
 
 This skill covers ONLY the logbook-capture protocol — turning one session into one faithful,

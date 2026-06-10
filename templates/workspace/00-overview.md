@@ -22,5 +22,22 @@ traceable and regenerable in principle.
 |---------|------|
 | `bureau:file-session` | write the rich logbook entry for the current session |
 | `bureau:compile` | distil logbook entries into cabinet pages (with provenance) |
+| `bureau:review` | the human gate — promote vetted claims to `canonical`, reject the rest |
 | `bureau:lint` | semantic consistency sweep across cabinets (contradictions, gaps, drift) |
 | `bureau:inspect` | build + open the board (whiteboard) |
+
+## Reading this as memory — honor the trust tier
+
+These cabinets double as repo memory, so **no claim is trusted as fact until a human has
+approved it**. Every page carries a `status:`; honor it on every recalled claim:
+
+| `status:` | trust | treat as |
+|-----------|-------|----------|
+| `canonical` | human-approved | **fact** |
+| `verified` | checked against the repo, not yet approved | checked, confirm if it matters |
+| `proposed` | AI claim, unchecked | **unverified — verify before relying** |
+| `stale` | a verified source changed | outdated — re-verify |
+| `contested` | two claims disagree | disputed — do not rely |
+
+AI writes only `proposed`/`verified`; only `bureau:review` writes `canonical`. Never treat a
+`proposed`, `stale`, or `contested` claim as fact.

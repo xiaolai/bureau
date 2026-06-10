@@ -18,7 +18,7 @@ Follow the protocol in the **compile** skill (`skills/compile/SKILL.md`). In sho
 3. For each entry, extract its decisions/changes into claims, place each on its target cabinet
    page (creating the page in the matching drawer when absent), and add the session to the
    page's body `**Sources.**` provenance line.
-4. On disagreement with an existing canonical claim, apply the conflict policy — set the page
+4. On disagreement with an existing claim, apply the conflict policy — set the page
    `status: contested`, keep both claims with their provenance, add a `contradicts:` edge, and
    name it in the report. Never overwrite silently.
 5. Record processed session ids in `_compile-state.json`, then run `bureau:inspect` for the

@@ -17,8 +17,8 @@ It is the right-hand column of the consistency table: judgment, not mechanism.
 
 1. **Contradiction** — two cabinet pages assert claims that cannot both be true (e.g. page A
    says auth tokens last 24h, page B says 1h).
-2. **Superseded** — a page's `canonical` claim is obsoleted by a later logbook entry or a
-   newer page; the canon still states the old truth.
+2. **Superseded** — a page's settled (`verified`/`canonical`) claim is obsoleted by a later
+   logbook entry or a newer page; the canon still states the old truth.
 3. **Gap** — a concept referenced across pages but never defined on its own page.
 4. **Drift** — one concept named differently across pages (vocabulary drift: "cabinet" vs
    "drawer" vs "page" for the same thing).
@@ -55,7 +55,7 @@ With `--apply`, lint also writes conservative, reversible in-place markers so wh
 health lane surfaces the hard cases:
 - a verified **contradiction** → set both pages `status: contested` and add a
   `contradicts: [[Other page]]` frontmatter edge to each (whiteboard renders a contradiction);
-- a verified **superseded** claim → set the page `status: draft`.
+- a verified **superseded** claim → set the page `status: stale`.
 Gaps and drift are report-only (creating pages or renaming a concept is a human/`compile`
 decision, never an automatic edit).
 
@@ -69,7 +69,7 @@ decision, never an automatic edit).
    weighted by the active profiles.
 4. **Write the report.** Write `lint/findings.md` with the surviving findings; if none survive,
    write a page stating the canon is consistent.
-5. **Apply markers** (only when `--apply`): set `contested`/`draft` status and `contradicts:`
+5. **Apply markers** (only when `--apply`): set `contested`/`stale` status and `contradicts:`
    edges for verified contradictions and superseded claims. Never edit a page's prose claims —
    only its status and the contradicts edge.
 6. **Structural check.** Run `bureau:inspect`; report the contradictions whiteboard now renders
@@ -85,6 +85,22 @@ decision, never an automatic edit).
    resolving a claim is a human act.
 3. **Verified findings only.** A recorded finding survived adversarial refutation.
 4. **Idempotent report.** Re-running overwrites `lint/findings.md` with the current state.
+
+## Examples
+
+<example>
+Context: Before a milestone, the user wants the canon checked for inconsistencies.
+user: "bureau:lint"
+assistant: "Swept the cabinets. One survivor after refutation: **Token TTL** says 24h, **Session TTL** says 1h — a real contradiction (same artifact, same scope). I wrote it to lint/findings.md with both pages linked. The 'cabinet' vs 'drawer' wording I considered drift was refuted — they name different things — so I did not record it."
+<commentary>Only findings that survive adversarial refutation are recorded; a false finding would erode trust in the canon.</commentary>
+</example>
+
+<example>
+Context: The user wants lint to also mark the hard cases so the board surfaces them.
+user: "bureau:lint --apply"
+assistant: "Same findings, plus markers: I set both TTL pages to status: contested with reciprocal contradicts: edges, so whiteboard's health lane now reports the contradiction. I changed only status and edges — never the prose claims; resolving which TTL is true is your call."
+<commentary>--apply writes conservative, reversible markers only; prose claims are never edited.</commentary>
+</example>
 
 ## Scope note
 

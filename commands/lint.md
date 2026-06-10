@@ -21,6 +21,6 @@ Follow the protocol in the **lint** skill (`skills/lint/SKILL.md`). In short:
 4. Write `lint/findings.md` (the rendered report): each finding's type, severity, involved
    `[[pages]]`, and a suggested resolution. If none survive, state the canon is consistent.
 5. With `--apply`, also set verified contradictions to `status: contested` with a
-   `contradicts:` edge, and superseded claims to `status: draft` — status and edges only, never
+   `contradicts:` edge, and superseded claims to `status: stale` — status and edges only, never
    prose. Then run `bureau:inspect` for the structural check.
 6. Report counts by type and severity, name each contested page, and point at `lint/findings.md`.
