@@ -21,10 +21,13 @@ traceable and regenerable in principle.
 
 | Command | Does |
 |---------|------|
-| `bureau:file-session` | write the rich logbook entry for the current session |
+| `bureau:note` | take a live note into the running logbook entry (run at decision points) |
+| `bureau:file-session` | file the rich logbook entry for the current session |
 | `bureau:compile` | distil logbook entries into cabinet pages (with provenance) |
 | `bureau:review` | the human gate — promote vetted claims to `canonical`, reject the rest |
 | `bureau:lint` | semantic consistency sweep across cabinets (contradictions, gaps, drift) |
+| `bureau:query` | answer a question from the canon — cited, tier-aware |
+| `bureau:status` | what's uncompiled / pending review / stale / contested |
 | `bureau:inspect` | build + open the board (gazette) |
 
 ## Reading this as memory — honor the trust tier

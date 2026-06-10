@@ -45,16 +45,24 @@ the append-only logbook drawer, and the config gazette needs to render them.
    - **software** → `architecture/`, `modules/` (plus the shared `decisions/`)
    - **story** → `characters/`, `timeline/`, `canon/`
 
-6. **Gitignore the board at the repo root.** The board renders OUTSIDE the workspace (a repo
+6. **Install the recall rule.** Copy `${CLAUDE_PLUGIN_ROOT}/templates/recall-rule.md` to the
+   repo's `.claude/rules/bureau.md` (create `.claude/rules/` if absent; do not overwrite an
+   existing one without asking), replacing `{{WORKSPACE}}` with the resolved workspace name.
+   This is what makes every AI session in the repo honor the trust tiers when reading the
+   cabinets as memory — the gate binds all work, not just bureau commands. If the repo has no
+   `.claude/rules/` convention, append the rule's content to `CLAUDE.md` instead.
+
+7. **Gitignore the board at the repo root.** The board renders OUTSIDE the workspace (a repo
    sibling), so add `/<board>/` to the **repo root** `.gitignore` (create it if absent). Do
    NOT rely on the workspace-level `.gitignore` for this — it can't reach a sibling dir.
 
-7. **Validate the scaffold.** Confirm `_config.json` and `bureau.json` parse as JSON, no
-   `{{DATE}}` tokens remain, and a `bureau:inspect` build succeeds. Report any failure with the
-   offending file — do not claim success on a workspace that won't build.
+8. **Validate the scaffold.** Confirm `_config.json` and `bureau.json` parse as JSON, no
+   `{{DATE}}`/`{{WORKSPACE}}` tokens remain, and a `bureau:inspect` build succeeds. Report any
+   failure with the offending file — do not claim success on a workspace that won't build.
 
-8. **Report.** Print the created tree and the next steps: `bureau:inspect` to build/open the
-   board, `bureau:file-session` at the end of a working session.
+9. **Report.** Print the created tree and the next steps: `bureau:inspect` to build/open the
+   board, `bureau:file-session` (or `bureau:note`) during a session, `bureau:query` to ask the
+   canon.
 
 ## Notes
 

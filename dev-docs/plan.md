@@ -75,6 +75,11 @@ already renders it.
 | `commands/compile.md` + `skills/compile` | 2 | ✅ |
 | `commands/lint.md` + `skills/lint` | 3 | ✅ |
 | `commands/review.md` + `skills/review` (trust tiers + gate) | 4 | ✅ |
+| `commands/query.md` + `skills/recall` (read side, tier-aware) | 5 | ✅ |
+| `commands/note.md` + `skills/scribe` (live note-taking) | 5 | ✅ |
+| `commands/status.md` (dashboard) | 5 | ✅ |
+| `templates/recall-rule.md` (governance rule; `init` installs it) | 5 | ✅ |
+| `hooks/hooks.json` SessionStart(compact) + `scripts/scribe-checkpoint.mjs` | 5 | ✅ tested |
 
 ## Phase 2 — compile (the Karpathy compiler) ✅
 
@@ -107,6 +112,30 @@ staleness, presents a batch digest (facts apart from judgments), and on approval
 `canonical` — the only tier recalled as fact. Rejection logs to the logbook, never erases. The
 recall convention (in the workspace overview) makes the tier travel on every recalled claim.
 See `skills/review/SKILL.md`.
+
+## Phase 5 — user surface (read side + live capture + governance) ✅
+
+Closes the loop: bureau is now used and governed, not just written.
+
+- **Read side.** `bureau:query` + the `recall` skill answer from the compiled canon, citing each
+  claim's tier and provenance, and refusing to state a non-`canonical` claim as fact (Karpathy
+  query, not RAG).
+- **Governance.** `bureau:init` installs `templates/recall-rule.md` into the repo's
+  `.claude/rules/bureau.md` — so EVERY AI session honors the trust tiers on read and routes new
+  claims through capture→compile→review. This is what makes the gate bind all work, not just
+  bureau commands. The keystone.
+- **Live capture.** `bureau:note` + the `scribe` skill take running minutes at decision points
+  (higher fidelity than end-of-session reconstruction); a `SessionStart(source="compact")` hook
+  (`scripts/scribe-checkpoint.mjs`) marks the compaction boundary and re-grounds the thinned
+  agent from the logbook via `additionalContext`. Honest constraint: there's no "approaching the
+  limit" signal — you react to the compaction, summarizing from the always-complete transcript.
+  (Verify in target version: the `compact` matcher, `additionalContext` injection, and whether a
+  true `PreCompact` pre-signal exists — see the hook script's header.)
+- **Dashboard.** `bureau:status` — uncompiled sessions, pages by tier, what needs attention.
+
+Deferred (intentionally, to avoid bloat): lint finder/verifier **agents** (lint works without
+them — add when there's a real corpus to tune on); `bureau:rename` and a `bureau:cycle`
+orchestration (cheap conveniences — add on request). No heavyweight Workflow-tool orchestration.
 
 ## gazette (the bundled dashboard) ✅
 

@@ -63,22 +63,30 @@ append-only history. Every cabinet claim links back to the logbook entry that in
 
 ## Commands
 
-| Command | Does | Phase |
-|---------|------|-------|
-| `bureau:init` | scaffold the workspace, wire gazette | 0 |
-| `bureau:inspect` | build + open the board | 0 |
-| `bureau:file-session` | write the rich logbook entry for the current session | 1 |
-| `bureau:compile` | distil logbook entries into cabinet pages (with provenance) | 2 |
-| `bureau:review` | the human gate — promote vetted claims to `canonical`, reject the rest | 4 |
-| `bureau:lint` | semantic consistency sweep across the cabinets | 3 |
+| Command | Does |
+|---------|------|
+| `bureau:init` | scaffold the workspace, install the recall rule, wire gazette |
+| `bureau:note` | take a live note into the running logbook entry (run at decision points) |
+| `bureau:file-session` | file the rich logbook entry for the current session |
+| `bureau:compile` | distil logbook entries into cabinet pages (with provenance) |
+| `bureau:review` | the human gate — promote vetted claims to `canonical`, reject the rest |
+| `bureau:lint` | semantic consistency sweep across the cabinets |
+| `bureau:query` | answer a question from the canon — cited, tier-aware, never stating an unverified claim as fact |
+| `bureau:status` | what's uncompiled / pending review / stale / contested |
+| `bureau:inspect` | build + open the board (gazette) |
 
-A `SessionEnd` hook also writes a mechanical logbook **stub** automatically, so no session is
-ever lost even if you forget to file it.
+**Write** (gated): `note`/`file-session` → `compile` → `review`. **Read** (tier-aware):
+`query`, plus the **recall rule** `init` installs into your repo, which makes *every* AI session
+honor the trust tiers — so the gate governs all work, not just bureau commands.
+
+Two hooks run automatically: `SessionEnd` writes a mechanical logbook **stub** (no session is
+ever lost); `SessionStart`-after-compaction re-grounds the agent from the logbook so decisions
+survive a context compaction.
 
 ## Status
 
-Phases 0–4 implemented (init, capture, inspect, compile, lint, review) — the full
-capture → compile → review → inspect loop, with a trust-tier gate on memory. See
+The full loop is implemented: capture (`note`/`file-session` + hooks) → compile → review →
+lint, read via `query`/`status` under the recall rule, rendered by the bundled gazette. See
 `dev-docs/plan.md`.
 
 ## Requirements
