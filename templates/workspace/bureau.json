@@ -1,0 +1,6 @@
+{
+  "profiles": ["software", "story"],
+  "workspace": "bureau",
+  "board": "board",
+  "autoCompile": false
+}

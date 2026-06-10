@@ -1,0 +1,17 @@
+{
+  "name": "bureau",
+  "version": "0.1.0",
+  "description": "Turn AI sessions into a maintained, inspectable canon. Capture each session to append-only logbooks, compile them into a consistency-checked knowledge base (cabinets), and render it with whiteboard. Karpathy LLM-wiki pattern + session provenance.",
+  "author": { "name": "xiaolai" },
+  "license": "MIT",
+  "keywords": [
+    "knowledge-base",
+    "llm-wiki",
+    "wiki",
+    "provenance",
+    "session-capture",
+    "archive",
+    "whiteboard",
+    "ssot"
+  ]
+}
