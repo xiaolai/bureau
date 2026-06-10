@@ -1,0 +1,93 @@
+/* whiteboard theme: <NAME> — <author> — light|dark
+ * Copy this file to your project root as `theme.css`, then change the VALUES.
+ * It is loaded after the engine's default theme, so your :root wins everywhere.
+ * Spec: dev-docs/theme-spec.md   ·   Constraints: offline, CJK fallbacks, WCAG AA.
+ * Preview:  whiteboard build --docs examples/docs --data examples/data --out /tmp/preview
+ */
+
+:root {
+  /* ── Surfaces ── */
+  --paper: #f9f7f2;          /* page background, cards, table bg, active nav item */
+  --paper-2: #efeae0;        /* raised: chips, inline code, table header, gradient floor */
+  --sidebar: #f4f1ea;        /* left nav background */
+  --sidebar-edge: #e1dacc;   /* sidebar right border */
+  --mmd-bg: #fbfaf6;         /* surface behind diagrams / graph / code maps / canvas */
+
+  /* ── Text (check AA contrast against the surface each sits on) ── */
+  --ink: #22201b;            /* headings, primary text, chart text */
+  --ink-soft: #46423a;       /* body text, nav labels, table cells */
+  --muted: #827b6e;          /* breadcrumb, captions, backlink context */
+  --faint: #a8a193;          /* group labels, [[ ]] brackets, empty states */
+
+  /* ── Lines ── */
+  --line: #ece7dc;           /* hairlines, rule under H2 */
+  --line-strong: #ddd6c8;    /* table/diagram borders, dividers, scrollbar */
+
+  /* ── Accent (primary interactive hue + chart series #1) ── */
+  --accent: #4a5d6e;
+  --accent-deep: #33424f;    /* link text, `type` chip */
+
+  /* ── Signal / brand (the "cinnabar") ── */
+  --rust: #a8322a;           /* brand mark, active marker, blockquote rule, missing links */
+  --rust-deep: #7d2620;      /* `status` chip text, blockquote first line */
+
+  /* ── Health status (keep mutually distinct + AA) ── */
+  --ok: #3f7d56;
+  --warn: #a8322a;
+  --info: #4a5d6e;
+
+  /* ── Chart / graph palette (ECharts series + graph nodes) ── */
+  /* series #1 = --accent above; provide 3 more with good mutual + on-surface contrast */
+  --accent-2: #3f6f5b;
+  --accent-3: #9a7b3f;
+  --accent-4: #6a5acd;
+
+  /* ── Mermaid flowchart node palette (set for dark themes) ── */
+  --mmd-node: #efeae0;        /* node fill        (falls back to --paper-2) */
+  --mmd-node-stroke: #ddd6c8; /* node border      (falls back to --line-strong) */
+  --mmd-node-text: #22201b;   /* node label       (falls back to --ink) */
+  --mmd-edge: #a8a193;        /* connector lines  (falls back to --faint) */
+
+  /* ── Typography — KEEP CJK fallbacks. Use a system stack or self-host under assets/. ── */
+  --serif: "Maple Mono CN", "Noto Serif SC", ui-serif, "Songti SC", serif;
+  --sans: "Maple Mono CN", "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
+
+  /* ── Elevation — recolor the rgba for dark themes ── */
+  --shadow: 0 1px 2px rgba(40, 34, 20, .04), 0 8px 28px rgba(40, 34, 20, .07);
+
+  /* convenience tints reused by the literal-color rules below (recolor to your hue) */
+  --accent-tint: rgba(74, 93, 110, .1);
+  --accent-tint-strong: rgba(74, 93, 110, .2);
+  --signal-tint: rgba(168, 50, 42, .08);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   §5 literal-color rules: the engine bakes these as rgba()/hex, so they do NOT
+   follow :root. DARK themes MUST override the ★ light surfaces. Recolor the rest
+   to tints of your accent/signal. Delete any you leave at the default.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ★ canvas backdrop sheen — replace the light gradient */
+.canvas { background: radial-gradient(120% 90% at 50% -10%, #fdfcf9 0%, var(--paper) 46%, var(--paper-2) 100%); }
+/* ★ sticky breadcrumb veil */
+.crumb { background: linear-gradient(var(--paper), rgba(249, 247, 242, .85)); }
+/* ★ pan/zoom toolbar background (white today — fix for dark) */
+.mmd-tools { background: rgba(255, 255, 255, .92); }
+/* ★ backlink count badge text (sits on --accent) */
+.backlinks__count { color: #fff; }
+
+/* accent tints */
+.nav-item:hover { background: var(--accent-tint); }
+.wikilink:hover { background: var(--accent-tint); }
+.mmd-tool:hover { background: var(--accent-tint); }
+.mmd-tool:active { background: var(--accent-tint-strong); }
+.markdown tbody tr:hover { background: var(--accent-tint); }
+.markdown table.wb-table tbody tr:nth-child(even) { background: var(--accent-tint); }
+.meta-chip--type { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-deep); }
+
+/* signal tints */
+.meta-chip--status { background: var(--signal-tint); border-color: var(--rust); color: var(--rust-deep); }
+.markdown blockquote { background: linear-gradient(90deg, var(--signal-tint), transparent 70%); }
+.wikilink--missing:hover { background: var(--signal-tint); }
+.mmd-alert--warn { background: var(--signal-tint); border-color: var(--rust); color: var(--rust-deep); }
+.viz-error { background: var(--signal-tint); }

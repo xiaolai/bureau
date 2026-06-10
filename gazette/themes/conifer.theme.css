@@ -1,0 +1,89 @@
+/* whiteboard theme: Conifer — Design Team — dark
+ * Mood: a forest at dusk. Deep green-charcoal surfaces, warm sand text, a mint accent
+ * and an ember signal. A second dark, tuned cooler-green to contrast Midnight Ink's blue.
+ */
+
+:root {
+  /* ── Surfaces ── */
+  --paper: #151b16;          /* page background, cards, table bg, active nav item */
+  --paper-2: #1e261f;        /* raised: chips, inline code, table header, gradient floor */
+  --sidebar: #111611;        /* left nav background */
+  --sidebar-edge: #283228;   /* sidebar right border */
+  --mmd-bg: #181f19;         /* surface behind diagrams / graph / code maps / canvas */
+
+  /* ── Text ── */
+  --ink: #eef0e7;            /* headings, primary text, chart text */
+  --ink-soft: #cdd3c2;       /* body text, nav labels, table cells */
+  --muted: #8d9885;          /* breadcrumb, captions, backlink context */
+  --faint: #798971;          /* group labels, [[ ]] brackets, empty states */
+
+  /* ── Lines ── */
+  --line: #283228;           /* hairlines, rule under H2 */
+  --line-strong: #3a463a;    /* table/diagram borders, dividers, scrollbar */
+
+  /* ── Accent (primary interactive hue + chart series #1) ── */
+  --accent: #6fbf9a;
+  --accent-deep: #92cdac;    /* link text + `type` chip — light for dark surfaces */
+
+  /* ── Signal / brand (ember) ── */
+  --rust: #e57b5a;           /* brand mark, active marker, blockquote rule, missing links */
+  --rust-deep: #ee9a7e;      /* `status` chip text, blockquote first line — light on dark */
+
+  /* ── Health status ── */
+  --ok: #74c98a;
+  --warn: #e57b5a;
+  --info: #6fbf9a;
+
+  /* ── Chart / graph palette (mint / gold / sky / rose) ── */
+  --accent-2: #d9b65a;
+  --accent-3: #7fa9e0;
+  --accent-4: #d98fb0;
+
+  /* ── Mermaid flowchart node palette ── */
+  --mmd-node: #1f281f;
+  --mmd-node-stroke: #3a463a;
+  --mmd-node-text: #eef0e7;
+  --mmd-edge: #5e6a58;
+
+  /* ── Typography — system stacks, CJK fallbacks preserved ── */
+  --serif: ui-serif, "Noto Serif SC", "Songti SC", serif;
+  --sans: ui-sans-serif, -apple-system, "PingFang SC", "Noto Sans SC", sans-serif;
+
+  /* ── Elevation — recolored for dark ── */
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 28px rgba(0, 0, 0, .5);
+
+  /* convenience tints reused by the §5 rules below */
+  --accent-tint: rgba(111, 191, 154, .14);
+  --accent-tint-strong: rgba(111, 191, 154, .24);
+  --signal-tint: rgba(229, 123, 90, .14);
+
+  /* ── Derived surfaces — the ONLY home for the §5 literals, so every rule
+        body below references a token and nothing else (100% tokenized). ── */
+  --canvas-hi: #1c241d;      /* canvas top sheen */
+  --canvas-lo: #11160f;      /* canvas floor */
+  --crumb-veil: rgba(21, 27, 22, .85);   /* breadcrumb fade (alpha of --paper) */
+  --tools-bg: rgba(30, 38, 31, .92);     /* pan/zoom toolbar surface */
+  --badge-ink: #111611;      /* text on the --accent count badge */
+}
+
+/* ── §5 literal-color rules — fully tokenized; recolor by editing :root only ── */
+.canvas { background: radial-gradient(120% 90% at 50% -10%, var(--canvas-hi) 0%, var(--paper) 46%, var(--canvas-lo) 100%); }
+.crumb { background: linear-gradient(var(--paper), var(--crumb-veil)); }
+.mmd-tools { background: var(--tools-bg); }
+.backlinks__count { color: var(--badge-ink); }
+
+/* accent tints */
+.nav-item:hover { background: var(--accent-tint); }
+.wikilink:hover { background: var(--accent-tint); }
+.mmd-tool:hover { background: var(--accent-tint); }
+.mmd-tool:active { background: var(--accent-tint-strong); }
+.markdown tbody tr:hover { background: var(--accent-tint); }
+.markdown table.wb-table tbody tr:nth-child(even) { background: var(--accent-tint); }
+.meta-chip--type { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-deep); }
+
+/* signal tints */
+.meta-chip--status { background: var(--signal-tint); border-color: var(--rust); color: var(--rust-deep); }
+.markdown blockquote { background: linear-gradient(90deg, var(--signal-tint), transparent 70%); }
+.wikilink--missing:hover { background: var(--signal-tint); }
+.mmd-alert--warn { background: var(--signal-tint); border-color: var(--rust); color: var(--rust-deep); }
+.viz-error { background: var(--signal-tint); }

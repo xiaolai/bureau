@@ -10,8 +10,8 @@ contradict each other. **bureau** fixes that with four moves:
    provenance back to the session that introduced each claim.
 3. **Review** — the human gate: AI-written claims are never trusted as fact until you approve
    them. Memory works like version control, not a notepad the AI scribbles in.
-4. **Inspect** the whole thing as a navigable offline board, rendered by
-   [whiteboard](https://github.com/xiaolai/whiteboard-for-claude).
+4. **Inspect** the whole thing as a navigable offline board, rendered by **gazette** — the
+   dashboard bundled inside this plugin (nothing else to install).
 
 This is the [Karpathy LLM-wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
 (LLM as compiler, not retriever) plus session provenance and a review gate — so the canon is
@@ -33,26 +33,27 @@ approves it.** Every page carries a `status:` the AI must honor on recall:
 AI writes only `proposed`/`verified`; the `proposed → review → canonical` gate is the
 double-check. Facts-about-artifacts auto-verify; judgments route to the human.
 
-## Two plugins, one workspace
+## One self-contained plugin
 
 | | role |
 |---|---|
-| **bureau** (this plugin) | the engine: capture · compile · lint |
-| **whiteboard** | render + structural integrity (deterministic) |
+| **bureau** (this plugin) | the engine: capture · compile · review · lint |
+| **gazette** (`gazette/`, bundled inside bureau) | render + structural integrity (deterministic) |
 | `bureau/` (in your repo) | your data: cabinet drawers + the `logbook/` drawer |
 
-bureau **depends on** whiteboard and changes nothing in it — it shells out to
-`whiteboard build --dir bureau --out board`.
+gazette is a self-contained Node bundle vendored into the plugin (`gazette/bin/gazette.mjs`,
+no `node_modules`). `bureau:inspect` runs it directly — there is **no separate install**. The
+bundle is regenerated from the upstream renderer source by `scripts/vendor-gazette.mjs`.
 
 ## Workspace layout
 
 ```
-bureau/            ← whiteboard's content dir; top-level folders are nav sections
+bureau/            ← gazette's content dir; top-level folders are nav sections
   decisions/       ← a cabinet drawer (ADRs)
   architecture/    ← cabinet drawer (software profile)
   characters/      ← cabinet drawer (story profile)
   logbook/         ← append-only history — RENDERS as its own section
-  _config.json     ← whiteboard meta
+  _config.json     ← gazette meta
   bureau.json      ← profiles, board dir, autoCompile
 board/             ← rendered board (derived, gitignored, outside the workspace)
 ```
@@ -64,7 +65,7 @@ append-only history. Every cabinet claim links back to the logbook entry that in
 
 | Command | Does | Phase |
 |---------|------|-------|
-| `bureau:init` | scaffold the workspace, wire whiteboard | 0 |
+| `bureau:init` | scaffold the workspace, wire gazette | 0 |
 | `bureau:inspect` | build + open the board | 0 |
 | `bureau:file-session` | write the rich logbook entry for the current session | 1 |
 | `bureau:compile` | distil logbook entries into cabinet pages (with provenance) | 2 |
@@ -82,16 +83,15 @@ capture → compile → review → inspect loop, with a trust-tier gate on memor
 
 ## Requirements
 
-- **Node.js ≥ 18** on `PATH` — the `SessionEnd` capture hook runs `node`. If Node is absent
-  the hook simply no-ops (it never blocks session end); you can still capture with
-  `bureau:file-session`.
-- The **whiteboard** plugin (rendering dependency).
+- **Node.js ≥ 18** on `PATH` — the `SessionEnd` capture hook and the bundled gazette dashboard
+  both run `node`. If Node is absent the hook simply no-ops (it never blocks session end); you
+  can still capture with `bureau:file-session`.
+- Nothing else — gazette is bundled (`gazette/`), so there is no separate renderer to install.
 
 ## Install
 
 ```bash
 claude plugin install bureau@xiaolai --scope project
-claude plugin install whiteboard@xiaolai --scope project   # required dependency
 ```
 
 Part of the [xiaolai marketplace](https://github.com/xiaolai/claude-plugin-marketplace).

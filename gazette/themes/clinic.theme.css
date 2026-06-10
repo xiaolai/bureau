@@ -1,0 +1,89 @@
+/* whiteboard theme: Clinic — Design Team — light
+ * Mood: cool, clean, clinical. Neutral off-white surfaces, slate ink, a teal-cyan accent,
+ * a measured warm-red signal. Reads like a well-kept medical or lab record.
+ */
+
+:root {
+  /* ── Surfaces ── */
+  --paper: #f7f9fb;          /* page background, cards, table bg, active nav item */
+  --paper-2: #e9eef3;        /* raised: chips, inline code, table header, gradient floor */
+  --sidebar: #eef2f6;        /* left nav background */
+  --sidebar-edge: #d3dbe3;   /* sidebar right border */
+  --mmd-bg: #fbfcfe;         /* surface behind diagrams / graph / code maps / canvas */
+
+  /* ── Text ── */
+  --ink: #14202b;            /* headings, primary text, chart text */
+  --ink-soft: #324453;       /* body text, nav labels, table cells */
+  --muted: #5f7384;          /* breadcrumb, captions, backlink context */
+  --faint: #5f7384;          /* group labels, [[ ]] brackets, empty states */
+
+  /* ── Lines ── */
+  --line: #e4eaf0;           /* hairlines, rule under H2 */
+  --line-strong: #cdd7e0;    /* table/diagram borders, dividers, scrollbar */
+
+  /* ── Accent (primary interactive hue + chart series #1) ── */
+  --accent: #0e7490;
+  --accent-deep: #0a5a70;    /* link text + `type` chip */
+
+  /* ── Signal / brand (warm clinical red) ── */
+  --rust: #c4362b;           /* brand mark, active marker, blockquote rule, missing links */
+  --rust-deep: #97251c;      /* `status` chip text, blockquote first line */
+
+  /* ── Health status ── */
+  --ok: #15803d;
+  --warn: #c4362b;
+  --info: #0e7490;
+
+  /* ── Chart / graph palette (teal / blue / amber / violet) ── */
+  --accent-2: #2563ad;
+  --accent-3: #c2410c;
+  --accent-4: #6d28a8;
+
+  /* ── Mermaid flowchart node palette ── */
+  --mmd-node: #e9eef3;
+  --mmd-node-stroke: #cdd7e0;
+  --mmd-node-text: #14202b;
+  --mmd-edge: #93a3b1;
+
+  /* ── Typography — clean system stacks, CJK fallbacks preserved ── */
+  --serif: ui-serif, "Noto Serif SC", "Songti SC", serif;
+  --sans: ui-sans-serif, system-ui, "PingFang SC", "Noto Sans SC", sans-serif;
+
+  /* ── Elevation — cool ── */
+  --shadow: 0 1px 2px rgba(20, 32, 43, .05), 0 8px 28px rgba(20, 32, 43, .09);
+
+  /* convenience tints reused by the §5 rules below */
+  --accent-tint: rgba(14, 116, 144, .1);
+  --accent-tint-strong: rgba(14, 116, 144, .2);
+  --signal-tint: rgba(196, 54, 43, .08);
+
+  /* ── Derived surfaces — the ONLY home for the §5 literals, so every rule
+        body below references a token and nothing else (100% tokenized). ── */
+  --canvas-hi: #ffffff;      /* canvas top sheen */
+  --canvas-lo: var(--paper-2);  /* canvas floor */
+  --crumb-veil: rgba(247, 249, 251, .85);  /* breadcrumb fade (alpha of --paper) */
+  --tools-bg: rgba(255, 255, 255, .94);    /* pan/zoom toolbar surface */
+  --badge-ink: #ffffff;      /* text on the --accent count badge */
+}
+
+/* ── §5 literal-color rules — fully tokenized; recolor by editing :root only ── */
+.canvas { background: radial-gradient(120% 90% at 50% -10%, var(--canvas-hi) 0%, var(--paper) 46%, var(--canvas-lo) 100%); }
+.crumb { background: linear-gradient(var(--paper), var(--crumb-veil)); }
+.mmd-tools { background: var(--tools-bg); }
+.backlinks__count { color: var(--badge-ink); }
+
+/* accent tints */
+.nav-item:hover { background: var(--accent-tint); }
+.wikilink:hover { background: var(--accent-tint); }
+.mmd-tool:hover { background: var(--accent-tint); }
+.mmd-tool:active { background: var(--accent-tint-strong); }
+.markdown tbody tr:hover { background: var(--accent-tint); }
+.markdown table.wb-table tbody tr:nth-child(even) { background: var(--accent-tint); }
+.meta-chip--type { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-deep); }
+
+/* signal tints */
+.meta-chip--status { background: var(--signal-tint); border-color: var(--rust); color: var(--rust-deep); }
+.markdown blockquote { background: linear-gradient(90deg, var(--signal-tint), transparent 70%); }
+.wikilink--missing:hover { background: var(--signal-tint); }
+.mmd-alert--warn { background: var(--signal-tint); border-color: var(--rust); color: var(--rust-deep); }
+.viz-error { background: var(--signal-tint); }

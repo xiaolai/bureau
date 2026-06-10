@@ -19,17 +19,17 @@ and topical. Compile is the bridge — it consolidates many sessions into one cu
 - The set of logbook entries to process: every entry under `logbook/` whose session id is not
   yet recorded in `<workspace>/_compile-state.json`, narrowed by `--since <YYYY-MM-DD>` when
   given. `_compile-state.json` is the watermark: `{ "compiled": ["<session-id>", …] }`. It is
-  underscore-prefixed, so whiteboard never renders it.
+  underscore-prefixed, so gazette never renders it.
 
 ## Cabinet page schema
 
 A cabinet page is one markdown file in a topic drawer (`decisions/`, `architecture/`,
 `characters/`, …) holding **one claim** (see step 4 — one claim per page keeps a page's trust
-tier unambiguous). Frontmatter uses whiteboard's simple parser: the **title is unique and
+tier unambiguous). Frontmatter uses gazette's simple parser: the **title is unique and
 unquoted** and a scalar value contains no `"`, newline, or `[ ] |`. The only values that carry
 `[[ ]]` are **single-line typed relation edges** like `contradicts: [[Other page]]` (never a
 multi-line YAML list — the simple parser ignores those). Provenance lives in the **body** (a
-`Sources` line), because whiteboard's backlinks panel indexes body links, not frontmatter:
+`Sources` line), because gazette's backlinks panel indexes body links, not frontmatter:
 
 ```markdown
 ---
@@ -51,7 +51,7 @@ See [[Logbook model]].
   writes `canonical` — that tier is reached only through `bureau:review`, the human gate. A
   conflict yields `contested` (see the conflict policy).
 - The body `**Sources.**` line wiki-links the logbook entries that justify this page, each by
-  its title (`session <session-id> · <date>`). This is the provenance — whiteboard renders it as a
+  its title (`session <session-id> · <date>`). This is the provenance — gazette renders it as a
   backlink, so each session shows which cabinet pages it produced, and the page lists the
   sessions that justify it. A claim that disagrees keeps its own inline `[[session …]]` link.
 
@@ -82,7 +82,7 @@ See [[Logbook model]].
    `bureau:review`).
 7. **Apply the conflict policy** (below) whenever a new claim disagrees with a page's current
    claim.
-8. **Structural check.** Run `bureau:inspect` (whiteboard build + health). Report the page
+8. **Structural check.** Run `bureau:inspect` (gazette build + health). Report the page
    count and any dangling links, orphans, or contradictions it surfaces.
 9. **Mark compiled — only on success.** ONLY after the writes and the structural check succeed,
    append each processed session id to `<workspace>/_compile-state.json`. A failed inspect must
@@ -114,8 +114,8 @@ Instead:
 - keep both claims in the body, each with its own `[[session …]]` provenance;
 - add a typed `contradicts:` edge naming the other page — a **single line**:
   `contradicts: [[Other page]]` (for 2+, one comma list `contradicts: [[A]], [[B]]`,
-  deduped; **never** a multi-line YAML list, which whiteboard ignores). Add the reciprocal edge
-  on the other page. whiteboard's health lane then renders the contradiction;
+  deduped; **never** a multi-line YAML list, which gazette ignores). Add the reciprocal edge
+  on the other page. gazette's health lane then renders the contradiction;
 - name the conflict in the report so the human resolves it.
 
 Resolution is a human act: once the user picks the true claim, the losing claim is removed
@@ -144,7 +144,7 @@ assistant: "3 uncompiled sessions. I distilled their decisions into cabinet page
 <example>
 Context: A new session asserts a token TTL that conflicts with an existing page.
 user: "Update the cabinets from the latest session."
-assistant: "The new claim (tokens last 1h) disagrees with **Token TTL** (24h). Per the conflict policy I did not overwrite — I set the page status: contested, kept both claims with their provenance, and added a contradicts: edge so whiteboard's health flags it. Resolve it in a session, then recompile."
+assistant: "The new claim (tokens last 1h) disagrees with **Token TTL** (24h). Per the conflict policy I did not overwrite — I set the page status: contested, kept both claims with their provenance, and added a contradicts: edge so gazette's health flags it. Resolve it in a session, then recompile."
 <commentary>Disagreement never silently overwrites — it surfaces as a contested page with a contradicts edge for the human.</commentary>
 </example>
 

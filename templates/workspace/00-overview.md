@@ -25,7 +25,7 @@ traceable and regenerable in principle.
 | `bureau:compile` | distil logbook entries into cabinet pages (with provenance) |
 | `bureau:review` | the human gate — promote vetted claims to `canonical`, reject the rest |
 | `bureau:lint` | semantic consistency sweep across cabinets (contradictions, gaps, drift) |
-| `bureau:inspect` | build + open the board (whiteboard) |
+| `bureau:inspect` | build + open the board (gazette) |
 
 ## Reading this as memory — honor the trust tier
 

@@ -1,12 +1,13 @@
 ---
-description: Build the bureau board with whiteboard and open it for inspection.
+description: Build the bureau board with the bundled gazette dashboard and open it for inspection.
 argument-hint: "[--workspace <name>]"
 ---
 
 # bureau:inspect
 
-Render the workspace (cabinets + logbook) into a navigable offline board using the
-**whiteboard** engine, and open it.
+Render the workspace (cabinets + logbook) into a navigable offline board using **gazette** —
+bureau's bundled dashboard — and open it. gazette ships inside this plugin
+(`${CLAUDE_PLUGIN_ROOT}/gazette/`), so there is nothing else to install.
 
 ## Steps
 
@@ -17,35 +18,28 @@ Render the workspace (cabinets + logbook) into a navigable offline board using t
 
 2. **Read + validate config.** From `<workspace>/bureau.json` read `board` (default `board`)
    and validate it as a safe single path segment under the repo root — reject `..`/absolute
-   paths so output can't escape the repo. The board MUST be outside the workspace (whiteboard's
+   paths so output can't escape the repo. The board MUST be outside the workspace (gazette's
    `guardOutDir` enforces this too).
 
-3. **Find the whiteboard CLI — prefer installed, never an untrusted stored path.** whiteboard
-   is currently distributed as a Claude Code plugin (not yet on npm), so try, in order:
-   - the installed **whiteboard plugin's** `bin/cli.mjs` (or a `whiteboard` on `PATH`);
-   - a local checkout: `node <path>/whiteboard/bin/cli.mjs`;
-   - only if whiteboard is later published to npm, `npx @xiaolai/whiteboard@<exact-version>` —
-     pin the EXACT version you have installed, never `npx --yes`/`@latest`.
-   If you read a `whiteboardCli` value from `bureau.json`, treat it as **untrusted** — show it
-   and ask the user to confirm before executing, and never run it through a shell (use an argv
-   array). If none resolves, stop and tell the user to install whiteboard
-   (`claude plugin install whiteboard@xiaolai`).
-
-4. **Build.** Run, passing each argument separately (no shell string interpolation):
+3. **Build with the bundled gazette** — passing each argument separately (no shell string
+   interpolation):
    ```
-   <whiteboard> build --dir <workspace> --out <board>
+   node "${CLAUDE_PLUGIN_ROOT}/gazette/bin/gazette.mjs" build --dir <workspace> --out <board>
    ```
-   Report the page count from the build output.
+   gazette is a self-contained Node bundle (no `node_modules`, Node ≥18). Report the page
+   count from the build output.
 
-5. **Findings.** The build prints COUNTS only. For the detailed structural findings (which
-   dangling link, which orphan, which contradiction), run `<whiteboard> health --dir <workspace>`
-   and surface those. (Semantic findings are a separate concern — `bureau:lint`.)
+4. **Findings.** The build prints COUNTS only. For the detailed structural findings (which
+   dangling link, which orphan, which contradiction), run
+   `node "${CLAUDE_PLUGIN_ROOT}/gazette/bin/gazette.mjs" health --dir <workspace>` and surface
+   those. (Semantic findings are a separate concern — `bureau:lint`.)
 
-6. **Open.** Open `<board>/index.html` (or pass through to `whiteboard open`), or print the
-   path if no opener is available.
+5. **Open.** Open `<board>/index.html`, or print the path if no opener is available.
 
 ## Notes
 
 - This command only RENDERS. It never edits cabinets or logbook.
-- Health findings here are STRUCTURAL (whiteboard, deterministic). Semantic findings come
-  from `bureau:lint`.
+- Health findings here are STRUCTURAL (gazette, deterministic). Semantic findings come from
+  `bureau:lint`.
+- gazette is vendored into this plugin by `scripts/vendor-gazette.mjs` (regenerated from the
+  upstream renderer source); it is not a separate install.

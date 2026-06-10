@@ -1,12 +1,12 @@
 ---
 name: lint
-description: Sweep the cabinet pages for semantic inconsistencies that whiteboard's structural check cannot see — free-text contradictions, superseded claims, undocumented gaps, and vocabulary drift. Use when running bureau:lint, before a milestone, or when the user asks to check the canon for contradictions / consistency / drift.
+description: Sweep the cabinet pages for semantic inconsistencies that gazette's structural check cannot see — free-text contradictions, superseded claims, undocumented gaps, and vocabulary drift. Use when running bureau:lint, before a milestone, or when the user asks to check the canon for contradictions / consistency / drift.
 argument-hint: "[--apply] [--workspace <name>]"
 ---
 
 # Lint — semantic consistency of the canon
 
-whiteboard's health lane is mechanical: it catches dangling links, orphans, stale dates, and
+gazette's health lane is mechanical: it catches dangling links, orphans, stale dates, and
 *typed* `contradicts:` edges. It cannot read prose. Lint is the judgment layer — an LLM sweep
 that reads the cabinet pages and finds the inconsistencies that survive a structural check.
 
@@ -52,12 +52,12 @@ it states the CURRENT findings, not history (history lives in the logbook). Each
 its type, severity, the involved `[[pages]]` (body links, so they show as backlinks), and a
 one-line suggested resolution.
 
-With `--apply`, lint also writes conservative, reversible in-place markers so whiteboard's
+With `--apply`, lint also writes conservative, reversible in-place markers so gazette's
 health lane surfaces the hard cases:
 - a verified **contradiction** → set both pages `status: contested` and add a reciprocal
   single-line `contradicts: [[Other page]]` edge to each (2+ pages → one comma list
   `contradicts: [[A]], [[B]]`, deduped, preserving any existing edge; never a multi-line YAML
-  list, which whiteboard ignores). whiteboard renders the contradiction;
+  list, which gazette ignores). gazette renders the contradiction;
 - a verified **superseded** claim → set the page `status: stale`.
 Gaps and drift are report-only (creating pages or renaming a concept is a human/`compile`
 decision, never an automatic edit).
@@ -77,7 +77,7 @@ decision, never an automatic edit).
 5. **Apply markers** (only when `--apply`): set `contested`/`stale` status and `contradicts:`
    edges for verified contradictions and superseded claims. Never edit a page's prose claims —
    only its status and the contradicts edge.
-6. **Structural check.** Run `bureau:inspect`; report the contradictions whiteboard now renders
+6. **Structural check.** Run `bureau:inspect`; report the contradictions gazette now renders
    alongside the lint report.
 7. **Report.** Summarize counts by type and severity, name each `contested` page, and point the
    user at `lint/findings.md`.
@@ -103,7 +103,7 @@ assistant: "Swept the cabinets. One survivor after refutation: **Token TTL** say
 <example>
 Context: The user wants lint to also mark the hard cases so the board surfaces them.
 user: "bureau:lint --apply"
-assistant: "Same findings, plus markers: I set both TTL pages to status: contested with reciprocal contradicts: edges, so whiteboard's health lane now reports the contradiction. I changed only status and edges — never the prose claims; resolving which TTL is true is your call."
+assistant: "Same findings, plus markers: I set both TTL pages to status: contested with reciprocal contradicts: edges, so gazette's health lane now reports the contradiction. I changed only status and edges — never the prose claims; resolving which TTL is true is your call."
 <commentary>--apply writes conservative, reversible markers only; prose claims are never edited.</commentary>
 </example>
 

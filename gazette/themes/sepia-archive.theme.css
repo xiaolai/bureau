@@ -1,0 +1,89 @@
+/* whiteboard theme: Sepia Archive — Design Team — light
+ * Mood: an old paper archive. Parchment surfaces, brown ink, a dusty-teal accent for
+ * links and an oxblood signal. Warm, calm, built for long reading.
+ */
+
+:root {
+  /* ── Surfaces ── */
+  --paper: #f3e9d6;          /* page background, cards, table bg, active nav item */
+  --paper-2: #e8dabf;        /* raised: chips, inline code, table header, gradient floor */
+  --sidebar: #efe3cd;        /* left nav background */
+  --sidebar-edge: #d9c7a6;   /* sidebar right border */
+  --mmd-bg: #f6eedd;         /* surface behind diagrams / graph / code maps / canvas */
+
+  /* ── Text ── */
+  --ink: #2c2317;            /* headings, primary text, chart text */
+  --ink-soft: #4a3c29;       /* body text, nav labels, table cells */
+  --muted: #6f5e44;          /* breadcrumb, captions, backlink context */
+  --faint: #73654c;          /* group labels, [[ ]] brackets, empty states */
+
+  /* ── Lines ── */
+  --line: #e1d3b8;           /* hairlines, rule under H2 */
+  --line-strong: #cbb791;    /* table/diagram borders, dividers, scrollbar */
+
+  /* ── Accent (primary interactive hue + chart series #1) ── */
+  --accent: #4a6b6e;
+  --accent-deep: #35504f;    /* link text + `type` chip */
+
+  /* ── Signal / brand (oxblood) ── */
+  --rust: #9c3b22;           /* brand mark, active marker, blockquote rule, missing links */
+  --rust-deep: #7a2c18;      /* `status` chip text, blockquote first line */
+
+  /* ── Health status ── */
+  --ok: #5a7a3c;
+  --warn: #9c3b22;
+  --info: #4a6b6e;
+
+  /* ── Chart / graph palette ── */
+  --accent-2: #a8642e;
+  --accent-3: #7d7a35;
+  --accent-4: #7a5a8f;
+
+  /* ── Mermaid flowchart node palette ── */
+  --mmd-node: #ece0c6;
+  --mmd-node-stroke: #cbb791;
+  --mmd-node-text: #2c2317;
+  --mmd-edge: #9a8765;
+
+  /* ── Typography — Georgia body / system UI, CJK fallbacks preserved ── */
+  --serif: Georgia, "Noto Serif SC", "Songti SC", serif;
+  --sans: ui-sans-serif, -apple-system, "PingFang SC", "Noto Sans SC", sans-serif;
+
+  /* ── Elevation — warm ── */
+  --shadow: 0 1px 2px rgba(60, 44, 18, .05), 0 8px 28px rgba(60, 44, 18, .09);
+
+  /* convenience tints reused by the §5 rules below */
+  --accent-tint: rgba(74, 107, 110, .12);
+  --accent-tint-strong: rgba(74, 107, 110, .22);
+  --signal-tint: rgba(156, 59, 34, .08);
+
+  /* ── Derived surfaces — the ONLY home for the §5 literals, so every rule
+        body below references a token and nothing else (100% tokenized). ── */
+  --canvas-hi: #faf3e4;      /* canvas top sheen */
+  --canvas-lo: var(--paper-2);  /* canvas floor */
+  --crumb-veil: rgba(243, 233, 214, .85);  /* breadcrumb fade (alpha of --paper) */
+  --tools-bg: rgba(250, 243, 228, .92);    /* pan/zoom toolbar surface */
+  --badge-ink: #f6eedd;      /* text on the --accent count badge */
+}
+
+/* ── §5 literal-color rules — fully tokenized; recolor by editing :root only ── */
+.canvas { background: radial-gradient(120% 90% at 50% -10%, var(--canvas-hi) 0%, var(--paper) 46%, var(--canvas-lo) 100%); }
+.crumb { background: linear-gradient(var(--paper), var(--crumb-veil)); }
+.mmd-tools { background: var(--tools-bg); }
+.backlinks__count { color: var(--badge-ink); }
+
+/* accent tints */
+.nav-item:hover { background: var(--accent-tint); }
+.wikilink:hover { background: var(--accent-tint); }
+.mmd-tool:hover { background: var(--accent-tint); }
+.mmd-tool:active { background: var(--accent-tint-strong); }
+.markdown tbody tr:hover { background: var(--accent-tint); }
+.markdown table.wb-table tbody tr:nth-child(even) { background: var(--accent-tint); }
+.meta-chip--type { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-deep); }
+
+/* signal tints */
+.meta-chip--status { background: var(--signal-tint); border-color: var(--rust); color: var(--rust-deep); }
+.markdown blockquote { background: linear-gradient(90deg, var(--signal-tint), transparent 70%); }
+.wikilink--missing:hover { background: var(--signal-tint); }
+.mmd-alert--warn { background: var(--signal-tint); border-color: var(--rust); color: var(--rust-deep); }
+.viz-error { background: var(--signal-tint); }

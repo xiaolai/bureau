@@ -21,10 +21,10 @@ meaning, not the stub's raw bytes), then replace the body.
 
 ## Entry schema
 
-Frontmatter is whiteboard's SIMPLE parser — it does NOT strip quotes and does NOT do YAML
+Frontmatter is gazette's SIMPLE parser — it does NOT strip quotes and does NOT do YAML
 escaping. So titles are **unquoted**, every rendered value is a single safe line, and no value
 contains `"`, a newline, or `[ ] |`. The one exception is `transcript:` — a bureau-internal
-field consumed by bureau (not rendered as a clean value by whiteboard), stored as a
+field consumed by bureau (not rendered as a clean value by gazette), stored as a
 JSON-escaped string so an arbitrary path is safe.
 
 ```markdown
@@ -63,7 +63,7 @@ transcript: "<transcript path, JSON-escaped if present, else empty>"
    separate, deliberate step (`bureau:compile`).
 4. **Safe, unique title.** Use the FULL sanitized session id in the title —
    `session <safe-session-id> · <date>` — so two sessions whose ids share a prefix can't
-   collide into a duplicate title (whiteboard rejects duplicate titles). Unquoted, free of
+   collide into a duplicate title (gazette rejects duplicate titles). Unquoted, free of
    `"` / `[ ] |`. The `<id8>` short form is fine inside the body heading, not the title.
 5. **One session, one file.** Don't merge sessions; don't rewrite earlier entries.
 

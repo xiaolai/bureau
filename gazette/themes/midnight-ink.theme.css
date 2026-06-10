@@ -1,0 +1,89 @@
+/* whiteboard theme: Midnight Ink — Design Team — dark
+ * Mood: a quiet late-night reading room. Blue-charcoal surfaces, soft paper text,
+ * a warm coral signal where the cinnabar used to be. Loaded after the engine default.
+ */
+
+:root {
+  /* ── Surfaces ── */
+  --paper: #161a20;          /* page background, cards, table bg, active nav item */
+  --paper-2: #1e242c;        /* raised: chips, inline code, table header, gradient floor */
+  --sidebar: #11141a;        /* left nav background */
+  --sidebar-edge: #262d36;   /* sidebar right border */
+  --mmd-bg: #1a1f26;         /* surface behind diagrams / graph / code maps / canvas */
+
+  /* ── Text ── */
+  --ink: #eef1f5;            /* headings, primary text, chart text */
+  --ink-soft: #c9d1da;       /* body text, nav labels, table cells */
+  --muted: #8a94a1;          /* breadcrumb, captions, backlink context */
+  --faint: #7a8495;          /* group labels, [[ ]] brackets, empty states */
+
+  /* ── Lines ── */
+  --line: #262d36;           /* hairlines, rule under H2 */
+  --line-strong: #36404c;    /* table/diagram borders, dividers, scrollbar */
+
+  /* ── Accent (primary interactive hue + chart series #1) ── */
+  --accent: #6ea2d8;
+  --accent-deep: #9cc2ea;    /* link text + `type` chip — kept light for dark surfaces */
+
+  /* ── Signal / brand (the "cinnabar", warmed to coral for dark) ── */
+  --rust: #e98c63;           /* brand mark, active marker, blockquote rule, missing links */
+  --rust-deep: #f2a988;      /* `status` chip text, blockquote first line — light on dark */
+
+  /* ── Health status (mutually distinct + AA on dark) ── */
+  --ok: #5cba84;
+  --warn: #e98c63;
+  --info: #6ea2d8;
+
+  /* ── Chart / graph palette ── */
+  --accent-2: #6fcaa0;
+  --accent-3: #e0b15c;
+  --accent-4: #b69ce8;
+
+  /* ── Mermaid flowchart node palette ── */
+  --mmd-node: #222932;
+  --mmd-node-stroke: #3a4654;
+  --mmd-node-text: #eef1f5;
+  --mmd-edge: #5c6573;
+
+  /* ── Typography — system stacks, CJK fallbacks preserved ── */
+  --serif: ui-serif, "Noto Serif SC", "Songti SC", serif;
+  --sans: ui-sans-serif, -apple-system, "PingFang SC", "Noto Sans SC", sans-serif;
+
+  /* ── Elevation — recolored for dark ── */
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 28px rgba(0, 0, 0, .5);
+
+  /* convenience tints reused by the §5 rules below */
+  --accent-tint: rgba(110, 162, 216, .14);
+  --accent-tint-strong: rgba(110, 162, 216, .24);
+  --signal-tint: rgba(233, 140, 99, .14);
+
+  /* ── Derived surfaces — the ONLY home for the §5 literals, so every rule
+        body below references a token and nothing else (100% tokenized). ── */
+  --canvas-hi: #1d242d;      /* canvas top sheen */
+  --canvas-lo: #12161c;      /* canvas floor */
+  --crumb-veil: rgba(22, 26, 32, .85);   /* breadcrumb fade (alpha of --paper) */
+  --tools-bg: rgba(30, 36, 44, .92);     /* pan/zoom toolbar surface */
+  --badge-ink: #11141a;      /* text on the --accent count badge */
+}
+
+/* ── §5 literal-color rules — fully tokenized; recolor by editing :root only ── */
+.canvas { background: radial-gradient(120% 90% at 50% -10%, var(--canvas-hi) 0%, var(--paper) 46%, var(--canvas-lo) 100%); }
+.crumb { background: linear-gradient(var(--paper), var(--crumb-veil)); }
+.mmd-tools { background: var(--tools-bg); }
+.backlinks__count { color: var(--badge-ink); }
+
+/* accent tints */
+.nav-item:hover { background: var(--accent-tint); }
+.wikilink:hover { background: var(--accent-tint); }
+.mmd-tool:hover { background: var(--accent-tint); }
+.mmd-tool:active { background: var(--accent-tint-strong); }
+.markdown tbody tr:hover { background: var(--accent-tint); }
+.markdown table.wb-table tbody tr:nth-child(even) { background: var(--accent-tint); }
+.meta-chip--type { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-deep); }
+
+/* signal tints */
+.meta-chip--status { background: var(--signal-tint); border-color: var(--rust); color: var(--rust-deep); }
+.markdown blockquote { background: linear-gradient(90deg, var(--signal-tint), transparent 70%); }
+.wikilink--missing:hover { background: var(--signal-tint); }
+.mmd-alert--warn { background: var(--signal-tint); border-color: var(--rust); color: var(--rust-deep); }
+.viz-error { background: var(--signal-tint); }

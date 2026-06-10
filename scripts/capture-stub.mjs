@@ -75,7 +75,7 @@ function main() {
 
   const esc = (s) => String(s).replace(/[`\r\n]/g, " "); // keep cwd safe inside markdown backticks
   // full sanitized id (not the 8-char short) so two sessions sharing a prefix can't collide
-  // into a duplicate title — whiteboard rejects duplicate titles.
+  // into a duplicate title — gazette rejects duplicate titles.
   const title = "session " + sessionId + " · " + date; // unquoted, sanitized
   const body = [
     "---",

@@ -5,7 +5,7 @@ argument-hint: "[--apply] [--workspace <name>]"
 
 # bureau:lint
 
-Check the canon for the inconsistencies whiteboard's structural health check cannot see —
+Check the canon for the inconsistencies gazette's structural health check cannot see —
 free-text contradictions between pages, claims a newer cabinet page superseded, undocumented gaps,
 and vocabulary drift. Run it on a cadence or before a milestone, not on every edit.
 

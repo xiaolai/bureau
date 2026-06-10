@@ -1,12 +1,12 @@
 ---
-description: Scaffold a bureau workspace (cabinets + logbook) in the current repo and wire whiteboard.
+description: Scaffold a bureau workspace (cabinets + logbook) in the current repo and wire gazette.
 argument-hint: "[--workspace <name>] [--profile software|story|both]"
 ---
 
 # bureau:init
 
 Scaffold a **bureau workspace** in the current repository: the canonical cabinet drawers,
-the append-only logbook drawer, and the config whiteboard needs to render them.
+the append-only logbook drawer, and the config gazette needs to render them.
 
 ## Arguments
 
@@ -30,7 +30,7 @@ the append-only logbook drawer, and the config whiteboard needs to render them.
 3. **Copy the template (no overwrite).** Copy `${CLAUDE_PLUGIN_ROOT}/templates/workspace/`
    into `<workspace>/` without overwriting any existing file, then replace every `{{DATE}}`
    token with today's date (YYYY-MM-DD). This lays down:
-   - `_config.json` (whiteboard meta)
+   - `_config.json` (gazette meta)
    - `bureau.json` (profiles, workspace, board dir, autoCompile)
    - `00-overview.md`, `decisions/0001-adopt-bureau.md` (a starter cabinet drawer)
    - `logbook/00-logbook.md` (the history drawer landing page)
@@ -60,5 +60,5 @@ the append-only logbook drawer, and the config whiteboard needs to render them.
 
 - The workspace is the user's DATA; this plugin is the engine. Never put workspace content
   inside the plugin.
-- `board/` MUST stay outside the workspace — whiteboard's `guardOutDir` refuses an `--out`
+- `board/` MUST stay outside the workspace — gazette's `guardOutDir` refuses an `--out`
   that overlaps the content dir, which protects the SSOT from being clobbered by its render.

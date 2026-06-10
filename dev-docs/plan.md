@@ -1,20 +1,20 @@
 # bureau — plan
 
 Turn AI sessions into a maintained, inspectable canon. Engine plugin (`bureau`) + workspace
-data (`bureau/` in the user's repo) + the `whiteboard` renderer it depends on.
+data (`bureau/` in the user's repo) + the `gazette` renderer it depends on.
 
 ## Locked decisions
 
 | Decision | Choice |
 |---|---|
-| Suite name | **bureau** (whiteboard keeps its name — it's the renderer) |
+| Suite name | **bureau** (the renderer, formerly `whiteboard`, is renamed **gazette** and bundled inside) |
 | Target | **both** software + story → profile-driven schema (`bureau.json.profiles`) |
 | Capture granularity | one file per session under `logbook/YYYY/MM/` |
 | Logbook rendering | **rendered** in the board, as its own drawer/section |
 | Compile cadence | **both** — on-demand `bureau:compile` + opt-in `autoCompile` |
 
 ### Two consequences these forced
-- **Flat sections.** whiteboard makes each top-level folder a nav section, so to render
+- **Flat sections.** gazette makes each top-level folder a nav section, so to render
   topic drawers *and* a logbook section in one board, drawers are direct children of the
   content dir. "Cabinets" is the collective name for the canonical drawers; `logbook/` is a
   drawer beside them. Authority is enforced by *which skill writes which drawer* + the
@@ -47,7 +47,7 @@ flowchart LR
   S -->|bureau:file-session: rich entry| LB
   LB -->|bureau:compile| CAB[(cabinet drawers = SSOT)]
   LINT[bureau:lint] -.semantic findings.-> CAB
-  CAB -->|whiteboard build --dir bureau| BRD[board/]
+  CAB -->|gazette build --dir bureau| BRD[board/]
   classDef d fill:#eef,stroke:#88a
   class LB,CAB d
 ```
@@ -59,9 +59,9 @@ flowchart LR
 it already exists) / Changes / Open threads / Source. See `skills/capture/SKILL.md`.
 
 **Cabinet page** (SSOT): frontmatter `title/updated/status(proposed|verified|canonical|stale|contested)`; a body
-`**Sources.**` line with `[[session …]]` provenance links (in the BODY, because whiteboard's
+`**Sources.**` line with `[[session …]]` provenance links (in the BODY, because gazette's
 backlinks panel indexes body links, not frontmatter lists). A `contradicts:` typed frontmatter
-edge + `status: contested` is how an unresolved conflict surfaces — whiteboard's health lane
+edge + `status: contested` is how an unresolved conflict surfaces — gazette's health lane
 already renders it.
 
 ## Skills / commands / hooks
@@ -83,7 +83,7 @@ Trigger `bureau:compile` (on-demand; opt-in auto after capture). Read new logboo
 to the page's body `**Sources.**` provenance line. **Conflict policy:** a new fact
 contradicting a `canonical` claim does NOT silently overwrite — flip the page to
 `status: contested`, record both sides with provenance, add a `contradicts:` edge, surface to
-the human. End with a `bureau:inspect` (whiteboard build) structural check. See
+the human. End with a `bureau:inspect` (gazette build) structural check. See
 `skills/compile/SKILL.md`.
 
 ## Phase 3 — lint (semantic consistency) ✅
@@ -93,7 +93,7 @@ check). Sweeps the corpus for free-text contradictions, superseded claims, gaps,
 drift, weighted by profile. **Reuses the audit→fix→verify pattern** — find → adversarially
 refute → record only survivors (a false finding erodes trust). Writes a rendered
 `lint/findings.md` report; with `--apply`, sets verified contradictions to `status: contested`
-+ a `contradicts:` edge (whiteboard's health lane renders it) and superseded claims to `stale` —
++ a `contradicts:` edge (gazette's health lane renders it) and superseded claims to `stale` —
 status/edges only, never prose. See `skills/lint/SKILL.md`.
 
 ## Phase 4 — review (trust tiers + the human gate) ✅
@@ -108,9 +108,15 @@ staleness, presents a batch digest (facts apart from judgments), and on approval
 recall convention (in the workspace overview) makes the tier travel on every recalled claim.
 See `skills/review/SKILL.md`.
 
+## gazette (the bundled dashboard) ✅
+
+The renderer (formerly the standalone `whiteboard` plugin) is **vendored into bureau as
+`gazette`** — a self-contained esbuild bundle (`gazette/bin/gazette.mjs`, markdown-it /
+node-html-parser / sanitize-html inlined; no `node_modules`) plus `template/` + `themes/`.
+`bureau:inspect` runs it directly, so bureau is one installable plugin with nothing else to
+install. `scripts/vendor-gazette.mjs` regenerates the bundle from the upstream renderer source.
+
 ## Open / deferred
-- Whiteboard invocation wiring: npm (`npx @xiaolai/whiteboard`) vs local checkout path —
-  resolved in `bureau:inspect`, remembered in `bureau.json.whiteboardCli`.
 - Profile drawer schemas (software vs story) — starter set scaffolded by `init`; refine.
 - `autoCompile` is wired as a flag; takes effect when a future hook/command opts in.
 - Staleness re-check currently runs inside `bureau:review`; a standalone `bureau:verify` could

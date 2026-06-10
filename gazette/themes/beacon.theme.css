@@ -1,0 +1,89 @@
+/* whiteboard theme: Beacon — Design Team — light (high-contrast / accessibility-first)
+ * Mood: maximum legibility. Pure white, near-black ink, a saturated AAA blue, a true-red
+ * signal. Every text pair clears WCAG AA with headroom; signals stay distinct for CVD.
+ */
+
+:root {
+  /* ── Surfaces ── */
+  --paper: #ffffff;          /* page background, cards, table bg, active nav item */
+  --paper-2: #eef0f2;        /* raised: chips, inline code, table header, gradient floor */
+  --sidebar: #f4f6f8;        /* left nav background */
+  --sidebar-edge: #c8ced6;   /* sidebar right border */
+  --mmd-bg: #fbfcfd;         /* surface behind diagrams / graph / code maps / canvas */
+
+  /* ── Text (very high contrast on white) ── */
+  --ink: #0a0c0f;            /* headings, primary text, chart text — ~19:1 */
+  --ink-soft: #1d2228;       /* body text, nav labels, table cells — ~14:1 */
+  --muted: #4a525c;          /* breadcrumb, captions, backlink context — ~7.5:1 AAA */
+  --faint: #6b7480;          /* group labels, [[ ]] brackets — ~4.7:1, still AA body */
+
+  /* ── Lines (3:1+ so borders are visible) ── */
+  --line: #d4d9df;           /* hairlines, rule under H2 */
+  --line-strong: #aab2bc;    /* table/diagram borders, dividers, scrollbar */
+
+  /* ── Accent (primary interactive hue + chart series #1) ── */
+  --accent: #0b5fff;
+  --accent-deep: #0848c4;    /* link text + `type` chip — ~7:1 AAA */
+
+  /* ── Signal / brand (true red) ── */
+  --rust: #c80a1e;           /* brand mark, active marker, blockquote rule, missing links */
+  --rust-deep: #9c0617;      /* `status` chip text, blockquote first line */
+
+  /* ── Health status (blue/green/red — distinct by hue AND value) ── */
+  --ok: #0f7a34;
+  --warn: #c80a1e;
+  --info: #0848c4;
+
+  /* ── Chart / graph palette (blue / green / orange / purple — CVD-distinguishable) ── */
+  --accent-2: #0f7a34;
+  --accent-3: #b8480a;
+  --accent-4: #7a2fb0;
+
+  /* ── Mermaid flowchart node palette ── */
+  --mmd-node: #eef0f2;
+  --mmd-node-stroke: #aab2bc;
+  --mmd-node-text: #0a0c0f;
+  --mmd-edge: #6b7480;
+
+  /* ── Typography — system stacks, CJK fallbacks preserved ── */
+  --serif: ui-serif, Charter, "Noto Serif SC", "Songti SC", serif;
+  --sans: system-ui, -apple-system, "PingFang SC", "Noto Sans SC", sans-serif;
+
+  /* ── Elevation — crisp, slightly stronger for definition ── */
+  --shadow: 0 1px 2px rgba(10, 12, 15, .07), 0 8px 28px rgba(10, 12, 15, .13);
+
+  /* convenience tints reused by the §5 rules below */
+  --accent-tint: rgba(11, 95, 255, .12);
+  --accent-tint-strong: rgba(11, 95, 255, .22);
+  --signal-tint: rgba(200, 10, 30, .1);
+
+  /* ── Derived surfaces — the ONLY home for the §5 literals, so every rule
+        body below references a token and nothing else (100% tokenized). ── */
+  --canvas-hi: #ffffff;      /* canvas top sheen — flat white for max contrast */
+  --canvas-lo: var(--paper-2);  /* canvas floor */
+  --crumb-veil: rgba(255, 255, 255, .85);  /* breadcrumb fade (alpha of --paper) */
+  --tools-bg: rgba(255, 255, 255, .96);    /* pan/zoom toolbar surface */
+  --badge-ink: #ffffff;      /* text on the --accent count badge */
+}
+
+/* ── §5 literal-color rules — fully tokenized; recolor by editing :root only ── */
+.canvas { background: radial-gradient(120% 90% at 50% -10%, var(--canvas-hi) 0%, var(--paper) 46%, var(--canvas-lo) 100%); }
+.crumb { background: linear-gradient(var(--paper), var(--crumb-veil)); }
+.mmd-tools { background: var(--tools-bg); }
+.backlinks__count { color: var(--badge-ink); }
+
+/* accent tints */
+.nav-item:hover { background: var(--accent-tint); }
+.wikilink:hover { background: var(--accent-tint); }
+.mmd-tool:hover { background: var(--accent-tint); }
+.mmd-tool:active { background: var(--accent-tint-strong); }
+.markdown tbody tr:hover { background: var(--accent-tint); }
+.markdown table.wb-table tbody tr:nth-child(even) { background: var(--accent-tint); }
+.meta-chip--type { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-deep); }
+
+/* signal tints */
+.meta-chip--status { background: var(--signal-tint); border-color: var(--rust); color: var(--rust-deep); }
+.markdown blockquote { background: linear-gradient(90deg, var(--signal-tint), transparent 70%); }
+.wikilink--missing:hover { background: var(--signal-tint); }
+.mmd-alert--warn { background: var(--signal-tint); border-color: var(--rust); color: var(--rust-deep); }
+.viz-error { background: var(--signal-tint); }
