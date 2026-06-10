@@ -25,15 +25,17 @@ data (`bureau/` in the user's repo) + the `whiteboard` renderer it depends on.
 
 ## Authority model
 
-- `cabinets/` (canonical drawers) — **authoritative** for *what's true now*. Co-authored,
-  consistency-gated. Regenerable in principle.
+- **cabinets** (the canonical topic drawers — direct children of the content dir, e.g.
+  `decisions/`, `architecture/`; there is no `cabinets/` folder) — **authoritative** for
+  *what's true now*. Co-authored, consistency-gated. Regenerable in principle.
 - `logbook/` — **low authority**, faithful append-only record of *how we know / when it
   entered*. The provenance every cabinet claim links back to.
 
 **Trust tiers (Phase 4).** Authority inside the cabinets is graded by the `status:` of each
 page: `proposed` (AI claim, unchecked) → `verified` (auto-checked against the repo) →
 `canonical` (human-approved, the only tier recalled as fact); plus `stale` (a verified source
-changed) and `contested` (lint conflict). AI writes only `proposed`/`verified`; the
+changed, or a superseded claim) and `contested` (compile or lint finds a conflict). AI tools
+write `proposed`/`verified`/`stale`/`contested`; only review writes `canonical`. The
 `proposed → review → canonical` gate is the double-check. The recall convention requires any
 reader to honor the tier on every claim — `proposed`/`stale`/`contested` are never fact.
 
@@ -53,10 +55,10 @@ flowchart LR
 ## On-disk formats
 
 **Logbook entry** (append-only): frontmatter `title/updated/status:logbook/session/transcript`
-+ body sections Intent / Decisions (each `→ [[Cabinet page]]`) / Changes / Open threads /
-Source. See `skills/capture/SKILL.md`.
++ body sections Intent / Decisions (each names the cabinet page it implies; `[[link]]` only if
+it already exists) / Changes / Open threads / Source. See `skills/capture/SKILL.md`.
 
-**Cabinet page** (SSOT): frontmatter `title/updated/status(canonical|draft|contested)`; a body
+**Cabinet page** (SSOT): frontmatter `title/updated/status(proposed|verified|canonical|stale|contested)`; a body
 `**Sources.**` line with `[[session …]]` provenance links (in the BODY, because whiteboard's
 backlinks panel indexes body links, not frontmatter lists). A `contradicts:` typed frontmatter
 edge + `status: contested` is how an unresolved conflict surfaces — whiteboard's health lane

@@ -14,11 +14,14 @@ rest. The cabinets double as repo memory, so an un-reviewed claim is an unverifi
 
 | tier | meaning | written by | recalled as |
 |------|---------|------------|-------------|
-| `proposed` | AI claim, unchecked | capture / compile | "unverified — verify before relying" |
+| `proposed` | AI claim, unchecked | compile | "unverified — verify before relying" |
 | `verified` | passed an automatic ground-truth check | compile | "checked against the repo on `<date>`" |
-| `canonical` | a human approved it | **review** (this skill) | fact |
-| `stale` | a verified source changed since the check | staleness check | "was true on `<date>` — re-verify" |
-| `contested` | two claims disagree | lint | "disputed — do not rely" |
+| `canonical` | a human approved it | **review** (this skill) only | fact |
+| `stale` | a verified source changed / a claim was superseded | review's staleness re-check; lint (`--apply`) | "was true on `<date>` — re-verify" |
+| `contested` | two claims disagree | compile (conflict); lint (`--apply`) | "disputed — do not rely" |
+
+(Capture writes the logbook, never a cabinet page — only compile, lint, and review touch a
+page's `status:`.)
 
 Only `canonical` is recalled as fact. Everything else carries its tier as a warning. The AI
 never writes `canonical` itself — that tier exists only on the far side of this gate.
@@ -27,25 +30,34 @@ never writes `canonical` itself — that tier exists only on the far side of thi
 
 1. **Locate the workspace** (`bureau.json`; default `bureau`). If none, tell the user to run
    `bureau:init` first and stop.
-2. **Re-check staleness first.** For each `verified`/`canonical` page, recompute the source
-   fingerprints recorded in `<workspace>/_verify.json` (path → content hash at check
-   time). Any page whose source changed is demoted to `stale` and added to the queue. If
-   `_verify.json` is absent, skip this step.
+2. **Re-check staleness first.** For each `verified`/`canonical` page, read its recorded
+   fingerprints from `<workspace>/_verify.json` (keyed by page title → checks of
+   `{artifact, hash}`). **Before reading any recorded artifact, resolve it and confirm it stays
+   inside the repo/workspace** — reject absolute paths, `..` escapes, and symlinks pointing
+   outside; skip (do not read) any path that fails, and flag the page as `stale` because its
+   evidence can't be trusted. Recompute the hash of each contained artifact; any page whose
+   hash changed is demoted to `stale` and added to the queue. If `_verify.json` is absent, skip
+   this step.
 3. **Build the queue.** Collect every cabinet page at tier `proposed`, `verified`, or `stale`
    (i.e. not yet `canonical`, or fallen out of it). If the queue is empty, report "nothing to
    review — the canon is approved and current" and stop.
-4. **Present a batch digest.** For each queued claim show, in one compact block:
-   - the claim and its page;
+4. **Present a batch digest.** Review is **page-level** — a page is one claim (compile keeps it
+   so), and its `status:` is the page's tier. For each queued page show, in one compact block:
+   - the page and its claim;
    - its **provenance** — the `[[session …]]` it traces to (and whether that link resolves);
    - its **check result** — `verified against <artifact>` for an auto-checked fact, or
      `unverifiable (judgment — needs your eye)` for rationale/design claims.
-   Group facts (auto-verified) separately from judgments (need human reasoning), because the
-   judgments are the ones that actually need the human.
-5. **Take the human's decision** per claim (ask in batches, not one-by-one):
-   - **approve** → set the page `status: canonical`, stamp `verified:` with today's date;
-   - **reject** → remove the claim (delete the page, or strike the claim and keep the rest),
-     and append a one-line note to the current logbook entry recording what was rejected and
-     why. The provenance stays in the logbook — rejection is not erasure of history.
+   Group facts (auto-verified) apart from judgments (need human reasoning) — the judgments are
+   the ones that actually need the human.
+5. **Take the human's decision** per page (ask in batches, not one-by-one):
+   - **approve** → set the page `status: canonical` and stamp `reviewed:` with today's date
+     (`reviewed:`, NOT `verified:` — `verified` is the automatic-check tier, `reviewed` is the
+     human stamp);
+   - **reject** → confirm first, then remove the claim. If the page holds ONLY this claim,
+     delete the page; if it carries other claims or provenance, strike just this claim and keep
+     the rest — never delete unrelated content. Record the rejection by **appending a new
+     logbook entry** (a short `review` entry naming what was rejected and why) — do NOT rewrite
+     an existing logbook entry; the logbook is append-only history.
 6. **Structural check.** Run `bureau:inspect`; report the board state.
 7. **Report.** Counts approved / rejected / left pending, and the path to anything still
    `contested` (those are resolved by re-deciding in a session, not by review).
@@ -69,8 +81,9 @@ an unverified claim can never masquerade as truth.
 ## Rules
 
 1. **Human-gated.** Only this skill writes `canonical`, and only on an explicit human approval.
-2. **Reject logs, never erases.** A rejected claim leaves a logbook note; the session history
-   stays intact.
+2. **Reject is guarded and logged, never silent erasure.** Confirm before removing; delete a
+   page only when it holds no other claim; otherwise strike just the rejected claim. Record the
+   rejection by appending a NEW logbook entry — existing entries are never rewritten.
 3. **No prose invention.** Review promotes, demotes, or removes claims — it does not author new
    ones. New claims come from `compile`.
 4. **Stale before approve.** Re-check fingerprints (step 2) before presenting the queue, so the
@@ -79,7 +92,7 @@ an unverified claim can never masquerade as truth.
 ## Examples
 
 <example>
-Context: After a compile run, several cabinet pages sit at `proposed`/`verified`.
+Context: After a compile run, three cabinet pages sit at `proposed`/`verified`.
 user: "bureau:review"
 assistant: "I'll re-check staleness, then show the queue. 3 claims pending — 2 facts auto-verified against the repo (build command, dep version), 1 judgment ('the queue module is fragile') that needs your call. Approve the two facts and the judgment? You approved the facts; I set them canonical. You rejected the judgment; I removed it and logged the rejection to today's logbook entry."
 <commentary>The gate promotes vetted claims to canonical and logs rejections — facts and judgments are presented apart because only the judgment needs human reasoning.</commentary>

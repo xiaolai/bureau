@@ -22,12 +22,14 @@ meaning, not the stub's raw bytes), then replace the body.
 ## Entry schema
 
 Frontmatter is whiteboard's SIMPLE parser — it does NOT strip quotes and does NOT do YAML
-escaping. So titles are **unquoted**, every value is a single safe line, and no value contains
-`"`, a newline, or `[ ] |`.
+escaping. So titles are **unquoted**, every rendered value is a single safe line, and no value
+contains `"`, a newline, or `[ ] |`. The one exception is `transcript:` — a bureau-internal
+field consumed by bureau (not rendered as a clean value by whiteboard), stored as a
+JSON-escaped string so an arbitrary path is safe.
 
 ```markdown
 ---
-title: session <id8> · <YYYY-MM-DD>
+title: session <safe-session-id> · <YYYY-MM-DD>
 updated: <YYYY-MM-DD>
 status: logbook
 session: <safe-session-id>
@@ -59,8 +61,10 @@ transcript: "<transcript path, JSON-escaped if present, else empty>"
    page name as plain text. `bureau:compile` creates the page and wires the provenance later.
 3. **No canon writes.** Capture NEVER edits cabinet pages. Distillation into the SSOT is a
    separate, deliberate step (`bureau:compile`).
-4. **Safe, unique title.** `session <id8> · <date>` is unique per session, unquoted, and free
-   of `"` / `[ ] |`. The `<id8>` is the first 8 chars of the SANITIZED id.
+4. **Safe, unique title.** Use the FULL sanitized session id in the title —
+   `session <safe-session-id> · <date>` — so two sessions whose ids share a prefix can't
+   collide into a duplicate title (whiteboard rejects duplicate titles). Unquoted, free of
+   `"` / `[ ] |`. The `<id8>` short form is fine inside the body heading, not the title.
 5. **One session, one file.** Don't merge sessions; don't rewrite earlier entries.
 
 ## What this is NOT

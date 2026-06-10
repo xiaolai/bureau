@@ -7,9 +7,10 @@ updated: {{DATE}}
 
 This is a **bureau** workspace — the durable canon distilled from your AI sessions.
 
-- **Cabinets** are the canonical drawers (this folder's siblings: `decisions/`, and
-  whatever topic drawers you add — `architecture/`, `characters/`, `timeline/`, …).
-  They are the SSOT: *what is true now*. Co-authored by you and the LLM, consistency-checked.
+- **Cabinets** are the memory drawers (this folder's siblings: `decisions/`, and whatever
+  topic drawers you add — `architecture/`, `characters/`, `timeline/`, …). They are the SSOT,
+  but **read each claim by its `status:`** — only `canonical` pages are settled fact; the rest
+  are proposed, verified-not-approved, stale, or contested (see the trust-tier table below).
 - **[[Logbook]]** is the append-only history: *how we know / when it entered*. Low
   authority, faithful record. One entry per session.
 
@@ -39,5 +40,6 @@ approved it**. Every page carries a `status:`; honor it on every recalled claim:
 | `stale` | a verified source changed | outdated — re-verify |
 | `contested` | two claims disagree | disputed — do not rely |
 
-AI writes only `proposed`/`verified`; only `bureau:review` writes `canonical`. Never treat a
-`proposed`, `stale`, or `contested` claim as fact.
+AI tools write `proposed`/`verified` and `contested` (compile), `contested`/`stale` (lint
+`--apply`), and `stale` (review's staleness re-check); only `bureau:review` — a human — writes
+`canonical`. Never treat a `proposed`, `stale`, or `contested` claim as fact.

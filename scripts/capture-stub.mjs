@@ -74,7 +74,9 @@ function main() {
   if (!dirReal || !wsReal || !(dirReal === wsReal || dirReal.startsWith(wsReal + sep))) return;
 
   const esc = (s) => String(s).replace(/[`\r\n]/g, " "); // keep cwd safe inside markdown backticks
-  const title = "session " + short + " · " + date; // unquoted, sanitized — whiteboard keeps quotes literally
+  // full sanitized id (not the 8-char short) so two sessions sharing a prefix can't collide
+  // into a duplicate title — whiteboard rejects duplicate titles.
+  const title = "session " + sessionId + " · " + date; // unquoted, sanitized
   const body = [
     "---",
     "title: " + title,

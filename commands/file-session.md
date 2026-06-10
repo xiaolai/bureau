@@ -24,5 +24,5 @@ Follow the protocol in the **capture** skill (`skills/capture/SKILL.md`). In sho
    only if that page **already exists** — otherwise write the target as plain text so the
    logbook doesn't ship dangling links (compile will create and link it).
 5. Append-only in spirit: do not edit OTHER sessions' entries.
-6. Do NOT touch cabinet pages — distilling into the canon is `bureau:compile` (planned).
+6. Do NOT touch cabinet pages — distilling into the canon is `bureau:compile`.
 7. Report the entry path.

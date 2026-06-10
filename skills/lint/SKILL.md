@@ -17,8 +17,9 @@ It is the right-hand column of the consistency table: judgment, not mechanism.
 
 1. **Contradiction** — two cabinet pages assert claims that cannot both be true (e.g. page A
    says auth tokens last 24h, page B says 1h).
-2. **Superseded** — a page's settled (`verified`/`canonical`) claim is obsoleted by a later
-   logbook entry or a newer page; the canon still states the old truth.
+2. **Superseded** — a page's settled (`verified`/`canonical`) claim is obsoleted by a newer
+   cabinet page on the same topic; the canon still states the old truth. (Lint reads the
+   cabinets, not the logbook — superseded evidence is cabinet-vs-cabinet.)
 3. **Gap** — a concept referenced across pages but never defined on its own page.
 4. **Drift** — one concept named differently across pages (vocabulary drift: "cabinet" vs
    "drawer" vs "page" for the same thing).
@@ -53,8 +54,10 @@ one-line suggested resolution.
 
 With `--apply`, lint also writes conservative, reversible in-place markers so whiteboard's
 health lane surfaces the hard cases:
-- a verified **contradiction** → set both pages `status: contested` and add a
-  `contradicts: [[Other page]]` frontmatter edge to each (whiteboard renders a contradiction);
+- a verified **contradiction** → set both pages `status: contested` and add a reciprocal
+  single-line `contradicts: [[Other page]]` edge to each (2+ pages → one comma list
+  `contradicts: [[A]], [[B]]`, deduped, preserving any existing edge; never a multi-line YAML
+  list, which whiteboard ignores). whiteboard renders the contradiction;
 - a verified **superseded** claim → set the page `status: stale`.
 Gaps and drift are report-only (creating pages or renaming a concept is a human/`compile`
 decision, never an automatic edit).
@@ -63,8 +66,10 @@ decision, never an automatic edit).
 
 1. **Locate the workspace** (`bureau.json`; default `bureau`). If none, tell the user to run
    `bureau:init` first and stop.
-2. **Read the cabinets.** Load every cabinet drawer (exclude `logbook/` and the rendered
-   `board/`). If there are no cabinet pages yet, report "no cabinets to lint" and stop.
+2. **Read the cabinets.** Load every cabinet drawer, EXCLUDING `logbook/`, the rendered
+   `board/`, `lint/` (lint's own findings — never lint the findings), and every
+   `_`-prefixed file/dir (state ledgers, not canon). If there are no cabinet pages yet, report
+   "no cabinets to lint" and stop.
 3. **Find + refute.** Run the find→refute→record loop above for all four finding types,
    weighted by the active profiles.
 4. **Write the report.** Write `lint/findings.md` with the surviving findings; if none survive,

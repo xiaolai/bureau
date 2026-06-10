@@ -39,7 +39,7 @@ Render the workspace (cabinets + logbook) into a navigable offline board using t
 
 5. **Findings.** The build prints COUNTS only. For the detailed structural findings (which
    dangling link, which orphan, which contradiction), run `<whiteboard> health --dir <workspace>`
-   and surface those. (Semantic findings are a separate concern — `bureau:lint`, planned.)
+   and surface those. (Semantic findings are a separate concern — `bureau:lint`.)
 
 6. **Open.** Open `<board>/index.html` (or pass through to `whiteboard open`), or print the
    path if no opener is available.
@@ -48,4 +48,4 @@ Render the workspace (cabinets + logbook) into a navigable offline board using t
 
 - This command only RENDERS. It never edits cabinets or logbook.
 - Health findings here are STRUCTURAL (whiteboard, deterministic). Semantic findings come
-  from `bureau:lint` (planned).
+  from `bureau:lint`.
