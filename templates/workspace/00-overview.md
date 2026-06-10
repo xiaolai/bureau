@@ -22,5 +22,5 @@ traceable and regenerable in principle.
 |---------|------|
 | `bureau:file-session` | write the rich logbook entry for the current session |
 | `bureau:compile` | distil logbook entries into cabinet pages (with provenance) |
-| `bureau:lint` | semantic consistency sweep across cabinets — _planned (Phase 3)_ |
+| `bureau:lint` | semantic consistency sweep across cabinets (contradictions, gaps, drift) |
 | `bureau:inspect` | build + open the board (whiteboard) |

@@ -64,7 +64,7 @@ already renders it.
 | `commands/file-session.md` + `skills/capture` | 1 | ✅ |
 | `hooks/hooks.json` + `scripts/capture-stub.mjs` (SessionEnd → stub) | 1 | ✅ tested |
 | `commands/compile.md` + `skills/compile` | 2 | ✅ |
-| `bureau:lint` skill | 3 | ☐ |
+| `commands/lint.md` + `skills/lint` | 3 | ✅ |
 
 ## Phase 2 — compile (the Karpathy compiler) ✅
 
@@ -76,13 +76,15 @@ contradicting a `canonical` claim does NOT silently overwrite — flip the page 
 the human. End with a `bureau:inspect` (whiteboard build) structural check. See
 `skills/compile/SKILL.md`.
 
-## Phase 3 — lint (semantic consistency)
+## Phase 3 — lint (semantic consistency) ✅
 
 Trigger `bureau:lint` (cadence / pre-milestone — NOT every keystroke; this is the LLM-judgment
-check). Sweep the whole corpus for free-text contradictions, superseded claims, gaps, and
-vocabulary drift. **Reuse the audit→fix→verify pattern** (fan-out finders + adversarial verify
-before writing a finding; `Workflow` for parallel sweeps). Findings land as `contested`/health
-items that whiteboard renders. Profile-aware: load the rule-set(s) named in `bureau.json`.
+check). Sweeps the corpus for free-text contradictions, superseded claims, gaps, and vocabulary
+drift, weighted by profile. **Reuses the audit→fix→verify pattern** — find → adversarially
+refute → record only survivors (a false finding erodes trust). Writes a rendered
+`lint/findings.md` report; with `--apply`, sets verified contradictions to `status: contested`
++ a `contradicts:` edge (whiteboard's health lane renders it) and superseded claims to `draft` —
+status/edges only, never prose. See `skills/lint/SKILL.md`.
 
 ## Open / deferred
 - Whiteboard invocation wiring: npm (`npx @xiaolai/whiteboard`) vs local checkout path —

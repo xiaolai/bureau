@@ -50,15 +50,15 @@ append-only history. Every cabinet claim links back to the logbook entry that in
 | `bureau:inspect` | build + open the board | 0 |
 | `bureau:file-session` | write the rich logbook entry for the current session | 1 |
 | `bureau:compile` | distil logbook entries into cabinet pages (with provenance) | 2 |
-| `bureau:lint` | semantic consistency sweep across the cabinets | 3 (planned) |
+| `bureau:lint` | semantic consistency sweep across the cabinets | 3 |
 
 A `SessionEnd` hook also writes a mechanical logbook **stub** automatically, so no session is
 ever lost even if you forget to file it.
 
 ## Status
 
-Phases 0–2 (init, capture, inspect, compile) implemented. Lint (3) — the semantic-consistency
-sweep — is planned; see `dev-docs/plan.md`.
+Phases 0–3 implemented (init, capture, inspect, compile, lint) — the full
+capture → compile → lint → inspect loop. See `dev-docs/plan.md`.
 
 ## Requirements
 
