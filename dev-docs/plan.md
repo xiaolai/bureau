@@ -49,10 +49,11 @@ flowchart LR
 + body sections Intent / Decisions (each `→ [[Cabinet page]]`) / Changes / Open threads /
 Source. See `skills/capture/SKILL.md`.
 
-**Cabinet page** (SSOT): frontmatter `title/updated/status(canonical|draft|contested)/sources`
-where `sources:` are `[[logbook/…]]` provenance links. A `contradicts:` typed edge +
-`status: contested` is how an unresolved conflict surfaces — whiteboard's health lane already
-renders it.
+**Cabinet page** (SSOT): frontmatter `title/updated/status(canonical|draft|contested)`; a body
+`**Sources.**` line with `[[session …]]` provenance links (in the BODY, because whiteboard's
+backlinks panel indexes body links, not frontmatter lists). A `contradicts:` typed frontmatter
+edge + `status: contested` is how an unresolved conflict surfaces — whiteboard's health lane
+already renders it.
 
 ## Skills / commands / hooks
 
@@ -62,17 +63,18 @@ renders it.
 | `commands/inspect.md` | 0 | ✅ |
 | `commands/file-session.md` + `skills/capture` | 1 | ✅ |
 | `hooks/hooks.json` + `scripts/capture-stub.mjs` (SessionEnd → stub) | 1 | ✅ tested |
-| `bureau:compile` skill | 2 | ☐ |
+| `commands/compile.md` + `skills/compile` | 2 | ✅ |
 | `bureau:lint` skill | 3 | ☐ |
 
-## Phase 2 — compile (the Karpathy compiler)
+## Phase 2 — compile (the Karpathy compiler) ✅
 
 Trigger `bureau:compile` (on-demand; opt-in auto after capture). Read new logbook entries
-(+ raw sources) → write/update the ~10–15 affected cabinet pages, update each drawer's index,
-maintain backlinks, set `sources:` provenance. **Conflict policy:** a new fact contradicting a
-`canonical` claim does NOT silently overwrite — flip the page to `status: contested`, record
-both sides with provenance, add a `contradicts:` edge, surface to the human. End with a
-`whiteboard build` structural check.
+(tracked by `_compile-state.json`) → write/update the affected cabinet pages, add each session
+to the page's body `**Sources.**` provenance line. **Conflict policy:** a new fact
+contradicting a `canonical` claim does NOT silently overwrite — flip the page to
+`status: contested`, record both sides with provenance, add a `contradicts:` edge, surface to
+the human. End with a `bureau:inspect` (whiteboard build) structural check. See
+`skills/compile/SKILL.md`.
 
 ## Phase 3 — lint (semantic consistency)
 

@@ -21,6 +21,6 @@ traceable and regenerable in principle.
 | Command | Does |
 |---------|------|
 | `bureau:file-session` | write the rich logbook entry for the current session |
-| `bureau:compile` | distil logbook entries into cabinet pages — _planned (Phase 2)_ |
+| `bureau:compile` | distil logbook entries into cabinet pages (with provenance) |
 | `bureau:lint` | semantic consistency sweep across cabinets — _planned (Phase 3)_ |
 | `bureau:inspect` | build + open the board (whiteboard) |
