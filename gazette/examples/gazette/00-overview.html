@@ -1,0 +1,27 @@
+<article data-title="Overview" data-icon="home" data-type="panorama" data-status="draft" data-updated="2026-06-01">
+  <h1>Sample City · Overview</h1>
+  <blockquote><p>This is the gazette demo board. Edit <code>examples/docs/*.html</code>, run <code>gazette build</code>, refresh.</p></blockquote>
+  <p>The protagonist is [[Lin]], plus a not-yet-created [[Stranger]] (flagged red — missing).</p>
+
+  <h2>Words per chapter</h2>
+  <div class="viz" data-type="chart" data-kind="bar" data-format="csv">chapter,words
+1,3200
+2,4100
+3,3850
+4,5200</div>
+
+  <h2>Cast</h2>
+  <div class="viz" data-type="table" data-format="csv">name,role,chapters
+Lin,protagonist,12
+Wei,foil,9
+Court,faction,6</div>
+
+  <h2>Relations</h2>
+  <div class="viz" data-type="graph" data-format="json" data-directed>{"nodes":["Lin","Wei","Court"],"edges":[["Lin","Wei"],["Wei","Court"],["Court","Lin"]]}</div>
+
+  <h2>Structure</h2>
+  <div class="mermaid">graph LR
+  A[Start] --> B[Develop] --> C[Turn] --> D[Resolve]</div>
+
+  <p>See the Timeline group on the left (auto-generated from <code>data/cold-events.md</code>).</p>
+</article>

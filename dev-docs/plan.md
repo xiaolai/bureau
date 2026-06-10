@@ -7,7 +7,7 @@ data (`bureau/` in the user's repo) + the `gazette` renderer it depends on.
 
 | Decision | Choice |
 |---|---|
-| Suite name | **bureau** (the renderer, formerly `whiteboard`, is renamed **gazette** and bundled inside) |
+| Suite name | **bureau**; its bundled renderer/dashboard is **gazette** (`gazette/`, owned by bureau) |
 | Target | **both** software + story → profile-driven schema (`bureau.json.profiles`) |
 | Capture granularity | one file per session under `logbook/YYYY/MM/` |
 | Logbook rendering | **rendered** in the board, as its own drawer/section |
@@ -110,11 +110,15 @@ See `skills/review/SKILL.md`.
 
 ## gazette (the bundled dashboard) ✅
 
-The renderer (formerly the standalone `whiteboard` plugin) is **vendored into bureau as
-`gazette`** — a self-contained esbuild bundle (`gazette/bin/gazette.mjs`, markdown-it /
-node-html-parser / sanitize-html inlined; no `node_modules`) plus `template/` + `themes/`.
-`bureau:inspect` runs it directly, so bureau is one installable plugin with nothing else to
-install. `scripts/vendor-gazette.mjs` regenerates the bundle from the upstream renderer source.
+The renderer/dashboard is **gazette**, owned by bureau under `gazette/` — source (`src/`,
+`bin/cli.mjs`, `package.json`) plus the committed self-contained run artifact
+`bin/gazette.mjs`: an esbuild bundle with markdown-it / node-html-parser / sanitize-html
+inlined (createRequire banner so postcss's dynamic require resolves), so it runs on Node ≥18
+with **no `node_modules`**. Plus `template/` + `themes/`. `bureau:inspect` runs the bundle
+directly, so bureau is one installable plugin with nothing else to install. Rebuild after
+editing the source: `cd gazette && npm install --omit=dev` then
+`node scripts/build-gazette.mjs`. bureau has **no external renderer dependency** — gazette is
+fully in-tree.
 
 ## Open / deferred
 - Profile drawer schemas (software vs story) — starter set scaffolded by `init`; refine.

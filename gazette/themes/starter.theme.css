@@ -1,8 +1,8 @@
-/* whiteboard theme: <NAME> — <author> — light|dark
+/* gazette theme: <NAME> — <author> — light|dark
  * Copy this file to your project root as `theme.css`, then change the VALUES.
  * It is loaded after the engine's default theme, so your :root wins everywhere.
  * Spec: dev-docs/theme-spec.md   ·   Constraints: offline, CJK fallbacks, WCAG AA.
- * Preview:  whiteboard build --docs examples/docs --data examples/data --out /tmp/preview
+ * Preview:  gazette build --docs examples/docs --data examples/data --out /tmp/preview
  */
 
 :root {

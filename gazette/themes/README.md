@@ -1,4 +1,4 @@
-# whiteboard themes
+# gazette themes
 
 Ready-to-use full themes for the board. Each is a single self-contained CSS file
 that re-skins the whole UI (surfaces, text, accents, charts, diagrams) with no
@@ -9,9 +9,9 @@ engine changes.
 Copy one into your project root as `theme.css`, then build:
 
 ```bash
-cp "$(npm root)/@xiaolai/whiteboard/themes/midnight-ink.theme.css" theme.css   # npm
+cp "$(npm root)/@xiaolai/gazette/themes/midnight-ink.theme.css" theme.css   # npm
 # …or from the plugin cache / repo: copy themes/<name>.theme.css → <project>/theme.css
-whiteboard build      # the build reports "theme.css override" and skins dist/
+gazette build      # the build reports "theme.css override" and skins dist/
 ```
 
 The file is loaded after the engine's default theme, so it wins everywhere. It

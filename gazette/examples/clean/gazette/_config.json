@@ -1,0 +1,7 @@
+{
+  "meta": { "title": "clean sample", "subtitle": "clean corpus", "home": "Overview" },
+  "groups": [
+    { "id": "overview", "label": "Overview" },
+    { "id": "node", "label": "Nodes" }
+  ]
+}

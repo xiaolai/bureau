@@ -1,0 +1,7 @@
+{
+  "meta": { "title": "golden", "subtitle": "golden test corpus", "home": "Overview" },
+  "groups": [
+    { "id": "overview", "label": "Overview" },
+    { "id": "character", "label": "Characters" }
+  ]
+}

@@ -1,4 +1,4 @@
-/* whiteboard default theme — paper / ink / cinnabar (warm white). :root vars are generated
+/* gazette default theme — paper / ink / cinnabar (warm white). :root vars are generated
    by src/services/theme.mjs at build time (single token source); a project may add theme.json (token override) or theme.css (full override). */
 /*@TOKENS@*/
 * { box-sizing: border-box; }

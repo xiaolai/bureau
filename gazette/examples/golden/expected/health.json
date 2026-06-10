@@ -1,0 +1,47 @@
+{
+  "contradiction": [
+    {
+      "a": "Hero",
+      "b": "Villain"
+    }
+  ],
+  "counts": {
+    "contradiction": 1,
+    "dangling": 1,
+    "drift": 0,
+    "invalidDate": 0,
+    "orphan": 1,
+    "schema": 1,
+    "stale": 1
+  },
+  "dangling": [
+    {
+      "edgeType": null,
+      "source": "Hero",
+      "target": "OldName"
+    }
+  ],
+  "drift": [],
+  "invalidDate": [],
+  "now": "2026-06-09",
+  "orphan": [
+    {
+      "node": "Orphan"
+    }
+  ],
+  "schema": [
+    {
+      "key": "rival",
+      "kind": "unknownEdge",
+      "node": "Villain"
+    }
+  ],
+  "stale": [
+    {
+      "newerNeighbor": "Hero",
+      "node": "Stale",
+      "updated": "2026-01-01"
+    }
+  ],
+  "staleWindowDays": 30
+}
