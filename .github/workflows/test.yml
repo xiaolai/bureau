@@ -1,0 +1,36 @@
+name: test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch: {}   # manual trigger for the live behavioral layer (needs an API key)
+
+jobs:
+  # The deterministic pyramid — runs on every push/PR, no API key, always green or red.
+  deterministic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: L0 static · L1 units (scripts + gazette) · L3 judge self-test
+        run: node test/run.mjs
+
+  # The live behavioral layer — `claude -p` driving real flows, judged on side-effects + trace.
+  # On-demand only (it costs tokens); set the ANTHROPIC_API_KEY repo secret.
+  behavioral:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install the claude CLI
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Live E2E (claude -p + judges)
+        run: node test/run.mjs --e2e
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BUREAU_PLUGIN_REF: bureau@xiaolai

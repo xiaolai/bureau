@@ -1,0 +1,12 @@
+{
+  "name": "bureau",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Test entry for the bureau plugin. The plugin itself is loaded by Claude Code from .claude-plugin/; this package.json only provides `npm test`.",
+  "type": "module",
+  "scripts": {
+    "test": "node test/run.mjs",
+    "test:e2e": "node test/run.mjs --e2e"
+  },
+  "license": "MIT"
+}
