@@ -1,2 +1,5 @@
 # internal development notes — not shipped
 /dev-docs/
+
+# bureau board (derived from canon/ — rebuild with bureau:inspect)
+/board/

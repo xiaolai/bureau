@@ -20,6 +20,7 @@ step("L1 · gazette renderer", () => {
   run("node", ["--test"], { cwd: join(ROOT, "gazette") });
 });
 step("L3 · judge self-test (deterministic)", () => run("node", ["--test", "test/e2e/judges.test.mjs"]));
+step("L1 · self-canon fixture (dogfood)", () => run("node", ["--test", "test/canon.test.mjs"]));
 
 if (process.argv.includes("--e2e"))
   step("L3 · live behavioral (claude -p)", () => run("node", ["test/e2e/harness.mjs"]));
