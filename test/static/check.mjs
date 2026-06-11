@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // L0 — static structural gate. Deterministic, free, no LLM. Fails loud (exit 1) on any defect.
-// Validates: JSON parses; command/skill frontmatter; cross-references resolve; hook scripts
-// exist; the gazette bundle is present; no stray template tokens in shipped files.
+// Validates: JSON parses; command/skill LEADING frontmatter blocks (required keys, parsed from
+// the block — not a stray body `---`); command→skill cross-references resolve; every hook command
+// references a script that exists; the gazette bundle ships; the recall-rule template keeps its
+// substitution token.
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +14,20 @@ const fail = (m) => fails.push(m);
 const read = (p) => readFileSync(join(ROOT, p), "utf8");
 const ls = (p) => (existsSync(join(ROOT, p)) ? readdirSync(join(ROOT, p)) : []);
 
+// Extract the LEADING YAML frontmatter block as a key→value map, or null if the file does not
+// open with a properly-delimited `---\n … \n---` block. Anchored at char 0 so a `---` rule that
+// appears later in the body can never be mistaken for frontmatter.
+function leadingFrontmatter(s) {
+  const m = /^---\n([\s\S]*?)\n---(\n|$)/.exec(s);
+  if (!m) return null;
+  const o = {};
+  for (const line of m[1].split("\n")) {
+    const i = line.indexOf(":");
+    if (i > 0 && /^\s*[A-Za-z0-9_-]+\s*$/.test(line.slice(0, i))) o[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  }
+  return o;
+}
+
 // 1. every JSON file parses.
 const jsons = ["\.claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "hooks/hooks.json",
   "gazette/package.json", "templates/workspace/_config.json", "templates/workspace/bureau.json"];
@@ -20,20 +36,23 @@ for (const j of jsons.map((s) => s.replace(/^\\\./, "."))) {
   try { JSON.parse(read(j)); } catch (e) { fail(`invalid JSON ${j}: ${e.message}`); }
 }
 
-// 2. commands: frontmatter has a description; argument-hint present iff the body shows args.
+// 2. commands: a LEADING frontmatter block carrying a non-empty description.
 for (const f of ls("commands").filter((f) => f.endsWith(".md"))) {
-  const s = read(`commands/${f}`);
-  if (!/^---[\s\S]*?\bdescription:/m.test(s)) fail(`commands/${f}: no description in frontmatter`);
+  const fm = leadingFrontmatter(read(`commands/${f}`));
+  if (!fm) fail(`commands/${f}: no leading frontmatter block`);
+  else if (!fm.description) fail(`commands/${f}: no description in frontmatter`);
 }
 
-// 3. skills: name present and matches the parent dir; description present; ≥1 <example>.
+// 3. skills: a LEADING frontmatter block with name (matching the dir) + description; ≥1 <example>
+//    and a Scope note in the body.
 for (const d of ls("skills").filter((d) => statSync(join(ROOT, "skills", d)).isDirectory())) {
   const p = `skills/${d}/SKILL.md`;
   if (!existsSync(join(ROOT, p))) { fail(`skills/${d}: no SKILL.md`); continue; }
   const s = read(p);
-  const name = (s.match(/^name:\s*(\S+)/m) || [])[1];
-  if (name !== d) fail(`${p}: name "${name}" != dir "${d}"`);
-  if (!/^description:/m.test(s)) fail(`${p}: no description`);
+  const fm = leadingFrontmatter(s);
+  if (!fm) { fail(`${p}: no leading frontmatter block`); continue; }
+  if (fm.name !== d) fail(`${p}: name "${fm.name}" != dir "${d}"`);
+  if (!fm.description) fail(`${p}: no description in frontmatter`);
   if (!/<example>/.test(s)) fail(`${p}: no <example> block`);
   if (!/## Scope note/i.test(s)) fail(`${p}: no Scope note`);
 }
@@ -45,14 +64,29 @@ for (const f of ls("commands").filter((f) => f.endsWith(".md"))) {
   }
 }
 
-// 5. hook commands point at scripts that exist.
-try {
-  const hooks = JSON.parse(read("hooks/hooks.json")).hooks || {};
-  for (const arr of Object.values(hooks)) for (const g of arr) for (const h of g.hooks || []) {
-    const m = (h.command || "").match(/scripts\/([\w.-]+)/);
-    if (m && !existsSync(join(ROOT, "scripts", m[1]))) fail(`hooks.json: missing script scripts/${m[1]}`);
+// 5. every command hook references at least one scripts/<file> and EVERY referenced script exists.
+//    A command that no longer points at a script (renamed to `echo ok`, a misspelled path, or a
+//    second chained script that went missing) must FAIL, not silently no-op. Structure is checked
+//    explicitly — never relying on a thrown error being swallowed (that would itself be a no-op).
+let hooksObj = null;
+try { hooksObj = JSON.parse(read("hooks/hooks.json")).hooks; } catch { /* invalid JSON already reported in section 1 */ }
+if (hooksObj && typeof hooksObj === "object" && !Array.isArray(hooksObj)) {
+  for (const [event, arr] of Object.entries(hooksObj)) {
+    if (!Array.isArray(arr)) { fail(`hooks.json: ${event} is not an array`); continue; }
+    for (const g of arr) {
+      if (!g || !Array.isArray(g.hooks)) { fail(`hooks.json: ${event} has a hook group whose "hooks" is not an array`); continue; }
+      for (const h of g.hooks) {
+        if (h.type !== "command") continue; // only command hooks run a script
+        if (typeof h.command !== "string" || !h.command) { fail(`hooks.json: ${event} command hook has no command string`); continue; }
+        const refs = [...h.command.matchAll(/scripts\/([\w.-]+)/g)].map((m) => m[1]);
+        if (!refs.length) { fail(`hooks.json: ${event} command does not reference a scripts/<file> (${h.command.slice(0, 60)})`); continue; }
+        for (const r of refs) if (!existsSync(join(ROOT, "scripts", r))) fail(`hooks.json: missing script scripts/${r}`);
+      }
+    }
   }
-} catch { /* JSON failure already reported */ }
+} else if (hooksObj !== null) {
+  fail("hooks.json: top-level .hooks is not an object");
+}
 
 // 6. the gazette run artifact ships.
 if (!existsSync(join(ROOT, "gazette", "bin", "gazette.mjs"))) fail("gazette/bin/gazette.mjs (the bundle) is missing");

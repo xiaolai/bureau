@@ -8,7 +8,9 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { cwd: ROOT, stdio: "inherit", ...opts });
+// A per-layer timeout backstop: a hung test layer fails the layer instead of stalling CI forever.
+const LAYER_TIMEOUT_MS = Number(process.env.BUREAU_LAYER_TIMEOUT_MS) || 600000;
+const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { cwd: ROOT, stdio: "inherit", timeout: LAYER_TIMEOUT_MS, ...opts });
 let failed = 0;
 const step = (label, fn) => { console.log(`\n=== ${label} ===`); try { fn(); } catch { failed++; console.error(`✗ ${label} FAILED`); } };
 

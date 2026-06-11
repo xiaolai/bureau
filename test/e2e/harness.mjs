@@ -8,7 +8,13 @@
 // reference). It costs tokens by design — that is what behavioral E2E is. The deterministic
 // layers (run via `node test/run.mjs`) carry most of the load; this proves the few flows where
 // only an actual LLM run can.
-import { mkdtempSync, writeFileSync } from "node:fs";
+//
+// ISOLATION CAVEAT: each step runs `claude -p --permission-mode bypassPermissions`, which grants
+// the run unrestricted tool access (the point is to drive flows unattended). This is NOT OS-level
+// sandboxed — run it only in a disposable/CI environment you trust, never against untrusted
+// scenarios on a host with secrets. Temp repos are removed after each scenario unless
+// BUREAU_KEEP_REPOS is set (keep them to debug a failure).
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
@@ -31,22 +37,27 @@ function main() {
   let failed = 0;
   for (const sc of scenarios) {
     const repo = mkdtempSync(join(tmpdir(), "bureau-live-"));
-    sh("git", ["init", "-q"], { cwd: repo });
-    writeFileSync(join(repo, ".gitignore"), "/board/\n");
-    try { sh("claude", ["plugin", "install", PLUGIN_REF, "--scope", "project"], { cwd: repo }); }
-    catch (e) { console.error(`✗ install ${PLUGIN_REF} failed in test repo: ${(e.message || e).slice(0, 200)}`); failed++; continue; }
+    try {
+      sh("git", ["init", "-q"], { cwd: repo });
+      writeFileSync(join(repo, ".gitignore"), "/board/\n");
+      try { sh("claude", ["plugin", "install", PLUGIN_REF, "--scope", "project"], { cwd: repo, timeout: 300000 }); }
+      catch (e) { console.error(`✗ install ${PLUGIN_REF} failed in test repo: ${(e.message || e).slice(0, 200)}`); failed++; continue; }
 
-    console.log("\n▶ " + sc.name + "  (" + repo + ")");
-    for (const step of sc.steps) {
-      let transcript = "";
-      try { transcript = runClaude(repo, step.prompt); }
-      catch (e) { console.log(`    ✗ step crashed: ${step.prompt.slice(0, 50)} — ${(e.message || e).slice(0, 120)}`); failed++; continue; }
-      const verdicts = [...(step.rule ? step.rule(repo) : [])];
-      if (step.llm) verdicts.push(llmJudge({ rubric: step.llm.rubric, transcript }));
-      for (const v of verdicts) {
-        console.log(`    ${v.pass ? "✓" : "✗"} ${v.name}: ${v.detail}`);
-        if (!v.pass) failed++;
+      console.log("\n▶ " + sc.name + "  (" + repo + ")");
+      for (const step of sc.steps) {
+        let transcript = "";
+        try { transcript = runClaude(repo, step.prompt); }
+        catch (e) { console.log(`    ✗ step crashed: ${step.prompt.slice(0, 50)} — ${(e.message || e).slice(0, 120)}`); failed++; continue; }
+        const verdicts = [...(step.rule ? step.rule(repo) : [])];
+        if (step.llm) verdicts.push(llmJudge({ rubric: step.llm.rubric, transcript }));
+        for (const v of verdicts) {
+          console.log(`    ${v.pass ? "✓" : "✗"} ${v.name}: ${v.detail}`);
+          if (!v.pass) failed++;
+        }
       }
+    } finally {
+      // clean up the throwaway repo (transcripts + workspace state) unless asked to keep it.
+      if (!process.env.BUREAU_KEEP_REPOS) try { rmSync(repo, { recursive: true, force: true }); } catch { /* best-effort */ }
     }
   }
   console.log(failed ? `\n✗ e2e: ${failed} judge failure(s)` : "\n✓ e2e: all scenarios passed");

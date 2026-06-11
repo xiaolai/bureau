@@ -9,7 +9,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, cpSyn
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { logbookEntryExists, noLeftoverTokens, recallRuleInstalled, compileProducedProposed, reviewPromotedToCanonical, boardBuildsHealthy } from "./judges/rule.mjs";
+import { logbookEntryExists, noLeftoverTokens, recallRuleInstalled, compileProducedProposed, reviewPromotedToCanonical, boardBuildsHealthy, cabinetPageAbout } from "./judges/rule.mjs";
 
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const today = () => new Date().toISOString().slice(0, 10);
@@ -28,6 +28,8 @@ function scaffold() {
 const ws = (repo) => join(repo, "bureau");
 const captureSession = (repo, id) => execFileSync("node", [join(PLUGIN, "scripts", "capture-stub.mjs")], { cwd: repo, input: JSON.stringify({ session_id: id }), stdio: ["pipe", "ignore", "ignore"] });
 const writePage = (repo, name, status) => writeFileSync(join(ws(repo), "decisions", name), `---\ntitle: ${name.replace(/\.md$/, "")}\nupdated: ${today()}\nstatus: ${status}\n---\n# ${name}\nA claim. **Sources.** [[Logbook]]\n`);
+// flexible cabinet page: control title, tier, and full body (for cabinetPageAbout fixtures).
+const writeCabinetPage = (repo, name, status, title, body) => writeFileSync(join(ws(repo), "decisions", name), `---\ntitle: ${title}\nupdated: ${today()}\nstatus: ${status}\n---\n${body}\n`);
 
 test("judge logbookEntryExists: passes with an entry, fails without", () => {
   const good = scaffold(); captureSession(good, "feed1234");
@@ -67,4 +69,42 @@ test("judge boardBuildsHealthy: passes a clean scaffold, fails on a dangling lin
   const bad = scaffold(); writePage(bad, "dangle.md", "proposed");
   writeFileSync(join(ws(bad), "decisions", "dangle.md"), `---\ntitle: Dangle\nstatus: proposed\n---\n# Dangle\nSee [[Nonexistent Page]].\n`);
   assert.equal(boardBuildsHealthy(bad, "bureau").pass, false); // the [[Nonexistent Page]] dangles
+});
+
+test("judge boardBuildsHealthy: also fails on an ORPHAN page (no links in or out)", () => {
+  // Distinct from the dangling case: gazette's orphan = a node with zero non-self edges in AND
+  // out. This page has NO wiki links at all → orphans>0 while dangling stays 0. Proves the orphan
+  // branch of the health parse actually fails (a broken orphan regex couldn't self-test green).
+  const bad = scaffold(); writeFileSync(join(bad, ".gitignore"), "/board/\n");
+  writeCabinetPage(bad, "lonely.md", "proposed", "Lonely Orphan", "# Lonely Orphan\nA standalone claim with no links in or out.");
+  const v = boardBuildsHealthy(bad, "bureau");
+  assert.equal(v.pass, false, v.detail);
+  assert.match(v.detail, /orphans=[1-9]/); // the failure is specifically the orphan count, not dangling
+});
+
+// cabinetPageAbout is the judge the LIVE harness leans on for compile/review tier checks — it MUST
+// be self-proven. A qualifying page is a SOURCED claim (keyword in body + a [[provenance]] link).
+test("judge cabinetPageAbout: passes a sourced proposed claim mentioning the keyword", () => {
+  const repo = scaffold();
+  writeCabinetPage(repo, "auth.md", "proposed", "Auth design", "# Auth design\nWe use JWT for sessions. **Sources.** [[Logbook]]");
+  assert.equal(cabinetPageAbout(ws(repo), "JWT").pass, true);
+});
+
+test("judge cabinetPageAbout: fails when the keyword sits at a FORBIDDEN tier", () => {
+  const repo = scaffold();
+  writeCabinetPage(repo, "auth.md", "canonical", "Auth design", "# Auth design\nWe use JWT for sessions. **Sources.** [[Logbook]]");
+  assert.equal(cabinetPageAbout(ws(repo), "JWT", { allow: ["proposed", "verified"], forbid: ["canonical"] }).pass, false);
+});
+
+test("judge cabinetPageAbout: fails when NO page mentions the keyword", () => {
+  const repo = scaffold();
+  writeCabinetPage(repo, "auth.md", "proposed", "Auth design", "# Auth design\nWe use sessions. **Sources.** [[Logbook]]");
+  assert.equal(cabinetPageAbout(ws(repo), "kerberos").pass, false);
+});
+
+test("judge cabinetPageAbout: a bare substring with NO provenance link does NOT qualify", () => {
+  // proves it's a structured-claim check, not a naive `includes()` — the keyword alone isn't enough.
+  const repo = scaffold();
+  writeCabinetPage(repo, "auth.md", "proposed", "Auth design", "# Auth design\nWe use JWT for sessions. (no source link)");
+  assert.equal(cabinetPageAbout(ws(repo), "JWT").pass, false);
 });

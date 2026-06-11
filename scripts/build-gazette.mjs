@@ -14,8 +14,15 @@ if (!existsSync(join(gz, "node_modules"))) {
   console.error("✗ gazette/node_modules missing — run `cd gazette && npm install --omit=dev` first.");
   process.exit(1);
 }
-execFileSync("npx", [
-  "--yes", "esbuild", join(gz, "bin", "cli.mjs"),
+// Invoke the PINNED, project-local esbuild — never `npx --yes esbuild`, which can fetch and
+// execute an unpinned latest from the network. The binary is guaranteed present by the check above.
+const esbuild = join(gz, "node_modules", ".bin", process.platform === "win32" ? "esbuild.cmd" : "esbuild");
+if (!existsSync(esbuild)) {
+  console.error("✗ esbuild not in gazette/node_modules — run `cd gazette && npm install --omit=dev` first.");
+  process.exit(1);
+}
+execFileSync(esbuild, [
+  join(gz, "bin", "cli.mjs"),
   "--bundle", "--platform=node", "--format=esm",
   "--outfile=" + join(gz, "bin", "gazette.mjs"),
   "--banner:js=import{createRequire as __cr}from'module';const require=__cr(import.meta.url);",

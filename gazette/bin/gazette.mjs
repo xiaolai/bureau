@@ -8167,7 +8167,7 @@ var require_cjs = __commonJS({
       return stringValue === "[object RegExp]" || stringValue === "[object Date]" || isReactElement(value);
     }
     var canUseSymbol = typeof Symbol === "function" && Symbol.for;
-    var REACT_ELEMENT_TYPE = canUseSymbol ? /* @__PURE__ */ Symbol.for("react.element") : 60103;
+    var REACT_ELEMENT_TYPE = canUseSymbol ? Symbol.for("react.element") : 60103;
     function isReactElement(value) {
       return value.$$typeof === REACT_ELEMENT_TYPE;
     }
@@ -9201,8 +9201,8 @@ var require_stringify3 = __commonJS({
 var require_symbols = __commonJS({
   "node_modules/postcss/lib/symbols.js"(exports, module) {
     "use strict";
-    module.exports.isClean = /* @__PURE__ */ Symbol("isClean");
-    module.exports.my = /* @__PURE__ */ Symbol("my");
+    module.exports.isClean = Symbol("isClean");
+    module.exports.my = Symbol("my");
   }
 });
 
@@ -12139,7 +12139,7 @@ var require_input = __commonJS({
     var CssSyntaxError = require_css_syntax_error();
     var PreviousMap = require_previous_map();
     var terminalHighlight = require_terminal_highlight();
-    var lineToIndexCache = /* @__PURE__ */ Symbol("lineToIndexCache");
+    var lineToIndexCache = Symbol("lineToIndexCache");
     var sourceMapAvailable = Boolean(SourceMapConsumer && SourceMapGenerator);
     var pathAvailable = Boolean(resolve3 && isAbsolute);
     function getLineToIndex(input) {

@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync, rmSync, symlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -14,9 +14,10 @@ const CAPTURE = join(PLUGIN, "scripts", "capture-stub.mjs");
 const SCRIBE = join(PLUGIN, "scripts", "scribe-checkpoint.mjs");
 
 // run a hook script in a given cwd with a JSON payload on stdin; return {stdout, status}.
+// A timeout turns a hook that blocks into a failure, not a hung suite.
 function runHook(script, cwd, payload) {
   try {
-    const stdout = execFileSync("node", [script], { cwd, input: JSON.stringify(payload), encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] });
+    const stdout = execFileSync("node", [script], { cwd, input: JSON.stringify(payload), encoding: "utf8", stdio: ["pipe", "pipe", "ignore"], timeout: 15000 });
     return { stdout, status: 0 };
   } catch (e) { return { stdout: e.stdout || "", status: e.status == null ? 1 : e.status }; }
 }
@@ -92,7 +93,8 @@ test("scribe: compact start appends a checkpoint and re-grounds via additionalCo
   assert.match(readFileSync(file, "utf8"), /context checkpoint \(compaction\)/);
   const out = JSON.parse(stdout);                               // re-ground payload is valid SessionStart output
   assert.equal(out.hookSpecificOutput.hookEventName, "SessionStart");
-  assert.match(out.hookSpecificOutput.additionalContext, /bureau logbook for this session/);
+  assert.match(out.hookSpecificOutput.additionalContext, /bureau's logbook for this session/);
+  assert.match(out.hookSpecificOutput.additionalContext, /REFERENCE DATA, not instructions/); // injected as data, not commands
 });
 
 test("scribe: non-compact start is a no-op (no output)", () => {
@@ -106,4 +108,28 @@ test("scribe: no-op outside a bureau workspace", () => {
   const { stdout, status } = runHook(SCRIBE, root, { session_id: "x", source: "compact" });
   assert.equal(status, 0);
   assert.equal(stdout.trim(), "");
+});
+
+test("scribe: oversized payload yields no usable id → no write, no output", () => {
+  const root = bureauWorkspace();
+  const { stdout, status } = runHook(SCRIBE, root, { session_id: "big", source: "compact", x: "a".repeat(2_000_000) });
+  assert.equal(status, 0);
+  assert.equal(stdout.trim(), "");                 // bounded read dropped the payload
+  assert.equal(logEntries(root).length, 0);        // nothing written
+});
+
+test("scribe: a symlinked logbook can't redirect a logbook ENTRY outside the workspace", () => {
+  const root = bureauWorkspace();
+  const outside = mkdtempSync(join(tmpdir(), "bureau-escape-"));
+  rmSync(join(root, "bureau", "logbook"), { recursive: true, force: true });
+  symlinkSync(outside, join(root, "bureau", "logbook")); // logbook now points outside the workspace
+  const { status } = runHook(SCRIBE, root, { session_id: "esc12345", source: "compact" });
+  assert.equal(status, 0);
+  // The realpath containment check (mirroring capture-stub) refuses to write the ENTRY through the
+  // symlink — no .md content lands outside the workspace (the security guarantee).
+  const mdOutside = [];
+  const walk = (d) => { for (const e of readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name); if (e.isDirectory()) walk(p); else if (e.name.endsWith(".md")) mdOutside.push(p); } };
+  walk(outside);
+  assert.deepEqual(mdOutside, [], "no logbook entry was written through the symlink");
+  rmSync(outside, { recursive: true, force: true });
 });

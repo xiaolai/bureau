@@ -32,7 +32,15 @@ before(async () => {
 });
 after(async () => { if (browser) await browser.close(); });
 
-const guard = (t) => { if (!available) t.skip("Chromium not installed — run `npx playwright install chromium`"); };
+// In CI we MUST exercise the browser layer — a missing Chromium should FAIL, not silently skip
+// (a green run would otherwise claim browser coverage it never ran). Set BUREAU_REQUIRE_BROWSER=1
+// to enforce. Locally (flag unset) it still skips cleanly so `node --test` is friction-free.
+const REQUIRE_BROWSER = !!process.env.BUREAU_REQUIRE_BROWSER;
+const guard = (t) => {
+  if (available) return;
+  if (REQUIRE_BROWSER) assert.fail("browser layer required (BUREAU_REQUIRE_BROWSER set) but Playwright/Chromium is unavailable — run `npx playwright install --with-deps chromium`");
+  t.skip("Chromium not installed — run `npx playwright install chromium`");
+};
 
 test("board renders offline with ZERO console/page errors (strict CSP holds)", (t) => {
   guard(t); if (!available) return;
@@ -72,8 +80,18 @@ test("echarts chart renders to a canvas", async (t) => {
 test("a sortable table responds to a header click", async (t) => {
   guard(t); if (!available) return;
   const th = await page.$("table.wb-table th[data-col]");
-  if (!th) return t.skip("no sortable table on the loaded board");
+  if (!th) {
+    if (REQUIRE_BROWSER) assert.fail("no sortable table on the loaded board — the table fixture is missing (BUREAU_REQUIRE_BROWSER set)");
+    return t.skip("no sortable table on the loaded board");
+  }
   await th.click();
   const sorted = await page.$$eval("table.wb-table th[data-col]", (ths) => ths.some((h) => (h.getAttribute("aria-sort") || "none") !== "none"));
   assert.ok(sorted, "a column became sorted (aria-sort set)");
+});
+
+test("no console/page errors accumulated across navigation + mermaid + charts + table", (t) => {
+  // The load-time check only proved the first paint clean; later interactions (routing, mermaid,
+  // echarts, sorting) could emit errors. Re-assert at the end so those are caught too.
+  guard(t); if (!available) return;
+  assert.deepEqual(consoleErrors, [], "console errors after interactions:\n" + consoleErrors.join("\n"));
 });
