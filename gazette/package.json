@@ -43,7 +43,8 @@
     "echarts": "^6.1.0",
     "js-yaml": "^4.2.0",
     "jsdom": "^29.1.1",
-    "papaparse": "^5.5.3"
+    "papaparse": "^5.5.3",
+    "playwright": "^1.60.0"
   },
   "dependencies": {
     "markdown-it": "^14.2.0",

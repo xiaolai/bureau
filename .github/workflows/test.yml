@@ -6,7 +6,8 @@ on:
   workflow_dispatch: {}   # manual trigger for the live behavioral layer (needs an API key)
 
 jobs:
-  # The deterministic pyramid — runs on every push/PR, no API key, always green or red.
+  # The deterministic pyramid — every push/PR, no API key. Includes the real-browser render
+  # layer (Chromium): static + hook-script units + gazette's 160 + 6 browser render + judge self-test.
   deterministic:
     runs-on: ubuntu-latest
     steps:
@@ -14,7 +15,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: L0 static · L1 units (scripts + gazette) · L3 judge self-test
+      - name: Install gazette test deps (incl. playwright)
+        run: npm install --no-audit --no-fund
+        working-directory: gazette
+      - name: Install the Chromium binary for the browser render tests
+        run: npx playwright install --with-deps chromium
+        working-directory: gazette
+      - name: L0 static · L1 units (scripts + gazette + browser) · L3 judge self-test
         run: node test/run.mjs
 
   # The live behavioral layer — `claude -p` driving real flows, judged on side-effects + trace.

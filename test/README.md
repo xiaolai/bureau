@@ -14,11 +14,14 @@ That turns "untestable probabilistic plugin" into a normal pyramid.
 |---|---|---|---|
 | **L0 static** | manifests parse, frontmatter present, refs resolve, the bundle ships | yes, free | `node test/static/check.mjs` |
 | **L1 substrate** | hook scripts (`capture-stub`, `scribe-checkpoint`) + the gazette renderer | yes | `node --test test/unit/scripts.test.mjs` · `cd gazette && node --test` |
+| **L1 browser render** | the board actually RENDERS in real Chromium: offline/strict-CSP, 0 console errors, nav + routing, mermaid→SVG, echarts→canvas, sortable tables | yes — headless Chromium | `cd gazette && node --test test/browser.test.mjs` (needs `npx playwright install chromium`; skips cleanly without it) |
 | **L3 judge self-test** | the L3 *assertions themselves* are correct (good workspace passes, bad fails) | yes, no LLM | `node --test test/e2e/judges.test.mjs` |
 | **L3 live behavioral** | the trust model holds when a real LLM drives the flow | no — `claude -p` | `node test/run.mjs --e2e` |
 
-Run the whole deterministic set with **`node test/run.mjs`** (174 checks, no API needed). Add
-**`--e2e`** for the live layer (needs the `claude` CLI authenticated; costs tokens).
+Run the whole deterministic set with **`node test/run.mjs`** (180 checks incl. the 6 browser
+render tests, no API needed). Add **`--e2e`** for the live LLM layer (needs the `claude` CLI
+authenticated; costs tokens). The browser layer needs the Chromium binary
+(`cd gazette && npx playwright install chromium`); without it those 6 skip rather than fail.
 
 ## How the live layer works (`test/e2e/`)
 
