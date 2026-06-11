@@ -2,7 +2,7 @@
 // (width ∝ dir LOC), files stacked within (height ∝ file LOC). Deterministic;
 // per-dir hue; labels escaped. Build-time SVG, rendered via the trusted-SVG path.
 import { escapeHtml } from "../shared/escape.mjs";
-import { hash32 } from "../derive/layout.mjs";
+import { hash32 } from "../shared/hash.mjs";
 
 const W = 820, H = 480;
 const color = (g) => "hsl(" + (hash32(g) % 360) + ", 30%, 62%)";

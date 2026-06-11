@@ -1,8 +1,8 @@
-// core/graph-svg — render a deriveLayout() result to a static, themed, deterministic
+// render/graph-svg — render a deriveLayout() result to a static, themed, deterministic
 // SVG (M3). Build-time; node titles (user content) are escaped. Colors use CSS vars
 // + a deterministic per-group hue so the theme applies and the graph stays readable.
 import { escapeHtml } from "../shared/escape.mjs";
-import { hash32 } from "../derive/layout.mjs";
+import { hash32 } from "../shared/hash.mjs";
 
 const R = 7;
 const groupColor = (g) => "hsl(" + (hash32(g) % 360) + ", 32%, 56%)";

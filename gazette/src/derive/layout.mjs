@@ -5,13 +5,7 @@
 // quantized coordinates. The WebGL/semantic-zoom upgrade is gated on scale (>500
 // nodes); this is the always-on legible layout + the build-time coordinate artifact.
 import { quantize } from "../services/determinism.mjs";
-
-// FNV-1a 32-bit — stable across runs/platforms (no Math.random / seeds)
-export function hash32(s) {
-  let h = 2166136261 >>> 0;
-  for (const ch of String(s)) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619) >>> 0; }
-  return h >>> 0;
-}
+import { hash32 } from "../shared/hash.mjs";
 
 const CELL = 64;   // px between slots
 const PAD = 48;    // px inside a region

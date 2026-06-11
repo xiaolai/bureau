@@ -5,7 +5,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { buildModel } from "../src/core/model.mjs";
 import { deriveLayout } from "../src/derive/layout.mjs";
-import { renderGraphSvg } from "../src/core/graph-svg.mjs";
+import { renderGraphSvg } from "../src/render/graph-svg.mjs";
 import { canonicalJSON } from "../src/services/determinism.mjs";
 import { doc } from "./helpers.mjs";
 

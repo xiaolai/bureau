@@ -1,4 +1,4 @@
-// core/canvas-svg — render a JSON Canvas (jsoncanvas.org) to a static SVG (M6).
+// render/canvas-svg — render a JSON Canvas (jsoncanvas.org) to a static SVG (M6).
 // Curated layouts: node positions are TRUTH and rendered as-is (never auto-laid-out
 // — kept strictly separate from the derived graph). Labels escaped (XSS-safe).
 import { escapeHtml } from "../shared/escape.mjs";

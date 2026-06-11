@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { renderCanvasSvg } from "../src/core/canvas-svg.mjs";
+import { renderCanvasSvg } from "../src/render/canvas-svg.mjs";
 import { buildSite } from "../src/build.mjs";
 
 test("canvas: renders nodes + edges; node labels escaped (XSS-safe)", () => {

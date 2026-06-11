@@ -21694,6 +21694,11 @@ function nfc(s) {
 }
 var collator = new Intl.Collator(["zh-Hans", "en"], { numeric: true });
 
+// src/shared/prettify.mjs
+function prettify(s) {
+  return String(s).replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 // src/core/model.mjs
 var SCHEMA_VERSION = 1;
 function readConfig(docsDir) {
@@ -21713,7 +21718,6 @@ function topFolderId(relPath) {
   if (i < 0) return "";
   return relPath.slice(0, i).replace(/^\d+[-_.]/, "");
 }
-var prettify = (s) => String(s).replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 function safeDocPath(docsDir, file) {
   const root = realpathSync(docsDir);
   const abs = realpathSync(join3(docsDir, file));
@@ -22100,7 +22104,7 @@ function quantize(n, grid = 1) {
   return Math.round(n / grid) * grid;
 }
 
-// src/derive/layout.mjs
+// src/shared/hash.mjs
 function hash32(s) {
   let h = 2166136261 >>> 0;
   for (const ch of String(s)) {
@@ -22109,6 +22113,8 @@ function hash32(s) {
   }
   return h >>> 0;
 }
+
+// src/derive/layout.mjs
 var CELL = 64;
 var PAD = 48;
 var GAP = 64;
@@ -22153,7 +22159,7 @@ function deriveLayout(model) {
   };
 }
 
-// src/core/graph-svg.mjs
+// src/render/graph-svg.mjs
 var R = 7;
 var groupColor = (g) => "hsl(" + hash32(g) % 360 + ", 32%, 56%)";
 function renderGraphSvg(layout, model) {
@@ -22174,7 +22180,7 @@ function renderGraphSvg(layout, model) {
   return s;
 }
 
-// src/core/canvas-svg.mjs
+// src/render/canvas-svg.mjs
 var NW = 200;
 var NH = 60;
 var num = (v, d = 0) => Number.isFinite(+v) ? +v : d;
@@ -22427,7 +22433,7 @@ function renderTreemapSvg(scan) {
   return s + "</svg>";
 }
 
-// src/core/health-report.mjs
+// src/render/health-report.mjs
 var wl = (id) => "[[" + id + "]]";
 var esc3 = (s) => escapeHtml2(String(s == null ? "" : s));
 function renderHealthHtml(health) {
@@ -23251,8 +23257,6 @@ function dirArg() {
 function dataArg() {
   return opt("data");
 }
-var prettifyCli = (s) => String(s).replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-var escText = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 function nowArg() {
   const v = opt("now", today());
   if (!parseDate(v).valid) die('--now must be a valid YYYY-MM-DD (got: "' + v + '")');
@@ -23434,9 +23438,9 @@ function runNew() {
   while (!existsSync6(anc) && anc !== dirname3(anc)) anc = dirname3(anc);
   const ancReal = realpathSync3(anc);
   if (!(ancReal === dirReal || ancReal.startsWith(dirReal + sep4))) die("path escapes the content dir (via symlink): " + target);
-  const title = titleArg || prettifyCli(rel.split("/").pop().replace(/\.html$/, ""));
+  const title = titleArg || prettify(rel.split("/").pop().replace(/\.html$/, ""));
   mkdirSync2(dirname3(fp), { recursive: true });
-  writeFileSync4(fp, '<article data-updated="' + today() + '">\n  <h1>' + escText(title) + "</h1>\n  <p></p>\n</article>\n");
+  writeFileSync4(fp, '<article data-updated="' + today() + '">\n  <h1>' + escapeHtml2(title) + "</h1>\n  <p></p>\n</article>\n");
   console.log("+ " + base2 + "/" + rel + '   (title "' + title + '")');
 }
 function runOpen() {

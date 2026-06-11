@@ -9,6 +9,7 @@ import { parseHtmlDoc, parseMarkdownDoc } from "./parse.mjs";
 import { discover } from "./sources.mjs";
 import { loadTypes, typesPlain } from "./types.mjs";
 import { nfc } from "../services/i18n.mjs";
+import { prettify } from "../shared/prettify.mjs";
 
 export const SCHEMA_VERSION = 1;
 
@@ -37,7 +38,6 @@ function topFolderId(relPath) {
   if (i < 0) return "";
   return relPath.slice(0, i).replace(/^\d+[-_.]/, "");
 }
-const prettify = (s) => String(s).replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 // Defense in depth (discovery already skips symlinks): before reading a discovered doc,
 // confirm its real path is a regular file inside the real content dir — never follow a

@@ -7,7 +7,7 @@
     "gazette": "bin/cli.mjs"
   },
   "exports": {
-    ".": "./src/build.mjs"
+    ".": "./src/index.mjs"
   },
   "scripts": {
     "test": "node --test",

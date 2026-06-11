@@ -1,4 +1,4 @@
-// core/health-report — render the health layer into (a) a board doc (HTML) and
+// render/health-report — render the health layer into (a) a board doc (HTML) and
 // (b) a CLI text summary. The board "view" is a generated doc, like the timeline.
 // [[id]] links are resolved + the HTML sanitized by build.mjs before shipping.
 import { healthTotal } from "../derive/health.mjs";

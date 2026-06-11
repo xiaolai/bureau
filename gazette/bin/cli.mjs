@@ -9,11 +9,13 @@ import { join, resolve, dirname, extname, sep, relative } from "path";
 import { createServer } from "http";
 import { spawn } from "child_process";
 import { buildSite, computeHealth } from "../src/build.mjs";
-import { renderHealthText } from "../src/core/health-report.mjs";
+import { renderHealthText } from "../src/render/health-report.mjs";
 import { healthTotal } from "../src/derive/health.mjs";
 import { parseDate } from "../src/services/dates.mjs";
 import { planRename, applyRename } from "../src/maintain/rename.mjs";
 import { buildRepairPlan, applySafe, renderRepairText } from "../src/maintain/doctor.mjs";
+import { escapeHtml } from "../src/shared/escape.mjs";
+import { prettify } from "../src/shared/prettify.mjs";
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -35,8 +37,6 @@ function die(msg) { console.error("✗ " + msg); process.exit(1); }
 // content dir: --dir (or legacy --docs); engine defaults to "gazette" when omitted
 function dirArg() { return opt("dir") || opt("docs"); }
 function dataArg() { return opt("data"); }
-const prettifyCli = (s) => String(s).replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-const escText = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 // validated staleness baseline — a bad --now must fail loud, never silently disable
 // staleness and exit green (grill H6).
@@ -207,9 +207,9 @@ function runNew() {
   while (!existsSync(anc) && anc !== dirname(anc)) anc = dirname(anc);
   const ancReal = realpathSync(anc);
   if (!(ancReal === dirReal || ancReal.startsWith(dirReal + sep))) die("path escapes the content dir (via symlink): " + target);
-  const title = titleArg || prettifyCli(rel.split("/").pop().replace(/\.html$/, ""));
+  const title = titleArg || prettify(rel.split("/").pop().replace(/\.html$/, ""));
   mkdirSync(dirname(fp), { recursive: true });
-  writeFileSync(fp, '<article data-updated="' + today() + '">\n  <h1>' + escText(title) + "</h1>\n  <p></p>\n</article>\n");
+  writeFileSync(fp, '<article data-updated="' + today() + '">\n  <h1>' + escapeHtml(title) + "</h1>\n  <p></p>\n</article>\n");
   console.log("+ " + base + "/" + rel + '   (title "' + title + '")');
 }
 
