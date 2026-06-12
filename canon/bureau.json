@@ -1,5 +1,7 @@
 {
-  "profiles": ["software"],
+  "profiles": [
+    "software"
+  ],
   "workspace": "canon",
   "board": "board",
   "autoCompile": false

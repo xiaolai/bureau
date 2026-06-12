@@ -1,6 +1,6 @@
 ---
 title: ADR 0001 — Adopt bureau
-updated: 2026-06-11
+updated: 2026-06-12
 status: canonical
 sources: []
 ---
