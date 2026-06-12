@@ -2,8 +2,8 @@
 // L0 — static structural gate. Deterministic, free, no LLM. Fails loud (exit 1) on any defect.
 // Validates: JSON parses; command/skill LEADING frontmatter blocks (required keys, parsed from
 // the block — not a stray body `---`); command→skill cross-references resolve; every hook command
-// references a script that exists; the gazette bundle ships; the recall-rule template keeps its
-// substitution token.
+// references a script that exists; the gazette bundle ships; the bureau-instructions template
+// keeps its substitution token.
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -91,9 +91,10 @@ if (hooksObj && typeof hooksObj === "object" && !Array.isArray(hooksObj)) {
 // 6. the gazette run artifact ships.
 if (!existsSync(join(ROOT, "gazette", "bin", "gazette.mjs"))) fail("gazette/bin/gazette.mjs (the bundle) is missing");
 
-// 7. the recall-rule template still carries its substitution token (init replaces it).
-if (existsSync(join(ROOT, "templates", "recall-rule.md")) && !/\{\{WORKSPACE\}\}/.test(read("templates/recall-rule.md")))
-  fail("templates/recall-rule.md: lost its {{WORKSPACE}} token (init can't target the workspace)");
+// 7. the bureau-instructions template still carries its substitution token (init replaces it
+//    when writing ./BUREAU.md).
+if (existsSync(join(ROOT, "templates", "bureau-instructions.md")) && !/\{\{WORKSPACE\}\}/.test(read("templates/bureau-instructions.md")))
+  fail("templates/bureau-instructions.md: lost its {{WORKSPACE}} token (init can't target the workspace)");
 
 if (fails.length) { console.error("✗ static check: " + fails.length + " issue(s)\n  - " + fails.join("\n  - ")); process.exit(1); }
 console.log("✓ static check: all structural invariants hold");

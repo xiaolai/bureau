@@ -45,24 +45,42 @@ the append-only logbook drawer, and the config gazette needs to render them.
    - **software** → `architecture/`, `modules/` (plus the shared `decisions/`)
    - **story** → `characters/`, `timeline/`, `canon/`
 
-6. **Install the recall rule.** Copy `${CLAUDE_PLUGIN_ROOT}/templates/recall-rule.md` to the
-   repo's `.claude/rules/bureau.md` (create `.claude/rules/` if absent; do not overwrite an
-   existing one without asking), replacing `{{WORKSPACE}}` with the resolved workspace name.
-   This is what makes every AI session in the repo honor the trust tiers when reading the
-   cabinets as memory — the gate binds all work, not just bureau commands. If the repo has no
-   `.claude/rules/` convention, append the rule's content to `CLAUDE.md` instead.
+6. **Write the bureau instructions and wire `CLAUDE.md` to import them.** Two parts:
+
+   a. Copy `${CLAUDE_PLUGIN_ROOT}/templates/bureau-instructions.md` to the **repo root** as
+      `./BUREAU.md`, replacing `{{WORKSPACE}}` with the resolved workspace name. Do not overwrite
+      an existing `BUREAU.md` without asking. `BUREAU.md` lives at the repo root (sibling of
+      `CLAUDE.md`) — never inside `.claude/rules/` (that path auto-loads, so importing it too would
+      load it twice) and never inside the workspace (gazette would render it as a cabinet page).
+
+   b. Make `CLAUDE.md` import it. Ensure the repo-root `./CLAUDE.md` exists (create it if absent),
+      then append this idempotent block **once** — if a `<!-- bureau:start -->…<!-- bureau:end -->`
+      block already exists, leave it untouched and do not add a second:
+
+      ```
+      <!-- bureau:start -->
+      @BUREAU.md
+      <!-- bureau:end -->
+      ```
+
+   The `@BUREAU.md` import (relative to `CLAUDE.md`, i.e. the repo root) is what loads the
+   instructions into **every** session: `CLAUDE.md` auto-loads, and the import pulls `BUREAU.md` in
+   with it. That is what makes every AI session in the repo honor the trust tiers when reading the
+   cabinets as memory — the gate binds all work, not just bureau commands. (A future Codex
+   `AGENTS.md` can import the same `BUREAU.md`, so the instructions stay single-sourced.)
 
 7. **Gitignore the board at the repo root.** The board renders OUTSIDE the workspace (a repo
    sibling), so add `/<board>/` to the **repo root** `.gitignore` (create it if absent). Do
    NOT rely on the workspace-level `.gitignore` for this — it can't reach a sibling dir.
 
 8. **Validate the scaffold.** Confirm `_config.json` and `bureau.json` parse as JSON, no
-   `{{DATE}}`/`{{WORKSPACE}}` tokens remain, and a `bureau:inspect` build succeeds. Report any
-   failure with the offending file — do not claim success on a workspace that won't build.
+   `{{DATE}}`/`{{WORKSPACE}}` tokens remain (including in `./BUREAU.md`), `./CLAUDE.md` contains an
+   `@BUREAU.md` import line, and a `bureau:inspect` build succeeds. Report any failure with the
+   offending file — do not claim success on a workspace that won't build.
 
-9. **Report.** Print the created tree and the next steps: `bureau:inspect` to build/open the
-   board, `bureau:file-session` (or `bureau:note`) during a session, `bureau:query` to ask the
-   canon.
+9. **Report.** Print the created tree (note `./BUREAU.md` + the `CLAUDE.md` import) and the next
+   steps: `bureau:inspect` to build/open the board, `bureau:file-session` (or `bureau:note`)
+   during a session, `bureau:query` to ask the canon.
 
 ## Notes
 

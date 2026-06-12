@@ -10,15 +10,15 @@ contradict each other. **bureau** turns sessions into memory you can trust:
   that promotes a claim to `canonical`. AI-written claims are never fact until you approve them —
   memory works like version control, not a notepad the AI scribbles in.
 - **Read, tier-aware.** **`query`** answers from the canon, citing each claim's trust tier and
-  refusing to state an unverified one as fact. And the **recall rule** `init` installs into your
-  repo makes *every* AI session honor those tiers — so the gate governs all work, not just bureau
-  commands.
+  refusing to state an unverified one as fact. And **`BUREAU.md`** — the instructions `init` writes
+  at your repo root and imports from `CLAUDE.md` — makes *every* AI session honor those tiers, so
+  the gate governs all work, not just bureau commands.
 - **Inspect.** A navigable offline board rendered by **gazette**, the dashboard bundled inside
   this plugin (nothing else to install).
 
 This is the [Karpathy LLM-wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
-(LLM as compiler, not retriever) plus session provenance, a review gate, and a recall rule — so
-the canon is current, *traceable*, and *trusted*.
+(LLM as compiler, not retriever) plus session provenance, a review gate, and an always-on
+`BUREAU.md` instruction — so the canon is current, *traceable*, and *trusted*.
 
 **New here?** Start with the **[User Guide](docs/user-guide.md)** — a 60-second quickstart and a
 worked example.
@@ -71,7 +71,7 @@ append-only history. Every cabinet claim links back to the logbook entry that in
 
 | Command | Does |
 |---------|------|
-| `bureau:init` | scaffold the workspace, install the recall rule, wire gazette |
+| `bureau:init` | scaffold the workspace, write `BUREAU.md` + import it from `CLAUDE.md`, wire gazette |
 | `bureau:note` | take a live note into the running logbook entry (run at decision points) |
 | `bureau:file-session` | file the rich logbook entry for the current session |
 | `bureau:compile` | distil logbook entries into cabinet pages (with provenance) |
@@ -82,8 +82,8 @@ append-only history. Every cabinet claim links back to the logbook entry that in
 | `bureau:inspect` | build + open the board (gazette) |
 
 **Write** (gated): `note`/`file-session` → `compile` → `review`. **Read** (tier-aware):
-`query`, plus the **recall rule** `init` installs into your repo, which makes *every* AI session
-honor the trust tiers — so the gate governs all work, not just bureau commands.
+`query`, plus **`BUREAU.md`** — written by `init` and imported from `CLAUDE.md` — which makes
+*every* AI session honor the trust tiers, so the gate governs all work, not just bureau commands.
 
 Two hooks run automatically: `SessionEnd` writes a mechanical logbook **stub** (no session is
 ever lost); `SessionStart`-after-compaction re-grounds the agent from the logbook so decisions
@@ -92,7 +92,7 @@ survive a context compaction.
 ## Status
 
 The full loop is implemented: capture (`note`/`file-session` + hooks) → compile → review →
-lint, read via `query`/`status` under the recall rule, rendered by the bundled gazette. See
+lint, read via `query`/`status` under the `BUREAU.md` gate, rendered by the bundled gazette. See
 `dev-docs/plan.md`.
 
 ## Requirements

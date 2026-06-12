@@ -1,8 +1,8 @@
 # bureau — User Guide
 
 This guide is for the person *driving* bureau. (The other audience — any AI session working in
-your repo — is governed automatically by the **recall rule** that `bureau:init` installs; you
-don't manage that.)
+your repo — is governed automatically by `BUREAU.md`, the instructions `bureau:init` writes at
+your repo root and wires into `CLAUDE.md`; you don't manage that.)
 
 The one idea to hold onto: **bureau treats every AI session like a meeting, and your knowledge
 like version control.** Sessions are minuted (the *logbook*), distilled into a canon (the
@@ -100,9 +100,9 @@ never pass as fact:
 | `stale` | a verified source changed since the check | outdated — re-verify |
 | `contested` | two claims disagree | disputed — resolve before relying |
 
-`bureau:query` enforces this for you. And because `init` installed the **recall rule**, *any*
-AI session in the repo is told to honor these tiers when it reads the cabinets as memory and to
-route new claims through capture → compile → review — never straight to canon.
+`bureau:query` enforces this for you. And because `init` wrote `BUREAU.md` and made `CLAUDE.md`
+import it, *any* AI session in the repo is told to honor these tiers when it reads the cabinets as
+memory and to route new claims through capture → compile → review — never straight to canon.
 
 ---
 
@@ -127,7 +127,8 @@ your-repo/
     decisions/ …       cabinet drawers (the canon)
     logbook/           append-only session history
   board/               rendered board (gitignored — derived, rebuild any time)
-  .claude/rules/bureau.md   the recall rule (installed by init)
+  BUREAU.md            the instructions init writes (trust gate + how to use the canon)
+  CLAUDE.md            imports BUREAU.md (@BUREAU.md), so every session loads it
 ```
 
 The workspace is plain markdown in your repo — diff it, review it in PRs, edit a typo by hand.

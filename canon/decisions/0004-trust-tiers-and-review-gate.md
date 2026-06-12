@@ -16,9 +16,9 @@ carries a `status:`:
 - `contested` — two claims disagree.
 
 AI writes only `proposed`/`verified` (+ `contested`/`stale` as findings); the
-`proposed → review → canonical` gate is the double-check. The **recall rule** `init` installs
-makes every AI session honor the tiers on read, so the gate governs all work — not just bureau
-commands.
+`proposed → review → canonical` gate is the double-check. The **`BUREAU.md`** instructions `init`
+writes (imported by `CLAUDE.md`) make every AI session honor the tiers on read, so the gate
+governs all work — not just bureau commands.
 
 _This page is `proposed`: it states the design intent and awaits human review via
 `bureau:review` to become canonical._

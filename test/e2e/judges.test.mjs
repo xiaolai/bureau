@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, cpSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, cpSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -14,15 +14,16 @@ import { logbookEntryExists, noLeftoverTokens, recallRuleInstalled, compileProdu
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const today = () => new Date().toISOString().slice(0, 10);
 
-// scaffold a workspace the way `bureau:init` would (copy template, substitute, install rule).
+// scaffold a workspace the way `bureau:init` would: copy template, substitute, write ./BUREAU.md
+// and make ./CLAUDE.md @import it.
 function scaffold() {
   const repo = mkdtempSync(join(tmpdir(), "bureau-e2e-"));
   cpSync(join(PLUGIN, "templates", "workspace"), join(repo, "bureau"), { recursive: true });
   const sub = (p, k, v) => writeFileSync(p, readFileSync(p, "utf8").replaceAll(k, v));
   const walk = (d) => { for (const e of readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.(md|json)$/.test(e.name)) sub(p, "{{DATE}}", today()); } };
   walk(join(repo, "bureau"));
-  mkdirSync(join(repo, ".claude", "rules"), { recursive: true });
-  writeFileSync(join(repo, ".claude", "rules", "bureau.md"), readFileSync(join(PLUGIN, "templates", "recall-rule.md"), "utf8").replaceAll("{{WORKSPACE}}", "bureau"));
+  writeFileSync(join(repo, "BUREAU.md"), readFileSync(join(PLUGIN, "templates", "bureau-instructions.md"), "utf8").replaceAll("{{WORKSPACE}}", "bureau"));
+  writeFileSync(join(repo, "CLAUDE.md"), "<!-- bureau:start -->\n@BUREAU.md\n<!-- bureau:end -->\n");
   return repo;
 }
 const ws = (repo) => join(repo, "bureau");
@@ -44,9 +45,12 @@ test("judge noLeftoverTokens: passes clean, fails on an unsubstituted token", ()
   assert.equal(noLeftoverTokens(bad).pass, false);
 });
 
-test("judge recallRuleInstalled: passes when installed+substituted, fails when absent", () => {
-  assert.equal(recallRuleInstalled(scaffold()).pass, true);
-  assert.equal(recallRuleInstalled(mkdtempSync(join(tmpdir(), "bureau-e2e-"))).pass, false);
+test("judge recallRuleInstalled: needs BOTH BUREAU.md substituted AND the CLAUDE.md @import", () => {
+  assert.equal(recallRuleInstalled(scaffold()).pass, true);                       // both present
+  assert.equal(recallRuleInstalled(mkdtempSync(join(tmpdir(), "bureau-e2e-"))).pass, false); // neither
+  // BUREAU.md present but CLAUDE.md does NOT import it → must FAIL (the import is what loads it).
+  const noImport = scaffold(); writeFileSync(join(noImport, "CLAUDE.md"), "# just my notes, no bureau import\n");
+  assert.equal(recallRuleInstalled(noImport).pass, false);
 });
 
 test("judge compileProducedProposed: passes proposed page, FAILS if compile leaked canonical", () => {

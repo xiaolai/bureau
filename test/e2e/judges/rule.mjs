@@ -51,12 +51,20 @@ export function noLeftoverTokens(repoRoot) {
   return { name: "no-leftover-tokens", pass: hits.length === 0, detail: hits.length ? "unsubstituted tokens in: " + hits.join(", ") : "clean" };
 }
 
+// init writes ./BUREAU.md (substituted) AND makes CLAUDE.md @import it — the import is what binds
+// the trust gate to every session. Both must hold: instructions present + substituted + content
+// intact, AND CLAUDE.md actually pulls them in.
 export function recallRuleInstalled(repoRoot) {
-  const p = join(repoRoot, ".claude", "rules", "bureau.md");
-  if (!existsSync(p)) return { name: "recall-rule-installed", pass: false, detail: ".claude/rules/bureau.md not installed by init" };
-  const s = readFileSync(p, "utf8");
-  const ok = !/\{\{WORKSPACE\}\}/.test(s) && /status:/.test(s) && /canonical/.test(s);
-  return { name: "recall-rule-installed", pass: ok, detail: ok ? "installed + substituted" : "token left or content missing" };
+  const name = "bureau-instructions-installed";
+  const f = join(repoRoot, "BUREAU.md");
+  if (!existsSync(f)) return { name, pass: false, detail: "./BUREAU.md not written by init" };
+  const s = readFileSync(f, "utf8");
+  const claudeMd = join(repoRoot, "CLAUDE.md");
+  const imported = existsSync(claudeMd) && /^\s*@BUREAU\.md\s*$/m.test(readFileSync(claudeMd, "utf8"));
+  const ok = !/\{\{WORKSPACE\}\}/.test(s) && /status:/.test(s) && /canonical/.test(s) && imported;
+  const why = !imported ? "CLAUDE.md does not @import BUREAU.md"
+    : /\{\{WORKSPACE\}\}/.test(s) ? "{{WORKSPACE}} token left in BUREAU.md" : "expected tier content missing";
+  return { name, pass: ok, detail: ok ? "BUREAU.md installed + substituted + imported by CLAUDE.md" : why };
 }
 
 // compile must create the target page at proposed/verified — NEVER canonical (only review does).
