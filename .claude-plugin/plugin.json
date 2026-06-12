@@ -1,6 +1,6 @@
 {
   "name": "bureau",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Turn AI sessions into a maintained, inspectable canon. Capture each session to append-only logbooks, compile them into a consistency-checked knowledge base (cabinets) gated by a human review tier, and render it with the bundled gazette dashboard. Karpathy LLM-wiki pattern + session provenance. Self-contained — no separate install.",
   "author": {
     "name": "xiaolai"
