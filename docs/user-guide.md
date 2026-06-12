@@ -22,17 +22,17 @@ In your project, once:
 /bureau:init
 ```
 
-That scaffolds a `bureau/` workspace (your cabinet drawers + a `logbook/`), installs the recall
-rule into `.claude/rules/`, and gitignores the rendered board. Then the loop:
+That scaffolds a `canon/` workspace (your cabinet drawers + a `logbook/`), writes `BUREAU.md`
+(imported by `CLAUDE.md`), and gitignores the rendered gazette. Then the loop:
 
 ```
 … work a normal AI session …
 /bureau:note          # at each real decision — jots a live minute
 /bureau:file-session  # at the end — files the full entry
-/bureau:compile       # distil the new sessions into cabinet pages
+/bureau:compile       # distil the new sessions into dossiers
 /bureau:review        # approve the vetted claims → canonical (the double-check)
 /bureau:query "…"     # ask the canon anything, later
-/bureau:inspect       # open the board to read it as a human
+/bureau:inspect       # open the gazette to read it as a human
 ```
 
 You don't need all of them every time — see *What to run when* below.
@@ -44,16 +44,16 @@ You don't need all of them every time — see *What to run when* below.
 You spend a session deciding your auth token lifetime.
 
 1. **Mid-session, a decision lands.** `/bureau:note` →
-   appends to `bureau/logbook/2026/06/<session>.md`:
+   appends to `canon/logbook/2026/06/<session>.md`:
    > checkpoint 14:30 — decided: auth tokens last 24h (security review). open: refresh-token TTL.
 
 2. **End of session.** `/bureau:file-session` finalizes that entry — intent, decisions, changed
    files, open threads — append-only history. (If you forget, a `SessionEnd` hook still saves a
    stub, and a compaction mid-session re-grounds the agent from the logbook.)
 
-3. **Distil to canon.** `/bureau:compile` reads the new logbook entry and writes a cabinet page:
+3. **Distil to canon.** `/bureau:compile` reads the new minute and writes a dossier:
    ```
-   bureau/decisions/token-ttl.md   →  title: Token TTL   status: proposed
+   canon/decisions/token-ttl.md   →  title: Token TTL   status: proposed
        "Auth tokens last 24h."   **Sources.** [[session a1b2 · 2026-06-10]]
    ```
    It's `proposed` — an AI claim, **not yet fact**. A checkable fact (a path, a command) compile
@@ -75,12 +75,12 @@ You spend a session deciding your auth token lifetime.
 |--------|-----|-----|
 | A decision is made mid-session | `bureau:note` | live minute — higher fidelity than reconstructing at the end |
 | End of a working session | `bureau:file-session` | file the full structured entry |
-| After one or more filed sessions | `bureau:compile` | turn logbook entries into cabinet pages |
+| After one or more filed sessions | `bureau:compile` | turn minutes into dossiers |
 | You have a few minutes to vet memory | `bureau:review` | promote vetted claims to `canonical` |
 | Before a milestone / periodically | `bureau:lint` | catch contradictions, gaps, drift across the canon |
 | You need to recall something | `bureau:query "…"` | tier-aware answer with citations |
 | "What needs my attention?" | `bureau:status` | uncompiled / pending-review / stale / contested counts |
-| Read it as a human | `bureau:inspect` | build + open the offline board |
+| Read it as a human | `bureau:inspect` | build + open the offline gazette |
 
 Capture is cheap and frequent; review is the deliberate, valuable step. You can let proposed
 claims pile up and review them in a batch.
@@ -89,7 +89,7 @@ claims pile up and review them in a batch.
 
 ## Reading the canon — the trust tiers
 
-Every cabinet page carries a `status:`. It travels with the claim, so an unverified one can
+Every dossier carries a `status:`. It travels with the claim, so an unverified one can
 never pass as fact:
 
 | `status:` | meaning | trust |
@@ -108,14 +108,35 @@ memory and to route new claims through capture → compile → review — never 
 
 ## Maintenance
 
-- **`bureau:status`** is your dashboard: how many sessions are uncompiled, how many pages await
+- **`bureau:status`** is your dashboard: how many sessions are uncompiled, how many dossiers await
   review, what's stale or contested. It tells you the one or two next actions.
 - **`bureau:lint`** sweeps for semantic problems the structural check can't see (contradictions
-  between pages, superseded claims, gaps, vocabulary drift). Run it before a milestone. With
-  `--apply` it marks the hard cases (`contested`/`stale`) so the board surfaces them.
-- **Contested pages** are resolved by *re-deciding* in a session (then recompile + review), not
+  between dossiers, superseded claims, gaps, vocabulary drift). Run it before a milestone. With
+  `--apply` it marks the hard cases (`contested`/`stale`) so the gazette surfaces them.
+- **Contested dossiers** are resolved by *re-deciding* in a session (then recompile + review), not
   by editing the canon directly.
-- **Stale pages** mean a source the claim depended on changed — re-verify and re-approve.
+- **Stale dossiers** mean a source the claim depended on changed — re-verify and re-approve.
+
+---
+
+## Crew — specialized agents that work the canon
+
+A **desk** is a focused agent (plus an always-on one-paragraph brief) that operates on your
+canon. `bureau:crew` manages them:
+
+- **`bureau:crew`** lists what's enabled and what's available.
+- **`bureau:crew enable auditor`** turns on a member bureau ships. The **Auditor** is a *read-only*
+  reviewer — point it at the canon to hunt contradictions, stale claims, schema violations, and
+  `canonical`/`verified` pages that aren't actually supported. It reports; it never edits.
+- **`bureau:crew new <name> --role "…"`** scaffolds *your own* member, then you flesh out its
+  persona. It's a real Claude Code subagent — invocable as `<name>`.
+
+Each member is authored under `bureau/crew/<name>/` (committed — your source of truth) and
+*materialized* into Claude Code's native slots (`.claude/agents/`, `.claude/skills/`); the brief
+loads every session via an `@import` in `BUREAU.md`. The generated files under `.claude/` carry a
+`bureau:gen` marker — never hand-edit them; edit the source and run **`bureau:crew sync`**.
+**`bureau:crew check`** verifies everything is in sync (and `bureau:init` re-materializes on a fresh
+clone). Commit `bureau/crew/` and your whole team gets the crew on `git pull`.
 
 ---
 
@@ -123,13 +144,18 @@ memory and to route new claims through capture → compile → review — never 
 
 ```
 your-repo/
-  bureau/              the workspace (committed — this IS your memory)
+  canon/               the workspace (committed — this IS your memory; default name)
     decisions/ …       cabinet drawers (the canon)
     logbook/           append-only session history
-  board/               rendered board (gitignored — derived, rebuild any time)
+  bureau/crew/         the crew you enabled/authored — bureau's control dir, never rendered
+  gazette/             the rendered gazette (gitignored — derived, rebuild any time)
   BUREAU.md            the instructions init writes (trust gate + how to use the canon)
   CLAUDE.md            imports BUREAU.md (@BUREAU.md), so every session loads it
+  .claude/agents/      crew agents, materialized by bureau:crew (generated — edit the source)
 ```
+
+`canon/` is the content (rename-able via `--workspace`, just not to a reserved name like `bureau`
+or `crew`); `bureau/` is reserved for bureau's machinery — the two are always separate directories.
 
 The workspace is plain markdown in your repo — diff it, review it in PRs, edit a typo by hand.
 bureau just keeps it consistent and gated.

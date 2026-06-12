@@ -1,6 +1,6 @@
 ---
 name: scribe
-description: The live note-taker — summarize the current session's decisions and open threads on demand or at checkpoints, and (in a bureau workspace) append them to the session's running logbook entry. Use when running bureau:note, or when the user asks to take a note / minute this / summarize where we are.
+description: The live note-taker — summarize the current session's decisions and open threads on demand or at checkpoints, and (in a bureau workspace) append them to the session's running minute. Use when running bureau:note, or when the user asks to take a note / minute this / summarize where we are.
 argument-hint: "[--workspace <name>]"
 ---
 
@@ -8,11 +8,11 @@ argument-hint: "[--workspace <name>]"
 
 `file-session` files the minutes *after* a session; the scribe writes them *during* it, so the
 record's fidelity doesn't depend on end-of-session memory. It is the minute-taker; the filed
-logbook entry is its notes cleaned up.
+minute is its notes cleaned up.
 
 ## Dual mode
 
-- **In a bureau workspace** → append a running note to the session's logbook entry (it persists
+- **In a bureau workspace** → append a running note to the session's minute (it persists
   and `file-session` later finalizes it).
 - **Anywhere else** → just hand the user the summary (ephemeral) — a useful "where are we" with
   no workspace required.
@@ -29,11 +29,11 @@ signal. Capture inflection points, not heartbeats.
    the user and stop (ephemeral mode) — do not error.
 2. **Summarize the span** since the last note: the decisions reached, what changed, and the open
    threads. Faithful over polished — include reversals and dead ends.
-3. **Append, don't rewrite.** Add the note to the session's running logbook entry
+3. **Append, don't rewrite.** Add the note to the session's running minute
    (`logbook/<YYYY>/<MM>/<safe-session-id>.md`, the same file `file-session` finalizes), under a
    timestamped checkpoint heading. Never rewrite earlier notes or other sessions' entries.
 4. **Stay low-authority.** Running notes are `status: logbook` — raw material, never canon. The
-   scribe never writes cabinet pages.
+   scribe never writes dossiers.
 5. **Report** the note's path (workspace mode) or present the summary (ephemeral mode).
 
 ## Rules

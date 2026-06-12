@@ -1,0 +1,7 @@
+{
+  "name": "{{NAME}}",
+  "role": "{{ROLE}}",
+  "source": "local",
+  "enabled": true,
+  "provides": { "agent": "{{NAME}}", "skills": [], "hook": null }
+}

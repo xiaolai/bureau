@@ -12,7 +12,7 @@ an unverified claim.
 
 Follow the protocol in the **review** skill (`skills/review/SKILL.md`). In short:
 
-1. Locate the workspace (`bureau.json`; default `bureau`). If none, tell the user to run
+1. Locate the workspace (`bureau.json`; default `canon`). If none, tell the user to run
    `bureau:init` first and stop.
 2. Re-check staleness: for each recorded artifact in `<workspace>/_verify.json`, confirm the
    path stays inside the repo/workspace before reading it (reject absolute/`..`/symlink-escape —
@@ -27,6 +27,6 @@ Follow the protocol in the **review** skill (`skills/review/SKILL.md`). In short
 5. Take the decision per page: approve → `status: canonical` + today's `reviewed:` date (NOT
    `verified:` — that is the automatic tier); reject → confirm, then remove the claim (delete the
    page only if it holds no other claim, else strike just this claim) and append a NEW `review`
-   logbook entry naming what was rejected (existing entries are never rewritten).
+   minute naming what was rejected (existing entries are never rewritten).
 6. Run `bureau:inspect`, then report counts approved / rejected / pending and any `contested`
    pages (those are resolved by re-deciding in a session, not here).

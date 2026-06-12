@@ -30,7 +30,7 @@ function leadingFrontmatter(s) {
 
 // 1. every JSON file parses.
 const jsons = ["\.claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "hooks/hooks.json",
-  "gazette/package.json", "templates/workspace/_config.json", "templates/workspace/bureau.json"];
+  "press/package.json", "templates/workspace/_config.json", "templates/workspace/bureau.json"];
 for (const j of jsons.map((s) => s.replace(/^\\\./, "."))) {
   if (!existsSync(join(ROOT, j))) { fail(`missing JSON: ${j}`); continue; }
   try { JSON.parse(read(j)); } catch (e) { fail(`invalid JSON ${j}: ${e.message}`); }
@@ -89,12 +89,32 @@ if (hooksObj && typeof hooksObj === "object" && !Array.isArray(hooksObj)) {
 }
 
 // 6. the gazette run artifact ships.
-if (!existsSync(join(ROOT, "gazette", "bin", "gazette.mjs"))) fail("gazette/bin/gazette.mjs (the bundle) is missing");
+if (!existsSync(join(ROOT, "press", "bin", "gazette.mjs"))) fail("press/bin/gazette.mjs (the bundle) is missing");
 
 // 7. the bureau-instructions template still carries its substitution token (init replaces it
 //    when writing ./BUREAU.md).
 if (existsSync(join(ROOT, "templates", "bureau-instructions.md")) && !/\{\{WORKSPACE\}\}/.test(read("templates/bureau-instructions.md")))
   fail("templates/bureau-instructions.md: lost its {{WORKSPACE}} token (init can't target the workspace)");
+
+// 8. shipped crew members are well-formed: crew.json parses + name matches dir; agent.md has a
+//    leading frontmatter block with a matching name + a description; a brief.md ships.
+for (const d of ls("crew").filter((d) => d !== "_template" && statSync(join(ROOT, "crew", d)).isDirectory())) {
+  const meta = `crew/${d}/crew.json`, agent = `crew/${d}/agent.md`, brief = `crew/${d}/brief.md`;
+  if (!existsSync(join(ROOT, meta))) { fail(`crew/${d}: no crew.json`); continue; }
+  let m; try { m = JSON.parse(read(meta)); } catch (e) { fail(`${meta}: invalid JSON: ${e.message}`); m = {}; }
+  if (m.name !== d) fail(`${meta}: name "${m.name}" != dir "${d}"`);
+  if (!existsSync(join(ROOT, agent))) fail(`crew/${d}: no agent.md`);
+  else { const fm = leadingFrontmatter(read(agent)); if (!fm) fail(`${agent}: no leading frontmatter`); else { if (fm.name !== d) fail(`${agent}: frontmatter name "${fm.name}" != dir "${d}"`); if (!fm.description) fail(`${agent}: no description`); } }
+  if (!existsSync(join(ROOT, brief))) fail(`crew/${d}: no brief.md`);
+}
+// 9. the author template carries its substitution tokens (crew:new substitutes them).
+if (existsSync(join(ROOT, "crew", "_template"))) {
+  for (const f of ["agent.md", "brief.md", "crew.json"]) {
+    const p = `crew/_template/${f}`;
+    if (!existsSync(join(ROOT, p))) fail(`${p}: missing from the crew author template`);
+    else if (!/\{\{NAME\}\}/.test(read(p))) fail(`${p}: lost its {{NAME}} token (crew:new can't target the member)`);
+  }
+}
 
 if (fails.length) { console.error("✗ static check: " + fails.length + " issue(s)\n  - " + fails.join("\n  - ")); process.exit(1); }
 console.log("✓ static check: all structural invariants hold");

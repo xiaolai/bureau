@@ -18,15 +18,15 @@ const today = () => new Date().toISOString().slice(0, 10);
 // and make ./CLAUDE.md @import it.
 function scaffold() {
   const repo = mkdtempSync(join(tmpdir(), "bureau-e2e-"));
-  cpSync(join(PLUGIN, "templates", "workspace"), join(repo, "bureau"), { recursive: true });
+  cpSync(join(PLUGIN, "templates", "workspace"), join(repo, "canon"), { recursive: true });
   const sub = (p, k, v) => writeFileSync(p, readFileSync(p, "utf8").replaceAll(k, v));
   const walk = (d) => { for (const e of readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.(md|json)$/.test(e.name)) sub(p, "{{DATE}}", today()); } };
-  walk(join(repo, "bureau"));
-  writeFileSync(join(repo, "BUREAU.md"), readFileSync(join(PLUGIN, "templates", "bureau-instructions.md"), "utf8").replaceAll("{{WORKSPACE}}", "bureau"));
+  walk(join(repo, "canon"));
+  writeFileSync(join(repo, "BUREAU.md"), readFileSync(join(PLUGIN, "templates", "bureau-instructions.md"), "utf8").replaceAll("{{WORKSPACE}}", "canon"));
   writeFileSync(join(repo, "CLAUDE.md"), "<!-- bureau:start -->\n@BUREAU.md\n<!-- bureau:end -->\n");
   return repo;
 }
-const ws = (repo) => join(repo, "bureau");
+const ws = (repo) => join(repo, "canon");
 const captureSession = (repo, id) => execFileSync("node", [join(PLUGIN, "scripts", "capture-stub.mjs")], { cwd: repo, input: JSON.stringify({ session_id: id }), stdio: ["pipe", "ignore", "ignore"] });
 const writePage = (repo, name, status) => writeFileSync(join(ws(repo), "decisions", name), `---\ntitle: ${name.replace(/\.md$/, "")}\nupdated: ${today()}\nstatus: ${status}\n---\n# ${name}\nA claim. **Sources.** [[Logbook]]\n`);
 // flexible cabinet page: control title, tier, and full body (for cabinetPageAbout fixtures).
@@ -69,10 +69,10 @@ test("judge reviewPromotedToCanonical: fails at proposed, passes once approved",
 
 test("judge boardBuildsHealthy: passes a clean scaffold, fails on a dangling link", () => {
   const good = scaffold(); captureSession(good, "feed1234"); writeFileSync(join(good, ".gitignore"), "/board/\n");
-  assert.equal(boardBuildsHealthy(good, "bureau").pass, true);
+  assert.equal(boardBuildsHealthy(good, "canon").pass, true);
   const bad = scaffold(); writePage(bad, "dangle.md", "proposed");
   writeFileSync(join(ws(bad), "decisions", "dangle.md"), `---\ntitle: Dangle\nstatus: proposed\n---\n# Dangle\nSee [[Nonexistent Page]].\n`);
-  assert.equal(boardBuildsHealthy(bad, "bureau").pass, false); // the [[Nonexistent Page]] dangles
+  assert.equal(boardBuildsHealthy(bad, "canon").pass, false); // the [[Nonexistent Page]] dangles
 });
 
 test("judge boardBuildsHealthy: also fails on an ORPHAN page (no links in or out)", () => {
@@ -81,7 +81,7 @@ test("judge boardBuildsHealthy: also fails on an ORPHAN page (no links in or out
   // branch of the health parse actually fails (a broken orphan regex couldn't self-test green).
   const bad = scaffold(); writeFileSync(join(bad, ".gitignore"), "/board/\n");
   writeCabinetPage(bad, "lonely.md", "proposed", "Lonely Orphan", "# Lonely Orphan\nA standalone claim with no links in or out.");
-  const v = boardBuildsHealthy(bad, "bureau");
+  const v = boardBuildsHealthy(bad, "canon");
   assert.equal(v.pass, false, v.detail);
   assert.match(v.detail, /orphans=[1-9]/); // the failure is specifically the orphan count, not dangling
 });

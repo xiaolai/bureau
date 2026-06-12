@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // bureau test orchestrator. Runs the DETERMINISTIC pyramid by default (no API, always green):
-//   L0 static structure · L1 hook-script units · L1 gazette renderer · L3 judge self-test.
+//   L0 static structure · L1 hook-script units · L1 press renderer · L3 judge self-test.
 // Pass --e2e to ALSO run the live behavioral layer (`claude -p`, needs auth + tokens).
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -16,10 +16,11 @@ const step = (label, fn) => { console.log(`\n=== ${label} ===`); try { fn(); } c
 
 step("L0 · static structure", () => run("node", ["test/static/check.mjs"]));
 step("L1 · hook-script units", () => run("node", ["--test", "test/unit/scripts.test.mjs"]));
-step("L1 · gazette renderer", () => {
-  if (!existsSync(join(ROOT, "gazette", "node_modules")))
-    run("npm", ["install", "--no-audit", "--no-fund"], { cwd: join(ROOT, "gazette") });
-  run("node", ["--test"], { cwd: join(ROOT, "gazette") });
+step("L1 · crew engine units", () => run("node", ["--test", "test/unit/crew.test.mjs"]));
+step("L1 · press renderer", () => {
+  if (!existsSync(join(ROOT, "press", "node_modules")))
+    run("npm", ["install", "--no-audit", "--no-fund"], { cwd: join(ROOT, "press") });
+  run("node", ["--test"], { cwd: join(ROOT, "press") });
 });
 step("L3 · judge self-test (deterministic)", () => run("node", ["--test", "test/e2e/judges.test.mjs"]));
 step("L1 · self-canon fixture (dogfood)", () => run("node", ["--test", "test/canon.test.mjs"]));

@@ -8,17 +8,42 @@
 // unless the cwd is a real bureau workspace. ALL hook-payload values are untrusted — the
 // workspace root comes from process.cwd() (the trusted hook working dir), never the payload,
 // and the session id is sanitized to a safe slug before it touches a path or YAML.
-import { existsSync, mkdirSync, writeFileSync, readSync, statSync, realpathSync } from "fs";
-import { join, sep } from "path";
+import { existsSync, mkdirSync, writeFileSync, readSync, realpathSync, lstatSync, opendirSync } from "fs";
+import { join, dirname, sep } from "path";
 
 const LOG_DRAWER = "logbook";
 
 function safe(fn, dflt) { try { return fn(); } catch { return dflt; } }
 
-// workspace dir name: a single safe path segment, never absolute or parent-traversing.
-function workspaceName() {
-  const raw = process.env.BUREAU_WORKSPACE || "bureau";
-  return /^[A-Za-z0-9._-]+$/.test(raw) && raw !== "." && raw !== ".." ? raw : "bureau";
+// the realpath of `target`'s deepest EXISTING ancestor must sit inside `root` (symlink-safe).
+function containedUnder(target, root) {
+  const rr = safe(() => realpathSync(root), null);
+  let a = target; while (!existsSync(a) && a !== dirname(a)) a = dirname(a);
+  const ar = safe(() => realpathSync(a), null);
+  return !!rr && !!ar && (ar === rr || ar.startsWith(rr + sep));
+}
+
+// Find the bureau workspace dir by its bureau.json marker — null if absent/ambiguous → caller
+// no-ops. ANY workspace name works (the `canon` default, a legacy `bureau`, a custom name) without
+// the hook being told the name. SECURITY: the BUREAU_WORKSPACE override must be a REAL (non-symlink)
+// dir contained under cwd (an env symlink can't steer writes outside the repo); the auto-detect scan
+// is bounded and skips dotdirs / symlinks. The `bureau.json` MARKER requirement is what keeps it off
+// the control/output dirs — `bureau/` (crew), `gazette/`/`board/` (renders) carry no marker — so a
+// legacy workspace literally named `bureau` (which DOES carry a marker) still resolves correctly.
+function workspaceDir(cwd) {
+  const env = process.env.BUREAU_WORKSPACE;
+  if (env && /^[A-Za-z0-9._-]+$/.test(env) && env !== "." && env !== "..") {
+    const d = join(cwd, env);
+    if (safe(() => lstatSync(d).isDirectory(), false) && existsSync(join(d, "bureau.json")) && containedUnder(d, cwd)) return d;
+  }
+  const dir = safe(() => opendirSync(cwd), null);
+  if (!dir) return null;
+  const hits = [];
+  try { let e, n = 0; while ((e = safe(() => dir.readSync(), null)) && n++ < 4096) {
+    if (e.isSymbolicLink() || !e.isDirectory() || e.name.startsWith(".")) continue;
+    if (existsSync(join(cwd, e.name, "bureau.json"))) { hits.push(e.name); if (hits.length > 1) break; }
+  } } finally { safe(() => dir.closeSync(), null); }
+  return hits.length === 1 ? join(cwd, hits[0]) : null;
 }
 
 // sanitize an untrusted id to a safe filename/YAML slug (no path separators, no YAML metachars).
@@ -46,12 +71,10 @@ function readPayload() {
 function main() {
   const payload = readPayload();
   const cwd = process.cwd(); // TRUSTED working dir, NOT payload.cwd
-  const ws = workspaceName();
-  const wsDir = join(cwd, ws);
 
-  // act only in a real bureau workspace: a directory carrying the bureau.json marker.
-  if (!existsSync(wsDir) || !safe(() => statSync(wsDir).isDirectory(), false)) return;
-  if (!existsSync(join(wsDir, "bureau.json"))) return;
+  // act only in a real bureau workspace: the dir carrying the bureau.json marker (auto-detected).
+  const wsDir = workspaceDir(cwd);
+  if (!wsDir) return;
 
   const sessionId = safeId(payload.session_id || payload.sessionId);
   if (!sessionId) return; // no usable session id (malformed/oversized/empty payload) → no-op
@@ -67,11 +90,12 @@ function main() {
   const dir = join(wsDir, LOG_DRAWER, yyyy, mm);
   const file = join(dir, sessionId + ".md");
 
-  // belt-and-suspenders containment: the resolved dir must stay under the workspace.
+  // Containment BEFORE creating anything: the deepest existing ancestor of `dir` must resolve inside
+  // the workspace. A symlinked `logbook` (or any ancestor) escaping the workspace → no-op, so we
+  // never even create stray directories outside it. Re-check after mkdir (TOCTOU belt-and-suspenders).
+  if (!containedUnder(dir, wsDir)) return;
   safe(() => mkdirSync(dir, { recursive: true }), null);
-  const dirReal = safe(() => realpathSync(dir), null);
-  const wsReal = safe(() => realpathSync(wsDir), null);
-  if (!dirReal || !wsReal || !(dirReal === wsReal || dirReal.startsWith(wsReal + sep))) return;
+  if (!containedUnder(dir, wsDir)) return;
 
   const esc = (s) => String(s).replace(/[`\r\n]/g, " "); // keep cwd safe inside markdown backticks
   // full sanitized id (not the 8-char short) so two sessions sharing a prefix can't collide

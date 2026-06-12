@@ -13,9 +13,9 @@ If no question was given, ask the user what they want to know before proceeding.
 
 Follow the protocol in the **recall** skill (`skills/recall/SKILL.md`). In short:
 
-1. Locate the workspace (`bureau.json`; default `bureau`). If none, tell the user to run
+1. Locate the workspace (`bureau.json`; default `canon`). If none, tell the user to run
    `bureau:init` first and stop.
-2. Find the cabinet pages that bear on the question (by title, drawer, and `[[links]]`); exclude
+2. Find the dossiers that bear on the question (by title, drawer, and `[[links]]`); exclude
    `logbook/`, `board/`, `lint/`, and `_`-prefixed entries.
 3. Synthesize an answer ONLY from those pages. For each claim you use, cite the page and its
    `status:` tier, and the `[[session …]]` provenance behind it.

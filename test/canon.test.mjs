@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const GAZETTE = join(ROOT, "gazette", "bin", "gazette.mjs");
+const GAZETTE = join(ROOT, "press", "bin", "gazette.mjs");
 const CANON = join(ROOT, "canon");
 const T = 120000; // per-subprocess timeout so a hung build fails the test, not CI.
 

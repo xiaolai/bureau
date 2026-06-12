@@ -1,6 +1,6 @@
 {
   "profiles": ["software", "story"],
-  "workspace": "bureau",
-  "board": "board",
+  "workspace": "canon",
+  "board": "gazette",
   "autoCompile": false
 }

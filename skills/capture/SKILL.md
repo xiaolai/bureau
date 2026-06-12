@@ -1,11 +1,11 @@
 ---
 name: capture
-description: Write a faithful, append-only logbook entry for an AI session — intent, decisions, changed files, open threads, and a transcript pointer. Use when filing a session into a bureau workspace (e.g. via bureau:file-session), or when the user asks to record/minute the current session.
+description: Write a faithful, append-only minute for an AI session — intent, decisions, changed files, open threads, and a transcript pointer. Use when filing a session into a bureau workspace (e.g. via bureau:file-session), or when the user asks to record/minute the current session.
 ---
 
-# Capture — session → logbook entry
+# Capture — session → minute
 
-A logbook entry is the **faithful, low-authority record** of one session: what was attempted,
+A minute is the **faithful, low-authority record** of one session: what was attempted,
 what was decided, what changed, what's still open. It is the raw material the canon is later
 compiled from, and the provenance every cabinet claim points back to. It is **append-only** —
 write this session's entry; never edit another session's.
@@ -21,10 +21,10 @@ meaning, not the stub's raw bytes), then replace the body.
 
 ## Entry schema
 
-Frontmatter is gazette's SIMPLE parser — it does NOT strip quotes and does NOT do YAML
+Frontmatter is the press's SIMPLE parser — it does NOT strip quotes and does NOT do YAML
 escaping. So titles are **unquoted**, every rendered value is a single safe line, and no value
 contains `"`, a newline, or `[ ] |`. The one exception is `transcript:` — a bureau-internal
-field consumed by bureau (not rendered as a clean value by gazette), stored as a
+field consumed by bureau (not rendered as a clean value by the press), stored as a
 JSON-escaped string so an arbitrary path is safe.
 
 ```markdown
@@ -41,7 +41,7 @@ transcript: "<transcript path, JSON-escaped if present, else empty>"
 **Intent.** What this session set out to do (1–2 sentences).
 
 **Decisions.**
-- <decision> — implies cabinet page **<Page name>** (link with `[[Page]]` only if it already exists)
+- <decision> — implies dossier **<Page name>** (link with `[[Page]]` only if it already exists)
 
 **Changes.**
 - <path or artifact> (new | updated | removed) — <why>
@@ -56,14 +56,14 @@ transcript: "<transcript path, JSON-escaped if present, else empty>"
 
 1. **Faithful over polished.** Record what actually happened, including dead ends and
    reversals — the logbook is history, not a press release.
-2. **Decisions name their target — but don't ship dangling links.** Name the cabinet page a
+2. **Decisions name their target — but don't ship dangling links.** Name the dossier a
    decision implies. Use a `[[link]]` ONLY if that page already exists; otherwise write the
    page name as plain text. `bureau:compile` creates the page and wires the provenance later.
-3. **No canon writes.** Capture NEVER edits cabinet pages. Distillation into the SSOT is a
+3. **No canon writes.** Capture NEVER edits dossiers. Distillation into the SSOT is a
    separate, deliberate step (`bureau:compile`).
 4. **Safe, unique title.** Use the FULL sanitized session id in the title —
    `session <safe-session-id> · <date>` — so two sessions whose ids share a prefix can't
-   collide into a duplicate title (gazette rejects duplicate titles). Unquoted, free of
+   collide into a duplicate title (the press rejects duplicate titles). Unquoted, free of
    `"` / `[ ] |`. The `<id8>` short form is fine inside the body heading, not the title.
 5. **One session, one file.** Don't merge sessions; don't rewrite earlier entries.
 
@@ -77,7 +77,7 @@ meeting**. Truth is adjudicated later, in the cabinets, under consistency checks
 <example>
 Context: A working session is wrapping up; the agent has full context.
 user: "bureau:file-session"
-assistant: "Filing this session. Logbook entry at logbook/2026/06/<id>.md — Intent: harden the capture script; Decisions: drop git from the hook (implies cabinet page **Capture design**); Changes: scripts/capture-stub.mjs; Open: none. I named the cabinet page in plain text since it doesn't exist yet — compile will create and link it."
+assistant: "Filing this session. Logbook entry at logbook/2026/06/<id>.md — Intent: harden the capture script; Decisions: drop git from the hook (implies dossier **Capture design**); Changes: scripts/capture-stub.mjs; Open: none. I named the dossier in plain text since it doesn't exist yet — compile will create and link it."
 <commentary>The rich entry is written in-session where context is live; a not-yet-existing target is plain text, not a dangling [[link]].</commentary>
 </example>
 
@@ -91,8 +91,8 @@ assistant: "A stub exists for this session, so I'll enrich it in place — re-de
 ## Scope note
 
 This skill covers ONLY the logbook-capture protocol — turning one session into one faithful,
-append-only logbook entry. It does **not** distil entries into cabinet pages (that is
-`bureau:compile`), does **not** render or open the board (that is `bureau:inspect`), and does
+append-only minute. It does **not** distil entries into dossiers (that is
+`bureau:compile`), does **not** render or open the gazette (that is `bureau:inspect`), and does
 **not** check consistency (that is `bureau:lint`).
 
 Consumed by:

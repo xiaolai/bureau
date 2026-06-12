@@ -21632,7 +21632,7 @@ function walk(dir, base2, pred, acc) {
     }
     if (st.isSymbolicLink()) continue;
     if (st.isDirectory()) {
-      if (!skipDir(name)) walk(p, base2, pred, acc);
+      if (!skipDir(name) && !(name === "crew" && dir === base2)) walk(p, base2, pred, acc);
     } else if (st.isFile() && pred(name)) acc.push(relPosix(base2, p));
   }
   return acc;

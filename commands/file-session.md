@@ -1,5 +1,5 @@
 ---
-description: Write the rich logbook entry for the current session (intent, decisions, changes, open threads).
+description: Write the rich minute for the current session (intent, decisions, changes, open threads).
 ---
 
 # bureau:file-session
@@ -10,7 +10,7 @@ high-fidelity record is written. The `SessionEnd` hook only writes a mechanical 
 
 Follow the protocol in the **capture** skill (`skills/capture/SKILL.md`). In short:
 
-1. Locate the workspace (discover a `bureau.json`; default `bureau`). If none, tell the user
+1. Locate the workspace (discover a `bureau.json`; default `canon`). If none, tell the user
    to run `bureau:init`.
 2. Determine the logbook path `logbook/<YYYY>/<MM>/<safe-session-id>.md`, where the session id
    is sanitized to a safe slug per the capture skill (`[A-Za-z0-9_-]`, no path separators).
@@ -20,9 +20,9 @@ Follow the protocol in the **capture** skill (`skills/capture/SKILL.md`). In sho
    sanitized frontmatter block (the stub's `session:`/`transcript:` values are untrusted; do
    not copy them verbatim if they contain quotes, newlines, or `[ ] |`).
 4. Write the entry per the capture schema: intent, decisions, changed files, open threads, a
-   transcript pointer. For each decision, name the cabinet page it implies; use a `[[link]]`
+   transcript pointer. For each decision, name the dossier it implies; use a `[[link]]`
    only if that page **already exists** — otherwise write the target as plain text so the
    logbook doesn't ship dangling links (compile will create and link it).
 5. Append-only in spirit: do not edit OTHER sessions' entries.
-6. Do NOT touch cabinet pages — distilling into the canon is `bureau:compile`.
+6. Do NOT touch dossiers — distilling into the canon is `bureau:compile`.
 7. Report the entry path.

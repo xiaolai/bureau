@@ -17,10 +17,10 @@ jobs:
           node-version: "20"
       - name: Install gazette test deps (incl. playwright)
         run: npm install --no-audit --no-fund
-        working-directory: gazette
+        working-directory: press
       - name: Install the Chromium binary for the browser render tests
         run: npx playwright install --with-deps chromium
-        working-directory: gazette
+        working-directory: press
       - name: L0 static · L1 units (scripts + gazette + browser) · L3 judge self-test
         run: node test/run.mjs
         env:

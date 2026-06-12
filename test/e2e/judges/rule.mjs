@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const GAZETTE = join(PLUGIN, "gazette", "bin", "gazette.mjs");
+const GAZETTE = join(PLUGIN, "press", "bin", "gazette.mjs");
 
 const walk = (dir, pred, acc = []) => {
   if (!existsSync(dir)) return acc;

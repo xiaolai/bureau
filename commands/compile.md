@@ -1,19 +1,19 @@
 ---
-description: Distil logbook entries into consistency-checked cabinet pages (the canon), with provenance back to each session.
+description: Distil minutes into consistency-checked dossiers (the canon), with provenance back to each session.
 argument-hint: "[--since <YYYY-MM-DD>] [--workspace <name>]"
 ---
 
 # bureau:compile
 
 Turn the append-only logbook into canon: read the sessions that haven't been compiled yet and
-distil their claims into **cabinet pages** — the consistency-checked SSOT — each linked back to
-the logbook entry that introduced it.
+distil their claims into **dossiers** — the consistency-checked SSOT — each linked back to
+the minute that introduced it.
 
 Follow the protocol in the **compile** skill (`skills/compile/SKILL.md`). In short:
 
-1. Locate the workspace (`bureau.json`; default `bureau`). If none, tell the user to run
+1. Locate the workspace (`bureau.json`; default `canon`). If none, tell the user to run
    `bureau:init` first and stop.
-2. Select logbook entries not yet in `<workspace>/_compile-state.json` (narrow with
+2. Select minutes not yet in `<workspace>/_compile-state.json` (narrow with
    `--since <date>`). If none remain, report "cabinets already current" and stop.
 3. For each entry, extract its decisions/changes into claims, place each on its target cabinet
    page — one claim per page, enforcing the title rules (unique, unquoted, no `[ ] |`),

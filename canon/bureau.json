@@ -3,6 +3,6 @@
     "software"
   ],
   "workspace": "canon",
-  "board": "board",
+  "board": "gazette",
   "autoCompile": false
 }

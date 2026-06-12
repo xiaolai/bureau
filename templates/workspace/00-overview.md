@@ -14,21 +14,21 @@ This is a **bureau** workspace — the durable canon distilled from your AI sess
 - **[[Logbook]]** is the append-only history: *how we know / when it entered*. Low
   authority, faithful record. One entry per session.
 
-Every cabinet claim links back to the logbook entry that introduced it, so the canon is
+Every cabinet claim links back to the minute that introduced it, so the canon is
 traceable and regenerable in principle.
 
 ## Workflow
 
 | Command | Does |
 |---------|------|
-| `bureau:note` | take a live note into the running logbook entry (run at decision points) |
-| `bureau:file-session` | file the rich logbook entry for the current session |
-| `bureau:compile` | distil logbook entries into cabinet pages (with provenance) |
+| `bureau:note` | take a live note into the running minute (run at decision points) |
+| `bureau:file-session` | file the rich minute for the current session |
+| `bureau:compile` | distil minutes into dossiers (with provenance) |
 | `bureau:review` | the human gate — promote vetted claims to `canonical`, reject the rest |
 | `bureau:lint` | semantic consistency sweep across cabinets (contradictions, gaps, drift) |
 | `bureau:query` | answer a question from the canon — cited, tier-aware |
 | `bureau:status` | what's uncompiled / pending review / stale / contested |
-| `bureau:inspect` | build + open the board (gazette) |
+| `bureau:inspect` | build + open the gazette (gazette) |
 
 ## Reading this as memory — honor the trust tier
 

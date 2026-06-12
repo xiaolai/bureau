@@ -33,3 +33,7 @@ Never write a durable claim straight into the canon, and never set `canonical` y
 not hand-edit cabinet pages. Memory is gated: **capture** (it lands in the low-authority logbook) →
 **compile** (into cabinet pages as `proposed`/`verified`) → **review** (a human promotes to
 `canonical`). The logbook is append-only — never rewrite a past entry.
+
+<!-- bureau:crew -->
+@bureau/crew/auditor/brief.md
+<!-- /bureau:crew -->

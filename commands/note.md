@@ -1,5 +1,5 @@
 ---
-description: Take a live note — summarize the current session's decisions/open threads into the running logbook entry (or ephemerally if no workspace).
+description: Take a live note — summarize the current session's decisions/open threads into the running minute (or ephemerally if no workspace).
 argument-hint: "[--workspace <name>]"
 ---
 
@@ -10,12 +10,12 @@ record doesn't depend on end-of-session recall. Run it at decision points, not a
 
 Follow the protocol in the **scribe** skill (`skills/scribe/SKILL.md`). In short:
 
-1. Locate the workspace (`bureau.json`; default `bureau`). If none, produce the summary for the
+1. Locate the workspace (`bureau.json`; default `canon`). If none, produce the summary for the
    user (ephemeral) and stop — do not error.
 2. Summarize the span since the last note: decisions reached, what changed, open threads —
    faithful, including reversals.
-3. Append a timestamped checkpoint to the session's running logbook entry
+3. Append a timestamped checkpoint to the session's running minute
    (`logbook/<YYYY>/<MM>/<safe-session-id>.md`, the same file `bureau:file-session` finalizes).
    Never rewrite earlier checkpoints or other sessions' entries.
-4. Keep it `status: logbook` (low-authority, raw); never touch cabinet pages.
+4. Keep it `status: logbook` (low-authority, raw); never touch dossiers.
 5. Report the note's path (or present the summary in ephemeral mode).

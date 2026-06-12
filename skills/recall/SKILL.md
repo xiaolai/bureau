@@ -1,6 +1,6 @@
 ---
 name: recall
-description: Answer from the bureau canon with citations and trust tiers — read cabinet pages as memory, honor each page's status, and never present an unverified claim as fact. Use when running bureau:query, or when the user asks what the project knows / what was decided / what the canon says about something.
+description: Answer from the bureau canon with citations and trust tiers — read dossiers as memory, honor each page's status, and never present an unverified claim as fact. Use when running bureau:query, or when the user asks what the project knows / what was decided / what the canon says about something.
 argument-hint: "\"<question>\" [--workspace <name>]"
 ---
 
@@ -31,7 +31,7 @@ the answer so an unverified claim can never masquerade as fact.
 
 ## Rules
 
-1. **Compiled canon only.** Read cabinet pages; never re-derive an answer from raw sources or
+1. **Compiled canon only.** Read dossiers; never re-derive an answer from raw sources or
    the logbook prose — that is what compile is for.
 2. **Tier travels.** Every cited claim carries its `status:`; the answer's confidence is capped
    by its weakest load-bearing tier.
@@ -58,5 +58,5 @@ assistant: "The canon has **Queue retry** but it's `proposed` (unreviewed, from 
 
 This skill covers ONLY reading the canon to answer a question. It does **not** capture sessions
 (`capture` / `bureau:file-session`), **not** distil the logbook (`compile`), **not** approve
-claims (`review`), and **not** render the board (`bureau:inspect`). It is invoked by the
+claims (`review`), and **not** render the gazette (`bureau:inspect`). It is invoked by the
 `bureau:query` command, and auto-triggers when the user asks what the project knows.

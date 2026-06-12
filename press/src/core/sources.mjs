@@ -6,6 +6,8 @@
 import { readdirSync, existsSync, lstatSync } from "fs";
 import { join, relative, sep } from "path";
 
+// reserved non-content dirs: build output, deps. (A TOP-LEVEL `crew/` — bureau's control dir — is
+// skipped separately in walk(); a nested dir named crew, e.g. `characters/crew/`, still renders.)
 const skipDir = (n) => n.startsWith("_") || n.startsWith(".") || n === "dist" || n === "node_modules";
 const relPosix = (base, p) => relative(base, p).split(sep).join("/");
 
@@ -18,7 +20,7 @@ function walk(dir, base, pred, acc) {
     const p = join(dir, name);
     let st; try { st = lstatSync(p); } catch { continue; }
     if (st.isSymbolicLink()) continue;
-    if (st.isDirectory()) { if (!skipDir(name)) walk(p, base, pred, acc); }
+    if (st.isDirectory()) { if (!skipDir(name) && !(name === "crew" && dir === base)) walk(p, base, pred, acc); }
     else if (st.isFile() && pred(name)) acc.push(relPosix(base, p));
   }
   return acc;

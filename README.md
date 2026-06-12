@@ -13,8 +13,8 @@ contradict each other. **bureau** turns sessions into memory you can trust:
   refusing to state an unverified one as fact. And **`BUREAU.md`** — the instructions `init` writes
   at your repo root and imports from `CLAUDE.md` — makes *every* AI session honor those tiers, so
   the gate governs all work, not just bureau commands.
-- **Inspect.** A navigable offline board rendered by **gazette**, the dashboard bundled inside
-  this plugin (nothing else to install).
+- **Inspect.** A navigable offline **gazette** (the board), built by the bundled **press**
+  inside this plugin (nothing else to install).
 
 This is the [Karpathy LLM-wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
 (LLM as compiler, not retriever) plus session provenance, a review gate, and an always-on
@@ -44,42 +44,44 @@ double-check. Facts-about-artifacts auto-verify; judgments route to the human.
 | | role |
 |---|---|
 | **bureau** (this plugin) | the engine: capture · compile · review · lint |
-| **gazette** (`gazette/`, bundled inside bureau) | render + structural integrity (deterministic) |
+| **press** (`press/`, bundled inside bureau) | builds the gazette + runs the structural checks (deterministic) |
 | `bureau/` (in your repo) | your data: cabinet drawers + the `logbook/` drawer |
 
-gazette is a self-contained Node bundle vendored into the plugin (`gazette/bin/gazette.mjs`,
+the press is a self-contained Node bundle vendored into the plugin (`press/bin/gazette.mjs`,
 no `node_modules`). `bureau:inspect` runs it directly — there is **no separate install**. The
-bundle is regenerated from the upstream renderer source by `scripts/vendor-gazette.mjs`.
+bundle is regenerated from the upstream renderer source by `scripts/build-gazette.mjs`.
 
 ## Workspace layout
 
 ```
-bureau/            ← gazette's content dir; top-level folders are nav sections
+canon/             ← the content dir (default name); top-level folders are nav sections
   decisions/       ← a cabinet drawer (ADRs)
   architecture/    ← cabinet drawer (software profile)
   characters/      ← cabinet drawer (story profile)
   logbook/         ← append-only history — RENDERS as its own section
   _config.json     ← gazette meta
   bureau.json      ← profiles, board dir, autoCompile
-board/             ← rendered board (derived, gitignored, outside the workspace)
+bureau/crew/       ← bureau's control dir (the crew) — reserved, never rendered
+gazette/           ← the rendered gazette (derived, gitignored, outside the workspace)
 ```
 
 The canonical drawers (collectively, "cabinets") are the **SSOT**; `logbook/` is the
-append-only history. Every cabinet claim links back to the logbook entry that introduced it.
+append-only history. Every cabinet claim links back to the minute that introduced it.
 
 ## Commands
 
 | Command | Does |
 |---------|------|
-| `bureau:init` | scaffold the workspace, write `BUREAU.md` + import it from `CLAUDE.md`, wire gazette |
-| `bureau:note` | take a live note into the running logbook entry (run at decision points) |
-| `bureau:file-session` | file the rich logbook entry for the current session |
-| `bureau:compile` | distil logbook entries into cabinet pages (with provenance) |
+| `bureau:init` | scaffold the workspace, write `BUREAU.md` + import it from `CLAUDE.md`, wire the press |
+| `bureau:note` | take a live note into the running minute (run at decision points) |
+| `bureau:file-session` | file the rich minute for the current session |
+| `bureau:compile` | distil minutes into dossiers (with provenance) |
 | `bureau:review` | the human gate — promote vetted claims to `canonical`, reject the rest |
 | `bureau:lint` | semantic consistency sweep across the cabinets |
 | `bureau:query` | answer a question from the canon — cited, tier-aware, never stating an unverified claim as fact |
 | `bureau:status` | what's uncompiled / pending review / stale / contested |
-| `bureau:inspect` | build + open the board (gazette) |
+| `bureau:inspect` | build + open the gazette (gazette) |
+| `bureau:crew` | enable or author specialized agents (a "crew") that work the canon |
 
 **Write** (gated): `note`/`file-session` → `compile` → `review`. **Read** (tier-aware):
 `query`, plus **`BUREAU.md`** — written by `init` and imported from `CLAUDE.md` — which makes
@@ -92,15 +94,15 @@ survive a context compaction.
 ## Status
 
 The full loop is implemented: capture (`note`/`file-session` + hooks) → compile → review →
-lint, read via `query`/`status` under the `BUREAU.md` gate, rendered by the bundled gazette. See
+lint, read via `query`/`status` under the `BUREAU.md` gate, built by the bundled press. See
 `dev-docs/plan.md`.
 
 ## Requirements
 
-- **Node.js ≥ 18** on `PATH` — the `SessionEnd` capture hook and the bundled gazette dashboard
+- **Node.js ≥ 18** on `PATH` — the `SessionEnd` capture hook and the bundled press
   both run `node`. If Node is absent the hook simply no-ops (it never blocks session end); you
   can still capture with `bureau:file-session`.
-- Nothing else — gazette is bundled (`gazette/`), so there is no separate renderer to install.
+- Nothing else — the press is bundled (`press/`), so there is no separate renderer to install.
 
 ## Install
 

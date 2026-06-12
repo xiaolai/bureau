@@ -1,5 +1,5 @@
 {
-  "name": "gazette",
+  "name": "press",
   "version": "0.1.0",
   "description": "Offline static workboard: turns a folder of HTML docs into a navigable, wiki-linked single-page site with ECharts charts/graphs, sortable tables, and mermaid diagrams.",
   "type": "module",

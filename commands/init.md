@@ -1,17 +1,18 @@
 ---
-description: Scaffold a bureau workspace (cabinets + logbook) in the current repo and wire gazette.
+description: Scaffold a bureau workspace (cabinets + logbook) in the current repo and wire the press.
 argument-hint: "[--workspace <name>] [--profile software|story|both] [--reinit | --fresh]"
 ---
 
 # bureau:init
 
 Scaffold a **bureau workspace** in the current repository: the canonical cabinet drawers,
-the append-only logbook drawer, and the config gazette needs to render them.
+the append-only logbook drawer, and the config the press needs to render them.
 
 ## Arguments
 
 `$ARGUMENTS` may contain:
-- `--workspace <name>` — workspace/content dir name (default `bureau`).
+- `--workspace <name>` — workspace/content dir name (default `canon`). Cannot be a reserved name
+  (`bureau`, `crew`, `board`, …) — `bureau/` is bureau's own control dir (see step 1).
 - `--profile software|story|both` — which starter drawers + lint rules to enable (default `both`).
 - `--reinit` — re-run against an **existing** workspace: keep all cabinet + logbook content, just
   refresh the wiring (`BUREAU.md`, the `CLAUDE.md` import, profile drawers, board gitignore) and
@@ -24,11 +25,16 @@ matter when the workspace already exists; on a first init they are no-ops.
 
 ## Steps
 
-1. **Resolve + validate names and mode.** `workspace` = `--workspace` or `bureau`. **Reject** any
-   workspace name that is not a single safe path segment: it must match `^[A-Za-z0-9._-]+$`
-   and not be `.`/`..`. No absolute paths, no `/`, no `..` — the workspace is always a direct
-   child of the repo root. `board` = `bureau.json.board` (default `board`), validated the same
-   way. `profiles` = `--profile` (default `both` → `["software","story"]`). `mode` = `fresh` if
+1. **Resolve + validate names and mode.** `workspace` = `--workspace` or `canon` (the default).
+   **Reject** any workspace name that is either (a) not a single safe path segment — it must match
+   `^[A-Za-z0-9._-]+$` and not be `.`/`..` (no absolute paths, no `/`, no `..`; the workspace is
+   always a direct child of the repo root) — or (b) a **reserved name**: `bureau`, `crew`, `board`,
+   `gazette`, `dist`, `node_modules`, `.git`, `.claude`. `bureau/` is reserved for bureau's own
+   control plane (the crew lives at `bureau/crew/`) and must never be the content workspace;
+   `gazette` is the rendered output (the board you build and open), and `crew`/`board` would collide
+   with the crew dir and the legacy board name. `board` = `bureau.json.board` (default `gazette`),
+   validated the same way and kept distinct from the workspace and from `bureau`/`crew`/`gazette`.
+   `profiles` = `--profile` (default `both` → `["software","story"]`). `mode` = `fresh` if
    `--fresh`, `reinit` if `--reinit`, else `default` — and if BOTH flags are present, stop and
    report (mutually exclusive).
 
@@ -39,11 +45,11 @@ matter when the workspace already exists; on a first init they are no-ops.
    no-ops. If it exists as a non-empty directory, branch on `mode`:
    - **`default`** → stop. Do not overwrite an existing canon. Report the two supported re-runs —
      `--reinit` (refresh the wiring, keep all cabinet + logbook content) and `--fresh` (start over;
-     the old workspace is backed up first) — plus `bureau:inspect` to just rebuild the board.
+     the old workspace is backed up first) — plus `bureau:inspect` to just rebuild the gazette.
    - **`reinit`** → keep the workspace and ALL its content untouched. **Skip steps 3–4** (no
      template copy, no config rewrite over existing files). Proceed to step 5 (ensure profile
      drawers exist — never overwrite) and steps 6–8 (refresh `BUREAU.md` from the current template,
-     re-assert the `CLAUDE.md` import, re-ignore the board, re-validate). This is the safe,
+     re-assert the `CLAUDE.md` import, re-ignore the gazette, re-validate). This is the safe,
      idempotent re-init.
    - **`fresh`** → **back up, never delete**: move `<workspace>/` to `<workspace>.bak-<UTC
      timestamp>` (a sibling at the repo root, recoverable), then proceed with a normal fresh
@@ -76,7 +82,7 @@ matter when the workspace already exists; on a first init they are no-ops.
       it from the current template (re-substituting `{{WORKSPACE}}`) is the whole point: overwrite
       it. `BUREAU.md` lives at the repo root (sibling of `CLAUDE.md`) — never inside `.claude/rules/`
       (that path auto-loads, so importing it too would load it twice) and never inside the workspace
-      (gazette would render it as a cabinet page).
+      (the press would render it as a dossier).
 
    b. Make `CLAUDE.md` import it. Ensure the repo-root `./CLAUDE.md` exists (create it if absent),
       then append this idempotent block **once** — if a `<!-- bureau:start -->…<!-- bureau:end -->`
@@ -98,20 +104,27 @@ matter when the workspace already exists; on a first init they are no-ops.
    sibling), so add `/<board>/` to the **repo root** `.gitignore` (create it if absent). Do
    NOT rely on the workspace-level `.gitignore` for this — it can't reach a sibling dir.
 
-8. **Validate the scaffold.** Confirm `_config.json` and `bureau.json` parse as JSON, no
-   `{{DATE}}`/`{{WORKSPACE}}` tokens remain (including in `./BUREAU.md`), `./CLAUDE.md` contains an
-   `@BUREAU.md` import line, and a `bureau:inspect` build succeeds. Report any failure with the
-   offending file — do not claim success on a workspace that won't build.
+8. **Materialize the crew (if any).** Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/crew.mjs" sync`. On a
+   fresh init this is a no-op (no crew enabled yet); its job is to regenerate the `.claude/agents/`
+   and `.claude/skills/` for any desks already committed under `bureau/crew/` — e.g. after a
+   teammate clones a repo whose materializations weren't committed. Manage the crew with
+   `bureau:crew`.
 
-9. **Report.** State the mode and what it did: `default`/`fresh` → the created tree (note
-   `./BUREAU.md` + the `CLAUDE.md` import); `fresh` → also where the old workspace was backed up;
-   `reinit` → what was refreshed and that all cabinet/logbook content was preserved. Then the next
-   steps: `bureau:inspect` to build/open the board, `bureau:file-session` (or `bureau:note`) during
-   a session, `bureau:query` to ask the canon.
+9. **Validate the scaffold.** Confirm `_config.json` and `bureau.json` parse as JSON, no
+   `{{DATE}}`/`{{WORKSPACE}}` tokens remain (including in `./BUREAU.md`), `./CLAUDE.md` contains an
+   `@BUREAU.md` import line, a `bureau:inspect` build succeeds, and `crew.mjs check` passes (or is a
+   clean no-op). Report any failure with the offending file — do not claim success on a workspace
+   that won't build.
+
+10. **Report.** State the mode and what it did: `default`/`fresh` → the created tree (note
+    `./BUREAU.md` + the `CLAUDE.md` import); `fresh` → also where the old workspace was backed up;
+    `reinit` → what was refreshed and that all cabinet/logbook content was preserved. Then the next
+    steps: `bureau:inspect` to build/open the gazette, `bureau:file-session` (or `bureau:note`) during
+    a session, `bureau:query` to ask the canon, and `bureau:crew` to add specialized agents.
 
 ## Notes
 
 - The workspace is the user's DATA; this plugin is the engine. Never put workspace content
   inside the plugin.
-- `board/` MUST stay outside the workspace — gazette's `guardOutDir` refuses an `--out`
+- `board/` MUST stay outside the workspace — the press's `guardOutDir` refuses an `--out`
   that overlaps the content dir, which protects the SSOT from being clobbered by its render.

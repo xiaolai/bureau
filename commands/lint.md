@@ -5,16 +5,16 @@ argument-hint: "[--apply] [--workspace <name>]"
 
 # bureau:lint
 
-Check the canon for the inconsistencies gazette's structural health check cannot see —
-free-text contradictions between pages, claims a newer cabinet page superseded, undocumented gaps,
+Check the canon for the inconsistencies the press's structural health check cannot see —
+free-text contradictions between pages, claims a newer dossier superseded, undocumented gaps,
 and vocabulary drift. Run it on a cadence or before a milestone, not on every edit.
 
 Follow the protocol in the **lint** skill (`skills/lint/SKILL.md`). In short:
 
-1. Locate the workspace (`bureau.json`; default `bureau`). If none, tell the user to run
+1. Locate the workspace (`bureau.json`; default `canon`). If none, tell the user to run
    `bureau:init` first and stop.
 2. Read every cabinet drawer, EXCLUDING `logbook/`, `board/`, `lint/` (its own findings), and
-   every `_`-prefixed file/dir. If there are no cabinet pages, report "no cabinets to lint" and
+   every `_`-prefixed file/dir. If there are no dossiers, report "no cabinets to lint" and
    stop.
 3. For each finding type — contradiction, superseded (cabinet-vs-cabinet), gap, drift — find
    candidates, then adversarially refute each one and keep only the survivors (a false finding

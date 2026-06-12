@@ -5,14 +5,14 @@
 // traversal — is covered deterministically by the gazette suite + test/unit/scripts.test.mjs.)
 import { join } from "node:path";
 import { logbookEntryExists, noLeftoverTokens, recallRuleInstalled, cabinetPageAbout, boardBuildsHealthy } from "./judges/rule.mjs";
-const ws = (repo) => join(repo, "bureau");
+const ws = (repo) => join(repo, "canon");
 
 export const scenarios = [
   {
     name: "happy-path · init → file-session → compile → query (tier discipline)",
     steps: [
       { prompt: "/bureau:init",
-        rule: (repo) => [recallRuleInstalled(repo), noLeftoverTokens(repo), boardBuildsHealthy(repo, "bureau")] },
+        rule: (repo) => [recallRuleInstalled(repo), noLeftoverTokens(repo), boardBuildsHealthy(repo, "canon")] },
       { prompt: "We just decided: auth tokens expire after 24 hours, agreed in a security review. Run /bureau:file-session to record this session.",
         rule: (repo) => [logbookEntryExists(ws(repo))] },
       { prompt: "/bureau:compile",
