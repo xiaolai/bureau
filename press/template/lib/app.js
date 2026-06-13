@@ -343,20 +343,49 @@ function parseRoute() {
   return { name, anchor };
 }
 
+// ── sidebar collapse state ────────────────────────────────────────────────────
+// Cabinet groups are collapsible <details>. We persist only the COLLAPSED set (so a
+// newly-added group defaults open) in localStorage, namespaced by gazette title —
+// every file:// page shares the null origin, so two boards on one machine must not
+// clobber each other. Storage can be absent or throwing on file://; degrade to memory.
+const NAV_KEY = "bureau:nav:" + (STORY.meta.title || "");
+function readCollapsed() {
+  try { const v = JSON.parse(localStorage.getItem(NAV_KEY) || "[]"); return new Set(Array.isArray(v) ? v : []); }
+  catch (e) { return new Set(); }
+}
+const navCollapsed = readCollapsed();
+function saveCollapsed() {
+  try { localStorage.setItem(NAV_KEY, JSON.stringify([...navCollapsed])); } catch (e) { /* file:// storage blocked — in-memory only */ }
+}
+const NAV_CHEVRON = '<svg class="nav-group__chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>';
+
 function buildNav() {
   const nav = document.getElementById("nav");
   let html = "";
   STORY.groups.forEach((g) => {
     const items = docNames.filter((n) => docs[n].group === g.id);
     if (!items.length) return;
-    html += '<div class="nav-group"><div class="nav-group__label">' + escapeHtml(g.label) + "</div>";
+    const open = navCollapsed.has(g.id) ? "" : " open";
+    html += '<details class="nav-group" data-group="' + escapeAttr(g.id) + '"' + open + ">" +
+      '<summary class="nav-group__label">' + NAV_CHEVRON +
+      '<span class="nav-group__text">' + escapeHtml(g.label) + "</span>" +
+      '<span class="nav-group__count">' + items.length + "</span></summary>" +
+      '<div class="nav-group__items">';
     items.forEach((n) => {
       html += '<a class="nav-item" data-doc="' + escapeAttr(n) + '" href="#/' + encodeURIComponent(n) +
         '"><span class="nav-item__icon">' + icon(docs[n].icon) + '</span><span class="nav-item__label">' + escapeHtml(n) + "</span></a>";
     });
-    html += "</div>";
+    html += "</div></details>";
   });
   nav.innerHTML = html;
+  // Persist on user toggle. The `toggle` event does NOT bubble, so delegate on the
+  // capture phase (one listener survives the innerHTML above since it's on #nav).
+  nav.addEventListener("toggle", (e) => {
+    const d = e.target;
+    if (!d || !d.classList || !d.classList.contains("nav-group")) return;
+    if (d.open) navCollapsed.delete(d.dataset.group); else navCollapsed.add(d.dataset.group);
+    saveCollapsed();
+  }, true);
 }
 
 const BL_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7H6a3 3 0 0 0 0 6h2M12 7h2a3 3 0 0 1 0 6h-2M7.5 10h5"/></svg>';
@@ -398,7 +427,12 @@ function renderDoc(name) {
     renderMermaid(canvas);
   }
   canvas.scrollTop = 0;
-  document.querySelectorAll(".nav-item").forEach((el) => el.classList.toggle("nav-item--active", el.getAttribute("data-doc") === name));
+  document.querySelectorAll(".nav-item").forEach((el) => {
+    const on = el.getAttribute("data-doc") === name;
+    el.classList.toggle("nav-item--active", on);
+    // keep the current page visible: open its (possibly collapsed) cabinet group
+    if (on) { const grp = el.closest("details.nav-group"); if (grp && !grp.open) grp.open = true; }
+  });
   document.title = name + " · " + STORY.meta.title;
 }
 

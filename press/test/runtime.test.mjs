@@ -90,3 +90,60 @@ test("runtime: the backlink panel renders from STORY.backlinks", () => {
   assert.match(card.textContent, /Beta/);
   assert.match(card.textContent, /Beta mentions home/);
 });
+
+// ── collapsible sidebar (nav-group <details>) ─────────────────────────────────
+// A focused harness: full control over STORY.groups + a localStorage pre-seed so
+// we can assert the collapsed-state contract independently of the single-group mount().
+function mountNav({ groups, docs, home = "Home", title = "T", seed } = {}) {
+  const dom = new JSDOM(
+    `<!DOCTYPE html><html><body>
+       <span id="brand-title"></span><span id="brand-sub"></span>
+       <nav id="nav"></nav><main id="canvas"></main>
+     </body></html>`,
+    { runScripts: "outside-only", url: "http://localhost/" }
+  );
+  const { window } = dom;
+  window.mermaid = { initialize() {}, render: () => Promise.resolve({ svg: "<svg></svg>" }) };
+  window.echarts = { init: () => ({ setOption() {}, dispose() {}, resize() {} }) };
+  if (seed) { try { for (const [k, v] of Object.entries(seed)) window.localStorage.setItem(k, v); } catch (e) { /* no storage */ } }
+  window.STORY = { meta: { title, subtitle: "", home }, groups, docs, backlinks: {} };
+  window.eval(readFileSync(resolve(LIB, "app.js"), "utf8"));
+  window.document.dispatchEvent(new window.Event("DOMContentLoaded"));
+  return window;
+}
+
+const NAV_GROUPS = [{ id: "a", label: "Alpha" }, { id: "b", label: "Beta" }, { id: "empty", label: "Empty" }];
+const NAV_DOCS = {
+  Home: { group: "a", icon: "file", meta: {}, html: "<p>h</p>" },
+  Bx: { group: "b", icon: "file", meta: {}, html: "<p>b</p>" },
+};
+
+test("nav: each non-empty group is a <details> with a count badge and wrapped items", () => {
+  const w = mountNav({ groups: NAV_GROUPS, docs: NAV_DOCS });
+  const nav = w.document.getElementById("nav");
+  const details = nav.querySelectorAll("details.nav-group");
+  assert.equal(details.length, 2, "empty group is skipped");
+  for (const d of details) {
+    assert.ok(d.querySelector("summary.nav-group__label"), "summary header present");
+    assert.ok(d.querySelector(".nav-group__chevron"), "chevron present");
+    assert.ok(d.querySelector(".nav-group__items > .nav-item"), "items live inside the wrapper");
+  }
+  assert.equal(nav.querySelector('details[data-group="b"] .nav-group__count').textContent, "1", "count reflects item number");
+  assert.ok(nav.querySelector('details[data-group="a"]').open, "groups default open");
+});
+
+test("nav: a persisted collapsed group renders closed; others stay open", () => {
+  const w = mountNav({ groups: NAV_GROUPS, docs: NAV_DOCS, seed: { "bureau:nav:T": JSON.stringify(["b"]) } });
+  const nav = w.document.getElementById("nav");
+  assert.equal(nav.querySelector('details[data-group="b"]').open, false, "seeded-collapsed group is closed");
+  assert.equal(nav.querySelector('details[data-group="a"]').open, true, "home group is open");
+});
+
+test("nav: navigating into a collapsed group force-opens it (current page stays visible)", () => {
+  const w = mountNav({ groups: NAV_GROUPS, docs: NAV_DOCS, seed: { "bureau:nav:T": JSON.stringify(["b"]) } });
+  const nav = w.document.getElementById("nav");
+  assert.equal(nav.querySelector('details[data-group="b"]').open, false, "starts collapsed");
+  w.location.hash = "#/Bx";
+  w.dispatchEvent(new w.Event("hashchange"));
+  assert.equal(nav.querySelector('details[data-group="b"]').open, true, "opens on navigation into it");
+});
