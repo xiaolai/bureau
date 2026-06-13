@@ -1,9 +1,9 @@
 ---
 name: guide
-description: Orientation for the bureau plugin — the records-office model, the capture → compile → review gate, the trust tiers, the crew, and which bureau: command serves which intent. Read this FIRST before using any bureau: command, or whenever working in a repo that has a bureau workspace (a canon/ directory + a BUREAU.md), so you use the project's canon correctly instead of re-deriving or guessing.
+description: Orientation for the bureau plugin — the records-office model, the capture → compile → review gate, the trust tiers, the crew, and which bureau: command serves which intent. Read this FIRST before using any bureau: command, or whenever working in a repo that has a bureau workspace (a canon/ directory + a BUREAU.md), so you draw on the project's canon instead of re-deriving or guessing.
 ---
 
-# Bureau — how to use this plugin correctly
+# Bureau — how to use this plugin
 
 Bureau turns AI sessions into a **maintained, human-reviewed knowledge base** for a repo. This
 skill is the map: the mental model, the one workflow, the invariants you must not break, and a

@@ -30,7 +30,9 @@ For a member bureau ships (currently: **auditor**). Run
 `node "${CLAUDE_PLUGIN_ROOT}/scripts/crew.mjs" enable <name>`. This copies the shipped template into
 `bureau/crew/<name>/` (so you own and can edit it), substitutes the workspace name, materializes the
 agent, and adds the brief's `@import` to `BUREAU.md`. Report what landed and that the `<name>` agent
-is now invocable. Requires `bureau:init` to have run (BUREAU.md must exist).
+is now invocable. **Precondition:** if `BUREAU.md` does not exist at the repo root, stop and tell
+the user to run `bureau:init` first — do not partially enable. If `<name>` is not a shipped member,
+stop and list the members `bureau:crew list` reports as available.
 
 ## `new <name> [--role "…"]`
 

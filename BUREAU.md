@@ -1,4 +1,11 @@
+---
+description: The trust-gate rules binding every AI session in this repo — consult the canon before deriving, honor each claim's tier on read, and route every durable write through capture → compile → review.
+---
+
 # bureau — durable knowledge for this repo
+
+**Consult the canon before you derive; honor each dossier's trust tier on every read; route every
+durable write through the gate — never set `canonical` by hand.**
 
 This repository keeps its durable knowledge in a **bureau** workspace (`canon/`): topic
 **cabinet** pages (the reviewed canon) plus an append-only **logbook**. `CLAUDE.md` imports this
