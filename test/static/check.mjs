@@ -116,5 +116,28 @@ if (existsSync(join(ROOT, "crew", "_template"))) {
   }
 }
 
+// 10. the orientation guide stays in lockstep with the command surface (the user-facing reason it
+//     exists: an AI must be able to trust it). The guide skill MUST exist, and its body must name
+//     every `bureau:<command>` that ships — and name no `bureau:<command>` that doesn't. New command
+//     → guide goes red until documented; renamed/removed command → its stale mention goes red. This
+//     is what makes "update the plugin, the guide catches up" a gate, not a discipline.
+const guidePath = "skills/guide/SKILL.md";
+if (!existsSync(join(ROOT, guidePath))) {
+  fail(`${guidePath}: the orientation guide skill is missing`);
+} else {
+  const guide = read(guidePath);
+  // strip the leading frontmatter so the description's own prose can't satisfy coverage — the BODY
+  // is what an AI reads when the skill triggers, so coverage must hold there.
+  const body = guide.replace(/^---\n[\s\S]*?\n---(\n|$)/, "");
+  const commands = ls("commands").filter((f) => f.endsWith(".md")).map((f) => f.slice(0, -3));
+  const cmdSet = new Set(commands);
+  for (const c of commands) {
+    if (!new RegExp(`bureau:${c}\\b`).test(body)) fail(`${guidePath}: does not document command bureau:${c} (guide drifted behind the command surface)`);
+  }
+  for (const m of body.matchAll(/bureau:([a-z][a-z0-9-]*)\b/g)) {
+    if (!cmdSet.has(m[1])) fail(`${guidePath}: references bureau:${m[1]}, which is not a command (guide drifted ahead of the command surface)`);
+  }
+}
+
 if (fails.length) { console.error("✗ static check: " + fails.length + " issue(s)\n  - " + fails.join("\n  - ")); process.exit(1); }
 console.log("✓ static check: all structural invariants hold");
