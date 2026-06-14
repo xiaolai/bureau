@@ -15,10 +15,11 @@
 // the workspace/out dir; sanitize the one path-bearing field (`drawer`); exclusive-create so
 // a write never clobbers an existing minute. Untrusted input is validated at the boundary.
 import http from "node:http";
-import { existsSync, mkdirSync, writeFileSync, readFileSync, statSync, realpathSync, lstatSync, opendirSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, statSync, realpathSync, lstatSync, opendirSync, readdirSync, watch as fsWatch } from "node:fs";
 import { join, dirname, resolve, normalize, extname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
+import { spawn } from "node:child_process";
 
 const LOG_DRAWER = "logbook";
 const BODY_CAP = 100_000;        // max POST body bytes
@@ -358,9 +359,32 @@ function handle(req, res, ctx) {
   return send(res, 404, "text/plain", "not found");
 }
 
+// ── watch / live-rebuild (Phase 3) ───────────────────────────────────────────────
+// Watch the workspace and rebuild the gazette on change, debounced. The static handler reads
+// from disk per request, so a rebuilt out dir is served live (the browser refreshes to see it).
+// Exported so the debounce/build wiring is unit-testable without depending on fs.watch timing.
+export function makeWatcher(dir, build, { debounceMs = 250 } = {}) {
+  let timer = null, pending = false, watcher = null;
+  const fire = () => { pending = true; if (timer) return; timer = setTimeout(() => { timer = null; if (pending) { pending = false; Promise.resolve().then(build).catch(() => {}); } }, debounceMs); };
+  try { watcher = fsWatch(dir, { recursive: true }, fire); }
+  catch (e) { watcher = null; } // recursive watch unsupported (older Node on Linux) → caller warns
+  return { fire, supported: !!watcher, close: () => safe(() => watcher && watcher.close(), null) };
+}
+
+// spawn the bundled press to rebuild the gazette out dir from the workspace.
+function rebuildGazette(ctx) {
+  const bin = join(dirname(dirname(fileURLToPath(import.meta.url))), "press", "bin", "gazette.mjs");
+  return new Promise((res2) => {
+    const ch = spawn(process.execPath, [bin, "build", "--dir", ctx.wsDir, "--out", ctx.outDir], { stdio: ["ignore", "ignore", "pipe"] });
+    let err = ""; ch.stderr.on("data", (d) => { err += d; });
+    ch.on("close", (code) => { if (code !== 0) safe(() => process.stderr.write("bureau serve: rebuild failed (" + err.slice(0, 160).replace(/\n/g, " ") + ")\n"), null); res2(code === 0); });
+    ch.on("error", () => res2(false));
+  });
+}
+
 // Start the chamber. Resolves the workspace, binds 127.0.0.1, returns the live server.
 // `host`/`port` are overridable for tests (port 0 = ephemeral). Never binds beyond localhost.
-export async function start({ cwd = process.cwd(), out = "gazette", port = 4317, host = "127.0.0.1" } = {}) {
+export async function start({ cwd = process.cwd(), out = "gazette", port = 4317, host = "127.0.0.1", watch = false } = {}) {
   const wsDir = workspaceDir(cwd);
   if (!wsDir) throw new Error("no bureau workspace found in " + cwd + " — run bureau:init first");
   const ctx = {
@@ -370,7 +394,13 @@ export async function start({ cwd = process.cwd(), out = "gazette", port = 4317,
   };
   const server = http.createServer((req, res) => { try { handle(req, res, ctx); } catch (e) { safe(() => sendJson(res, 500, { err: "internal error" }), null); } });
   await new Promise((res2, rej) => { server.once("error", rej); server.listen(port, host, res2); });
-  return { server, wsDir, wsName: ctx.wsName, host, port: server.address().port, sessionId: ctx.sessionId, reviewToken: ctx.reviewToken };
+  let watcher = null;
+  if (watch) {
+    watcher = makeWatcher(wsDir, () => rebuildGazette(ctx));
+    if (!watcher.supported) safe(() => process.stderr.write("bureau serve: recursive watch unsupported here — live-rebuild disabled\n"), null);
+  }
+  const close = () => { safe(() => watcher && watcher.close(), null); server.close(); };
+  return { server, watcher, close, wsDir, wsName: ctx.wsName, host, port: server.address().port, sessionId: ctx.sessionId, reviewToken: ctx.reviewToken };
 }
 
 // internal helpers exported for unit tests (not a public API)
@@ -379,9 +409,11 @@ export const _internal = { workspaceDir, containedUnder, safeId, writeIntake };
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
   const args = process.argv.slice(2);
   const opt = (n, d) => { const i = args.indexOf("--" + n); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
-  start({ out: opt("out", "gazette"), port: parseInt(opt("port", "4317"), 10), host: opt("host", "127.0.0.1") })
-    .then(({ host, port, wsName, reviewToken }) => process.stdout.write(
+  start({ out: opt("out", "gazette"), port: parseInt(opt("port", "4317"), 10), host: opt("host", "127.0.0.1"), watch: args.includes("--watch") })
+    .then(({ host, port, wsName, reviewToken, watcher }) => process.stdout.write(
       "bureau chamber → http://" + host + ":" + port + "  (workspace: " + wsName + ")\n" +
-      "  Reviewer token (paste in the chamber to approve/reject): " + reviewToken + "\n  Ctrl-C to stop.\n"))
+      "  Reviewer token (paste in the chamber to approve/reject): " + reviewToken + "\n" +
+      (watcher && watcher.supported ? "  Watching the workspace — the gazette rebuilds on change.\n" : "") +
+      "  Ctrl-C to stop.\n"))
     .catch((e) => { process.stderr.write("bureau serve: " + e.message + "\n"); process.exit(1); });
 }

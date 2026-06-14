@@ -147,3 +147,37 @@ test("nav: navigating into a collapsed group force-opens it (current page stays 
   w.dispatchEvent(new w.Event("hashchange"));
   assert.equal(nav.querySelector('details[data-group="b"]').open, true, "opens on navigation into it");
 });
+
+// ── tabs hydration (Phase 3) ──────────────────────────────────────────────────
+const TABS_HTML = '<div class="tabs">' +
+  '<section class="tab-panel" role="tabpanel" data-tab="Overview"><p>OVERVIEW</p></section>' +
+  '<section class="tab-panel" role="tabpanel" data-tab="Details"><p>DETAILS</p></section></div>';
+
+test("runtime: .tabs hydrates into an ARIA tablist; first panel shown, rest hidden", () => {
+  const { window } = mount(TABS_HTML);
+  const box = window.document.querySelector(".tabs");
+  assert.ok(box.classList.contains("tabs--ready"), "marked hydrated");
+  const strip = box.querySelector('.tab-strip[role="tablist"]');
+  assert.ok(strip, "tablist built");
+  const btns = strip.querySelectorAll("button.tab-btn");
+  assert.equal(btns.length, 2, "one tab button per panel");
+  assert.equal(btns[0].textContent, "Overview");
+  assert.equal(btns[0].getAttribute("aria-selected"), "true");
+  assert.equal(btns[1].getAttribute("aria-selected"), "false");
+  const panels = box.querySelectorAll(".tab-panel");
+  assert.equal(panels[0].hidden, false, "first panel visible");
+  assert.equal(panels[1].hidden, true, "second panel hidden");
+  assert.ok(panels[0].getAttribute("aria-labelledby"), "panel linked to its tab");
+});
+
+test("runtime: clicking a tab switches the visible panel and aria-selected", () => {
+  const { window } = mount(TABS_HTML);
+  const box = window.document.querySelector(".tabs");
+  const btns = box.querySelectorAll("button.tab-btn");
+  const panels = box.querySelectorAll(".tab-panel");
+  btns[1].dispatchEvent(new window.Event("click"));
+  assert.equal(panels[0].hidden, true, "first panel hidden after switch");
+  assert.equal(panels[1].hidden, false, "second panel shown");
+  assert.equal(btns[1].getAttribute("aria-selected"), "true");
+  assert.equal(btns[0].getAttribute("aria-selected"), "false");
+});

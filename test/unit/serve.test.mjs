@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { start } from "../../scripts/serve.mjs";
+import { start, makeWatcher } from "../../scripts/serve.mjs";
 
 let cwd, srv, base;
 
@@ -160,4 +160,17 @@ test("serve: the token can never promote a non-pending or out-of-tree path", asy
     body: JSON.stringify({ path: "../bureau.json", decision: "approve" }),
   });
   assert.equal(escape.status, 404, "a path outside the pending set is refused");
+});
+
+// ── Phase 3: watch / live-rebuild (debounce wiring, timing-independent) ────────
+test("serve: makeWatcher debounces a burst of changes into one rebuild", async () => {
+  let calls = 0;
+  const w = makeWatcher(cwd, () => { calls++; }, { debounceMs: 20 });
+  w.fire(); w.fire(); w.fire();
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(calls, 1, "a burst collapses to a single rebuild");
+  w.fire();
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(calls, 2, "a later change triggers another rebuild");
+  w.close();
 });

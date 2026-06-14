@@ -29,6 +29,17 @@ body {
 .nav-group__text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-group__count { flex: none; font-size: 10px; font-weight: 600; letter-spacing: .04em; color: var(--muted); background: rgba(74,93,110,.10); border-radius: 999px; padding: 1px 7px; }
 @media (prefers-reduced-motion: reduce) { .nav-group__chevron { transition: none; } }
+.tabs { margin: 18px 0; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+.tab-strip { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px 4px 0; background: var(--sidebar); border-bottom: 1px solid var(--line); }
+.tab-btn { margin: 0; padding: 7px 14px; font-size: 13px; font-weight: 600; border: 0; background: transparent; color: var(--muted); cursor: pointer; border-radius: 8px 8px 0 0; }
+.tab-btn:hover { color: var(--ink); }
+.tab-btn[aria-selected="true"] { background: var(--paper); color: var(--ink); box-shadow: inset 0 -2px 0 var(--rust); }
+.tab-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tab-panel { padding: 4px 18px 16px; }
+.tab-panel > :first-child { margin-top: 12px; }
+.tab-panel[hidden] { display: none; }
+/* before hydration: panels stack with their title as a heading (graceful, no-JS) */
+.tabs:not(.tabs--ready) .tab-panel::before { content: attr(data-tab); display: block; font-weight: 700; font-size: 12px; letter-spacing: .04em; color: var(--faint); text-transform: uppercase; margin: 10px 0 2px; }
 .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; color: var(--ink-soft); text-decoration: none; font-size: 14px; line-height: 1.2; transition: background .12s, color .12s; }
 .nav-item__icon { width: 17px; height: 17px; flex: none; color: var(--muted); display: grid; place-items: center; }
 .nav-item__icon svg { width: 17px; height: 17px; }

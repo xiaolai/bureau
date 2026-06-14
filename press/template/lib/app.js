@@ -423,6 +423,7 @@ function renderDoc(name) {
     // pre-rendered, sanitized HTML body; hydrate widgets after mount.
     canvas.innerHTML = crumb + '<article class="doc">' + metaRow(doc.meta) + '<div class="doc-body markdown">' + (doc.html || "") + "</div>" + backlinkPanel(name) + "</article>";
     hydrateViz(canvas);
+    hydrateTabs(canvas);
     wireSortable(canvas);
     renderMermaid(canvas);
   }
@@ -511,6 +512,44 @@ function hydrateViz(scope) {
 }
 
 // click/Enter on a wb-table header → stable sort by that column (numeric if .num)
+// ── tabs (Phase 3): build an ARIA tablist over the build-emitted .tab-panel sections ──
+let tabsCounter = 0;
+function hydrateTabs(scope) {
+  scope.querySelectorAll(".tabs").forEach((box) => {
+    const panels = Array.from(box.children).filter((el) => el.classList.contains("tab-panel"));
+    if (!panels.length) return;
+    const gid = "tabs-" + (++tabsCounter);
+    const strip = document.createElement("div");
+    strip.className = "tab-strip"; strip.setAttribute("role", "tablist");
+    const select = (active) => panels.forEach((panel, i) => {
+      panel.hidden = i !== active;
+      const b = strip.children[i];
+      b.setAttribute("aria-selected", i === active ? "true" : "false");
+      b.tabIndex = i === active ? 0 : -1;
+    });
+    panels.forEach((panel, i) => {
+      const tabId = gid + "-t" + i, panId = gid + "-p" + i;
+      panel.id = panId; panel.setAttribute("aria-labelledby", tabId); panel.hidden = i !== 0;
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "tab-btn"; btn.id = tabId;
+      btn.textContent = panel.getAttribute("data-tab") || ("Tab " + (i + 1));
+      btn.setAttribute("role", "tab"); btn.setAttribute("aria-controls", panId);
+      btn.setAttribute("aria-selected", i === 0 ? "true" : "false"); btn.tabIndex = i === 0 ? 0 : -1;
+      btn.addEventListener("click", () => select(i));
+      btn.addEventListener("keydown", (e) => {
+        let n = null;
+        if (e.key === "ArrowRight" || e.key === "ArrowDown") n = (i + 1) % panels.length;
+        else if (e.key === "ArrowLeft" || e.key === "ArrowUp") n = (i - 1 + panels.length) % panels.length;
+        else if (e.key === "Home") n = 0; else if (e.key === "End") n = panels.length - 1;
+        if (n !== null) { e.preventDefault(); select(n); strip.children[n].focus(); }
+      });
+      strip.appendChild(btn);
+    });
+    box.insertBefore(strip, box.firstChild);
+    box.classList.add("tabs--ready");
+  });
+}
+
 function wireSortable(scope) {
   scope.querySelectorAll("table.wb-table").forEach((table) => {
     const tbody = table.querySelector("tbody");

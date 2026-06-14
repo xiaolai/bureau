@@ -55,3 +55,18 @@ test("build: a .md doc renders to HTML, takes its folder section, and ships", ()
   assert.match(html, /<strong>foil<\/strong>/);
   assert.match(html, /class="wikilink"[^>]*href="#\/Overview"/); // [[Overview]] resolved
 });
+
+test("markdownToHtml: ```tabs renders each panel's markdown into a tab-panel section", () => {
+  const html = markdownToHtml("```tabs\n=== Overview\nThis is the **overview**.\n=== Details\nHas `code` and a [[Link]].\n```\n");
+  assert.match(html, /<div class="tabs">/, "tabs container emitted");
+  assert.equal((html.match(/class="tab-panel"/g) || []).length, 2, "one section per panel");
+  assert.match(html, /data-tab="Overview"/);
+  assert.match(html, /role="tabpanel"/);
+  assert.match(html, /<strong>overview<\/strong>/, "panel body rendered as markdown");
+  assert.match(html, /\[\[Link\]\]/, "wiki-link left raw for downstream resolution");
+});
+
+test("markdownToHtml: a ```tabs with no === markers falls back to a plain code block", () => {
+  const html = markdownToHtml("```tabs\njust text, no markers\n```\n");
+  assert.doesNotMatch(html, /class="tabs"/, "no panels → not a tabs widget");
+});

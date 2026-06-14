@@ -106,6 +106,33 @@ memory and to route new claims through capture → compile → review — never 
 
 ---
 
+## Rich content in a dossier
+
+A dossier is markdown, but the press hydrates a few fenced blocks into interactive widgets in the
+gazette (they degrade gracefully when JavaScript is off):
+
+- **Tabbed sections** — a ` ```tabs ` fence with `=== Title` markers per panel; each panel body is
+  ordinary markdown (wiki-links, tables, code all work):
+
+  ````
+  ```tabs
+  === Overview
+  The short version, with a [[Link]] and **emphasis**.
+  === Details
+  | col | col |
+  |-----|-----|
+  | a   | b   |
+  ```
+  ````
+
+- **Charts & tables** — ` ```viz ` / ` ```chart ` / ` ```table ` / ` ```graph ` fences over CSV / JSON
+  / YAML data. **Diagrams** — a ` ```mermaid ` fence.
+
+Authoring stays in markdown; the press owns the rendering, so content stays themed, sanitized, and
+consistent. Run `bureau:serve --watch` to rebuild the gazette as you edit.
+
+---
+
 ## Maintenance
 
 - **`bureau:status`** is your dashboard: how many sessions are uncompiled, how many dossiers await

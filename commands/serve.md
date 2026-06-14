@@ -1,6 +1,6 @@
 ---
 description: Open the chamber — a localhost-only room serving the gazette read-only plus an intake form that files proposed claims as append-only logbook minutes (never canon). The interactive write surface that feeds the gate.
-argument-hint: "[--port <n>] [--out <dir>]"
+argument-hint: "[--port <n>] [--out <dir>] [--watch]"
 ---
 
 # bureau:serve — open the chamber
@@ -17,10 +17,12 @@ convened AI desk), **dispose is the human's act** — the AI's agent context nev
 
 1. **Locate the workspace.** Find the bureau workspace (`bureau.json`; default `canon`). If none,
    tell the user to run `bureau:init` first and stop.
-2. **Parse arguments.** `--port` (default `4317`), `--out` (the gazette dir; default `gazette`).
-   Validate `--port` is an integer in `1024–65535`; otherwise report and stop.
+2. **Parse arguments.** `--port` (default `4317`), `--out` (the gazette dir; default `gazette`),
+   `--watch` (rebuild the gazette when the workspace changes, so the served board stays fresh —
+   refresh the browser to see it). Validate `--port` is an integer in `1024–65535`; otherwise report
+   and stop.
 3. **Start the server.** Run
-   `node "${CLAUDE_PLUGIN_ROOT}/scripts/serve.mjs" --port <port> --out <out>` from the repo root. It
+   `node "${CLAUDE_PLUGIN_ROOT}/scripts/serve.mjs" --port <port> --out <out> [--watch]` from the repo root. It
    binds `127.0.0.1` only — never a public interface. If the port is in use, report the error and
    suggest another `--port`.
 4. **Report the URL + the reviewer token.** Print `http://127.0.0.1:<port>`, the **reviewer token**

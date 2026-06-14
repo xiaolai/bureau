@@ -187,6 +187,22 @@ function mdEngine() {
     const tag = (parts[0] || "").toLowerCase();
     const content = escapeHtml(tk.content.replace(/\n+$/, ""));
     if (tag === "mermaid") return '<div class="mermaid">' + content + "</div>\n";
+    if (tag === "tabs") {
+      // ```tabs with `=== Title` markers per panel; each panel body is rendered as markdown
+      // (same engine → wiki-links, tags, tables work). Runtime hydrates into an ARIA tablist.
+      const panels = [];
+      let cur = null;
+      for (const line of tk.content.replace(/\n+$/, "").split("\n")) {
+        const mt = /^={3,}\s+(.+?)\s*$/.exec(line);
+        if (mt) { cur = { title: mt[1], body: [] }; panels.push(cur); }
+        else if (cur) cur.body.push(line);
+      }
+      if (!panels.length) return defaultFence(tokens, idx, options, env, self);
+      let out = '<div class="tabs">';
+      for (const p of panels) out += '<section class="tab-panel" role="tabpanel" data-tab="' +
+        escapeAttr(p.title) + '">' + m.render(p.body.join("\n")) + "</section>";
+      return out + "</div>\n";
+    }
     if (tag === "viz" || tag === "chart" || tag === "table" || tag === "graph") {
       const kv = {};
       for (const p of parts.slice(1)) { const i = p.indexOf("="); if (i > 0) kv[p.slice(0, i)] = p.slice(i + 1); else kv[p] = ""; }
