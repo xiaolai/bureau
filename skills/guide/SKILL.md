@@ -72,6 +72,7 @@ canon rather than reading dossier files raw.
 | Promote vetted claims to `canonical` (human gate) | `bureau:review` | `review` |
 | See uncompiled sessions + pages by tier | `bureau:status` | — |
 | Build and open the gazette | `bureau:inspect` | — |
+| Open the interactive chamber (serve + intake) | `bureau:serve` | — |
 | List / enable / author crew desks | `bureau:crew` | — |
 
 The right-hand skills hold the operational detail (steps, rules, edge cases) — this guide does not
@@ -84,6 +85,14 @@ restate them; open the skill for the step you're actually doing.
 - **Don't** treat raw dossier files as fact, route durable knowledge around the gate, or render the
   gazette into the workspace. **Don't** use bureau as a scratchpad — minutes are a faithful record,
   not a TODO list.
+
+## Chamber
+
+`bureau:serve` opens the **chamber** — a single-user, localhost-only room that serves the gazette
+read-only and accepts **intake**: a proposed claim files as an append-only `status: logbook` minute.
+It is the interactive counterpart to `bureau:note`, and it cannot bypass the gate — the chamber
+proposes (logbook), `bureau:compile` distils (proposed/verified), and a human disposes
+(`bureau:review` → canonical). The chamber never writes a dossier or a higher tier itself.
 
 ## Crew
 

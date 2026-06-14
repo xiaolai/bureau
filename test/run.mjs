@@ -17,6 +17,7 @@ const step = (label, fn) => { console.log(`\n=== ${label} ===`); try { fn(); } c
 step("L0 · static structure", () => run("node", ["test/static/check.mjs"]));
 step("L1 · hook-script units", () => run("node", ["--test", "test/unit/scripts.test.mjs"]));
 step("L1 · crew engine units", () => run("node", ["--test", "test/unit/crew.test.mjs"]));
+step("L1 · chamber server units", () => run("node", ["--test", "test/unit/serve.test.mjs"]));
 step("L1 · press renderer", () => {
   if (!existsSync(join(ROOT, "press", "node_modules")))
     run("npm", ["install", "--no-audit", "--no-fund"], { cwd: join(ROOT, "press") });
