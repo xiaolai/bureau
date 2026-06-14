@@ -15,6 +15,11 @@ before(async () => {
   cwd = mkdtempSync(join(tmpdir(), "bureau-serve-"));
   mkdirSync(join(cwd, "canon"), { recursive: true });
   writeFileSync(join(cwd, "canon", "bureau.json"), JSON.stringify({ workspace: "canon", board: "gazette" }));
+  // dossier fixtures for the review (dispose) tests
+  mkdirSync(join(cwd, "canon", "decisions"), { recursive: true });
+  writeFileSync(join(cwd, "canon", "decisions", "0001-adopt.md"), "---\ntitle: ADR 1\nstatus: canonical\n---\n\nbody\n");
+  writeFileSync(join(cwd, "canon", "decisions", "0002-ttl.md"), "---\ntitle: Token TTL\nstatus: proposed\nsources: []\n---\n\nTokens last 24h.\n");
+  writeFileSync(join(cwd, "canon", "00-overview.md"), "---\ntitle: Overview\n---\n\noverview\n");
   // a built gazette to serve statically
   mkdirSync(join(cwd, "gazette"), { recursive: true });
   writeFileSync(join(cwd, "gazette", "index.html"), "<!DOCTYPE html><title>gz</title><body>GAZETTE</body>");
@@ -99,4 +104,60 @@ test("serve: gazette static files serve read-only; traversal is blocked", async 
 test("serve: unknown routes 404; writes only happen via POST /intake", async () => {
   assert.equal((await fetch(base + "/canon/00-overview.md")).status, 404);
   assert.equal((await fetch(base + "/intake")).status, 404, "GET /intake is not a write path");
+});
+
+// ── Phase 2: review / dispose (token-gated) ───────────────────────────────────
+test("serve: GET /review lists only pending dossiers (proposed/verified/stale)", async () => {
+  const j = await (await fetch(base + "/review")).json();
+  const paths = j.pending.map((d) => d.path);
+  assert.ok(paths.includes("decisions/0002-ttl.md"), "proposed dossier is queued");
+  assert.ok(!paths.includes("decisions/0001-adopt.md"), "canonical is not queued");
+  assert.ok(!paths.includes("00-overview.md"), "status-less overview is not queued");
+});
+
+test("serve: a decision WITHOUT the reviewer token is refused (human disposes)", async () => {
+  const r = await fetch(base + "/review/decision", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ path: "decisions/0002-ttl.md", decision: "approve" }),
+  });
+  assert.equal(r.status, 403, "no token → forbidden");
+  assert.match(readFileSync(join(cwd, "canon", "decisions", "0002-ttl.md"), "utf8"), /status: proposed/, "dossier unchanged");
+});
+
+test("serve: approve WITH the token promotes to canonical + stamps reviewed", async () => {
+  const r = await fetch(base + "/review/decision", {
+    method: "POST", headers: { "content-type": "application/json", "x-bureau-review": srv.reviewToken },
+    body: JSON.stringify({ path: "decisions/0002-ttl.md", decision: "approve" }),
+  });
+  assert.equal(r.status, 200);
+  const text = readFileSync(join(cwd, "canon", "decisions", "0002-ttl.md"), "utf8");
+  assert.match(text, /^status: canonical$/m, "promoted to canonical");
+  assert.match(text, /^reviewed: \d{4}-\d{2}-\d{2}$/m, "reviewed date stamped");
+  const j = await (await fetch(base + "/review")).json();
+  assert.ok(!j.pending.some((d) => d.path === "decisions/0002-ttl.md"), "leaves the queue once canonical");
+});
+
+test("serve: reject WITH the token sets contested + appends a review minute", async () => {
+  writeFileSync(join(cwd, "canon", "decisions", "0003-retry.md"), "---\ntitle: Retry policy\nstatus: proposed\n---\n\n3 retries.\n");
+  const beforeMin = minuteFiles().length;
+  const r = await fetch(base + "/review/decision", {
+    method: "POST", headers: { "content-type": "application/json", "x-bureau-review": srv.reviewToken },
+    body: JSON.stringify({ path: "decisions/0003-retry.md", decision: "reject", reason: "needs a source" }),
+  });
+  assert.equal(r.status, 200);
+  assert.match(readFileSync(join(cwd, "canon", "decisions", "0003-retry.md"), "utf8"), /^status: contested$/m, "sent back to contested");
+  assert.equal(minuteFiles().length, beforeMin + 1, "an append-only review minute was written");
+});
+
+test("serve: the token can never promote a non-pending or out-of-tree path", async () => {
+  const canon = await fetch(base + "/review/decision", {
+    method: "POST", headers: { "content-type": "application/json", "x-bureau-review": srv.reviewToken },
+    body: JSON.stringify({ path: "decisions/0001-adopt.md", decision: "approve" }),
+  });
+  assert.equal(canon.status, 404, "an already-canonical dossier is not pending");
+  const escape = await fetch(base + "/review/decision", {
+    method: "POST", headers: { "content-type": "application/json", "x-bureau-review": srv.reviewToken },
+    body: JSON.stringify({ path: "../bureau.json", decision: "approve" }),
+  });
+  assert.equal(escape.status, 404, "a path outside the pending set is refused");
 });

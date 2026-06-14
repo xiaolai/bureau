@@ -15,9 +15,10 @@
 // the workspace/out dir; sanitize the one path-bearing field (`drawer`); exclusive-create so
 // a write never clobbers an existing minute. Untrusted input is validated at the boundary.
 import http from "node:http";
-import { existsSync, mkdirSync, writeFileSync, readFileSync, statSync, realpathSync, lstatSync, opendirSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, statSync, realpathSync, lstatSync, opendirSync, readdirSync } from "node:fs";
 import { join, dirname, resolve, normalize, extname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { randomBytes } from "node:crypto";
 
 const LOG_DRAWER = "logbook";
 const BODY_CAP = 100_000;        // max POST body bytes
@@ -134,6 +135,98 @@ function serveStatic(res, outDir, rel) {
   send(res, 200, TYPES[extname(file).toLowerCase()] || "application/octet-stream", data);
 }
 
+// ── review / dispose (Phase 2) ─────────────────────────────────────────────────────
+// Listing pending dossiers is OPEN (read-only); the DECISION (promotion) is the human's act
+// and is gated by a token printed to the terminal at startup — the human has it, the AI's
+// agent context does not. propose = open (AI seat); dispose = token-gated (human only).
+const REVIEWABLE = new Set(["proposed", "verified", "stale"]);
+
+function leadingFm(s) {
+  const m = /^---\n([\s\S]*?)\n---/.exec(s || "");
+  if (!m) return null;
+  const o = {};
+  for (const line of m[1].split("\n")) { const i = line.indexOf(":"); if (i > 0 && /^[A-Za-z0-9_-]+$/.test(line.slice(0, i).trim())) o[line.slice(0, i).trim()] = line.slice(i + 1).trim(); }
+  return o;
+}
+
+// Every cabinet dossier awaiting a human decision. Excludes the logbook (intake, not canon),
+// the lint drawer, and `_`/dot entries (types, state, ledgers) — mirrors what the recall skill
+// treats as canon. Never trusts a client path; the decision endpoint re-derives this set.
+function cabinetDossiers(wsDir) {
+  const out = [];
+  const walk = (abs, rel) => {
+    for (const e of safe(() => readdirSync(abs, { withFileTypes: true }), [])) {
+      if (e.name.startsWith("_") || e.name.startsWith(".") || e.isSymbolicLink()) continue;
+      const childRel = rel ? rel + "/" + e.name : e.name;
+      if (e.isDirectory()) { if (rel === "" && (e.name === LOG_DRAWER || e.name === "lint")) continue; walk(join(abs, e.name), childRel); }
+      else if (e.isFile() && e.name.endsWith(".md")) {
+        const fm = leadingFm(safe(() => readFileSync(join(abs, e.name), "utf8"), ""));
+        if (fm && REVIEWABLE.has(fm.status)) out.push({ path: childRel, title: fm.title || e.name, status: fm.status });
+      }
+    }
+  };
+  walk(wsDir, "");
+  out.sort((a, b) => (a.path < b.path ? -1 : 1));
+  return out;
+}
+
+// Rewrite ONLY the leading frontmatter: update keys present, append keys that are new, drop keys
+// whose value is null. The body is untouched.
+function rewriteFrontmatter(text, changes) {
+  const m = /^---\n([\s\S]*?)\n---/.exec(text);
+  if (!m) return null;
+  const applied = new Set();
+  const lines = m[1].split("\n").map((line) => {
+    const i = line.indexOf(":"); const key = i > 0 ? line.slice(0, i).trim() : null;
+    if (key && key in changes) { applied.add(key); return changes[key] == null ? null : key + ": " + changes[key]; }
+    return line;
+  }).filter((l) => l !== null);
+  for (const [k, v] of Object.entries(changes)) if (!applied.has(k) && v != null) lines.push(k + ": " + v);
+  return "---\n" + lines.join("\n") + "\n---" + text.slice(m[0].length);
+}
+
+// The human's dispose action. approve → canonical + reviewed date; reject → contested + an
+// append-only review minute naming what was rejected (the audit trail; never a destructive delete
+// in a browser — a contested page is re-decided in a session). Token already checked by the route.
+function applyDecision(ctx, body) {
+  let b; try { b = JSON.parse(body || "{}"); } catch { return { code: 400, err: "invalid JSON" }; }
+  const decision = b.decision === "approve" ? "approve" : b.decision === "reject" ? "reject" : null;
+  if (!decision) return { code: 400, err: "decision must be 'approve' or 'reject'" };
+  const rel = String(b.path == null ? "" : b.path);
+  const match = cabinetDossiers(ctx.wsDir).find((d) => d.path === rel);   // re-derive — never trust the client path
+  if (!match) return { code: 404, err: "not a pending dossier" };
+  const abs = join(ctx.wsDir, rel);
+  if (!containedUnder(abs, ctx.wsDir)) return { code: 500, err: "containment check failed" };
+  const text = safe(() => readFileSync(abs, "utf8"), null);
+  if (text == null) return { code: 404, err: "dossier unreadable" };
+  const date = new Date().toISOString().slice(0, 10);
+  const changes = decision === "approve" ? { status: "canonical", updated: date, reviewed: date } : { status: "contested", updated: date };
+  const next = rewriteFrontmatter(text, changes);
+  if (next == null) return { code: 500, err: "dossier has no frontmatter" };
+  if (safe(() => writeFileSync(abs, next), "fail") === "fail") return { code: 500, err: "could not write dossier" };
+  if (decision === "reject") appendReviewMinute(ctx, match, String(b.reason == null ? "" : b.reason));
+  return { code: 200, path: rel, status: changes.status };
+}
+
+// append-only record of a rejection (mirrors the CLI review's "append a review minute").
+function appendReviewMinute(ctx, match, reason) {
+  const iso = new Date().toISOString(), date = iso.slice(0, 10);
+  const dir = join(ctx.wsDir, LOG_DRAWER, iso.slice(0, 4), iso.slice(5, 7));
+  if (!containedUnder(dir, ctx.wsDir)) return;
+  safe(() => mkdirSync(dir, { recursive: true }), null);
+  if (!containedUnder(dir, ctx.wsDir)) return;
+  const id = ctx.sessionId + "-review-" + ctx.nextSeq();
+  const fm = [
+    "---", "title: chamber review " + id + " · " + date, "updated: " + date, "status: logbook",
+    "origin: chamber-review", "session: " + ctx.sessionId, "---", "",
+    "## [" + iso + "] rejected — " + oneLine(match.title),
+    "", "Rejected `" + oneLine(match.path) + "` (was " + match.status + ") → `contested`.",
+    reason ? "\nReason: " + oneLine(reason) : "",
+    "", "_Re-decide in a session; the gate is preserved._", "",
+  ].join("\n");
+  safe(() => writeFileSync(join(dir, id + ".md"), fm, { flag: "wx" }), null);
+}
+
 function chamberPage(ctx) {
   const gz = existsSync(join(ctx.outDir, "index.html"));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -152,6 +245,14 @@ function chamberPage(ctx) {
   .note { margin-top: 18px; padding: 10px 12px; border-radius: 8px; font-size: 13px; background: rgba(120,140,120,.12); }
   .ok { background: rgba(80,160,90,.15); } .err { background: rgba(190,80,80,.15); }
   a { color: #3a5d6e; }
+  hr { margin: 34px 0; border: 0; border-top: 1px solid #ddd; }
+  h2 { font-size: 16px; margin: 0 0 4px; }
+  #token { max-width: 340px; }
+  .prow { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #eee; }
+  .tier { color: #888; font-size: 12px; }
+  .acts { display: flex; gap: 8px; flex: none; }
+  button.mini { margin: 0; padding: 5px 12px; font-size: 13px; }
+  button.ghost { background: transparent; color: #a33; border: 1px solid #d99; }
 </style></head><body>
   <h1>Chamber — ${esc(ctx.wsName)}</h1>
   <p class="sub">Propose a claim. It lands as an append-only logbook minute and enters
@@ -169,6 +270,14 @@ function chamberPage(ctx) {
     <button type="submit">Propose to the logbook</button>
   </form>
   <div id="out" class="note" hidden></div>
+
+  <hr>
+  <h2>Pending review <span id="rcount" class="tier"></span></h2>
+  <p class="sub">Promote vetted claims to <strong>canonical</strong>, or send them back to <strong>contested</strong>.
+    Disposing is the human's act — paste the reviewer token printed in your <code>bureau:serve</code> terminal.</p>
+  <input id="token" type="password" placeholder="reviewer token" autocomplete="off">
+  <div id="pending" style="margin-top:14px"></div>
+  <div id="rout" class="note" hidden></div>
 <script>
   var f = document.getElementById("f"), out = document.getElementById("out");
   f.addEventListener("submit", async function (e) {
@@ -182,6 +291,40 @@ function chamberPage(ctx) {
       else { out.className = "note err"; out.textContent = "Rejected: " + (j.err || r.status); }
     } catch (err) { out.className = "note err"; out.textContent = "Failed: " + err.message; }
   });
+
+  var tokenEl = document.getElementById("token");
+  tokenEl.value = sessionStorage.getItem("bureau-token") || "";
+  tokenEl.addEventListener("input", function () { sessionStorage.setItem("bureau-token", tokenEl.value); });
+  var pending = document.getElementById("pending"), rout = document.getElementById("rout"), rcount = document.getElementById("rcount");
+  async function loadReview() {
+    var j = await (await fetch("/review")).json();
+    rcount.textContent = "(" + j.pending.length + ")";
+    pending.textContent = "";
+    if (!j.pending.length) { var e = document.createElement("p"); e.className = "sub"; e.textContent = "Nothing awaiting review."; pending.appendChild(e); return; }
+    j.pending.forEach(function (d) {
+      var row = document.createElement("div"); row.className = "prow";
+      var meta = document.createElement("div");
+      var t = document.createElement("strong"); t.textContent = d.title;             // textContent = no injection
+      var s = document.createElement("span"); s.className = "tier"; s.textContent = " " + d.status + " · " + d.path;
+      meta.appendChild(t); meta.appendChild(s);
+      var ok = document.createElement("button"); ok.textContent = "Approve"; ok.className = "mini";
+      var no = document.createElement("button"); no.textContent = "Reject"; no.className = "mini ghost";
+      ok.onclick = function () { decide(d.path, "approve"); };
+      no.onclick = function () { decide(d.path, "reject", prompt("Reason for rejecting (optional):") || ""); };
+      var acts = document.createElement("div"); acts.className = "acts"; acts.appendChild(ok); acts.appendChild(no);
+      row.appendChild(meta); row.appendChild(acts); pending.appendChild(row);
+    });
+  }
+  async function decide(path, decision, reason) {
+    rout.hidden = false; rout.className = "note"; rout.textContent = "Deciding…";
+    try {
+      var r = await fetch("/review/decision", { method: "POST", headers: { "content-type": "application/json", "x-bureau-review": tokenEl.value }, body: JSON.stringify({ path: path, decision: decision, reason: reason }) });
+      var j = await r.json();
+      if (r.ok) { rout.className = "note ok"; rout.textContent = (decision === "approve" ? "Promoted → canonical: " : "Sent back → contested: ") + j.path; loadReview(); }
+      else { rout.className = "note err"; rout.textContent = "Rejected: " + (j.err || r.status); }
+    } catch (err) { rout.className = "note err"; rout.textContent = "Failed: " + err.message; }
+  }
+  loadReview();
 </script></body></html>`;
 }
 
@@ -201,6 +344,17 @@ function handle(req, res, ctx) {
       return sendJson(res, r.code, { err: r.err });
     });
   }
+  // dispose — listing is open (read-only); deciding is the human's act, token-gated.
+  if (req.method === "GET" && path === "/review") return sendJson(res, 200, { pending: cabinetDossiers(ctx.wsDir) });
+  if (req.method === "POST" && path === "/review/decision") {
+    if (req.headers["x-bureau-review"] !== ctx.reviewToken) return sendJson(res, 403, { err: "reviewer token required — see the bureau:serve terminal output" });
+    return readBody(req).then((body) => {
+      if (body == null) return sendJson(res, 413, { err: "request body too large or unreadable" });
+      const r = applyDecision(ctx, body);
+      if (r.code === 200) return sendJson(res, 200, { ok: true, path: r.path, status: r.status });
+      return sendJson(res, r.code, { err: r.err });
+    });
+  }
   return send(res, 404, "text/plain", "not found");
 }
 
@@ -211,11 +365,12 @@ export async function start({ cwd = process.cwd(), out = "gazette", port = 4317,
   if (!wsDir) throw new Error("no bureau workspace found in " + cwd + " — run bureau:init first");
   const ctx = {
     wsDir, wsName: wsDir.slice(dirname(wsDir).length + 1), outDir: resolve(cwd, out),
-    sessionId: "chamber-" + Date.now().toString(36), _seq: 0, nextSeq() { return ++this._seq; },
+    sessionId: "chamber-" + Date.now().toString(36), reviewToken: randomBytes(16).toString("hex"),
+    _seq: 0, nextSeq() { return ++this._seq; },
   };
   const server = http.createServer((req, res) => { try { handle(req, res, ctx); } catch (e) { safe(() => sendJson(res, 500, { err: "internal error" }), null); } });
   await new Promise((res2, rej) => { server.once("error", rej); server.listen(port, host, res2); });
-  return { server, wsDir, wsName: ctx.wsName, host, port: server.address().port, sessionId: ctx.sessionId };
+  return { server, wsDir, wsName: ctx.wsName, host, port: server.address().port, sessionId: ctx.sessionId, reviewToken: ctx.reviewToken };
 }
 
 // internal helpers exported for unit tests (not a public API)
@@ -225,6 +380,8 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   const args = process.argv.slice(2);
   const opt = (n, d) => { const i = args.indexOf("--" + n); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
   start({ out: opt("out", "gazette"), port: parseInt(opt("port", "4317"), 10), host: opt("host", "127.0.0.1") })
-    .then(({ host, port, wsName }) => process.stdout.write("bureau chamber → http://" + host + ":" + port + "  (workspace: " + wsName + ")\n  Ctrl-C to stop.\n"))
+    .then(({ host, port, wsName, reviewToken }) => process.stdout.write(
+      "bureau chamber → http://" + host + ":" + port + "  (workspace: " + wsName + ")\n" +
+      "  Reviewer token (paste in the chamber to approve/reject): " + reviewToken + "\n  Ctrl-C to stop.\n"))
     .catch((e) => { process.stderr.write("bureau serve: " + e.message + "\n"); process.exit(1); });
 }

@@ -89,10 +89,12 @@ restate them; open the skill for the step you're actually doing.
 ## Chamber
 
 `bureau:serve` opens the **chamber** — a single-user, localhost-only room that serves the gazette
-read-only and accepts **intake**: a proposed claim files as an append-only `status: logbook` minute.
-It is the interactive counterpart to `bureau:note`, and it cannot bypass the gate — the chamber
-proposes (logbook), `bureau:compile` distils (proposed/verified), and a human disposes
-(`bureau:review` → canonical). The chamber never writes a dossier or a higher tier itself.
+read-only, accepts **intake** (a proposed claim files as an append-only `status: logbook` minute),
+and hosts the **review/dispose** surface. The boundary is structural: **propose is open** (the human
+or a convened AI desk POSTs intake), **dispose is the human's act** — promoting a dossier to
+`canonical` requires a reviewer token printed to the `bureau:serve` terminal, which the AI's agent
+context never sees. So the chamber proposes (logbook) and a human disposes (canonical); it never lets
+the AI seat forge a higher tier.
 
 ## Crew
 
