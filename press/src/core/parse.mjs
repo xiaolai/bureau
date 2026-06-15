@@ -190,17 +190,32 @@ function mdEngine() {
     if (tag === "tabs") {
       // ```tabs with `=== Title` markers per panel; each panel body is rendered as markdown
       // (same engine → wiki-links, tags, tables work). Runtime hydrates into an ARIA tablist.
+      const depth = (env && env._tabsDepth) || 0;
+      if (depth >= 3) return defaultFence(tokens, idx, options, env, self); // cap nested-tabs recursion
       const panels = [];
-      let cur = null;
+      let cur = null, preamble = false, inFence = null;
       for (const line of tk.content.replace(/\n+$/, "").split("\n")) {
+        const fb = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+        if (inFence) {                                                   // inside a nested code fence — never a marker
+          // a CLOSE is the same fence char, ≥ length, and NOTHING but trailing whitespace after it
+          const fc = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
+          if (fc && fc[1][0] === inFence.ch && fc[1].length >= inFence.len) inFence = null;
+          if (cur) cur.body.push(line); else if (line.trim()) preamble = true;
+          continue;
+        }
+        if (fb) { inFence = { ch: fb[1][0], len: fb[1].length }; if (cur) cur.body.push(line); else if (line.trim()) preamble = true; continue; }
         const mt = /^={3,}\s+(.+?)\s*$/.exec(line);
-        if (mt) { cur = { title: mt[1], body: [] }; panels.push(cur); }
+        const title = mt && mt[1].trim();
+        if (title) { cur = { title, body: [] }; panels.push(cur); }      // blank titles are not markers
         else if (cur) cur.body.push(line);
+        else if (line.trim()) preamble = true;                           // nonblank content before any panel
       }
-      if (!panels.length) return defaultFence(tokens, idx, options, env, self);
+      // malformed (no panels, or content would be silently dropped) → plain code block, lose nothing
+      if (!panels.length || preamble) return defaultFence(tokens, idx, options, env, self);
+      const childEnv = Object.assign({}, env, { _tabsDepth: depth + 1 });
       let out = '<div class="tabs">';
       for (const p of panels) out += '<section class="tab-panel" role="tabpanel" data-tab="' +
-        escapeAttr(p.title) + '">' + m.render(p.body.join("\n")) + "</section>";
+        escapeAttr(p.title) + '">' + m.render(p.body.join("\n"), childEnv) + "</section>";
       return out + "</div>\n";
     }
     if (tag === "viz" || tag === "chart" || tag === "table" || tag === "graph") {

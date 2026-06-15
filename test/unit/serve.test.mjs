@@ -174,3 +174,27 @@ test("serve: makeWatcher debounces a burst of changes into one rebuild", async (
   assert.equal(calls, 2, "a later change triggers another rebuild");
   w.close();
 });
+
+// ── audit-fix regressions (v0.5.0 hardening) ──────────────────────────────────
+test("serve: refuses to bind a non-loopback host", async () => {
+  await assert.rejects(() => start({ cwd, port: 0, host: "0.0.0.0" }), /loopback only/);
+});
+
+test("serve: a cross-site Origin is refused on the write endpoints (CSRF)", async () => {
+  const intake = await fetch(base + "/intake", {
+    method: "POST", headers: { "content-type": "application/json", origin: "https://evil.example" },
+    body: JSON.stringify({ subject: "x", body: "y" }),
+  });
+  assert.equal(intake.status, 403, "cross-site intake blocked");
+  const decision = await fetch(base + "/review/decision", {
+    method: "POST", headers: { "content-type": "application/json", origin: "https://evil.example", "x-bureau-review": srv.reviewToken },
+    body: JSON.stringify({ path: "decisions/0002-ttl.md", decision: "approve" }),
+  });
+  assert.equal(decision.status, 403, "cross-site decision blocked before the token check");
+  // a loopback Origin is still accepted
+  const ok = await fetch(base + "/intake", {
+    method: "POST", headers: { "content-type": "application/json", origin: base },
+    body: JSON.stringify({ subject: "loopback ok", body: "y" }),
+  });
+  assert.equal(ok.status, 200, "same loopback origin allowed");
+});

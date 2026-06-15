@@ -10,12 +10,16 @@
 // power is appending logbook minutes. Distilling to a dossier is `bureau:compile`; promoting
 // to `canonical` is `bureau:review` (a human). No endpoint can forge a higher tier.
 //
-// Threat model (a write backend is real surface): bind 127.0.0.1 only; cap request bodies;
-// allowlist methods+routes; realpath-contain every path (static reads AND minute writes) to
-// the workspace/out dir; sanitize the one path-bearing field (`drawer`); exclusive-create so
-// a write never clobbers an existing minute. Untrusted input is validated at the boundary.
+// Threat model (a write backend is real surface): bind loopback only; reject cross-site Origins
+// (CSRF); cap request bodies by BYTES; allowlist methods+routes; realpath-contain every path
+// (static reads AND writes); no-symlink-follow on file reads/writes; atomic temp+rename so a write
+// can't truncate; exclusive-create so a write never clobbers. Untrusted input is validated at the
+// boundary. Accepted residuals (out of the single-user-localhost model): a parent-DIRECTORY symlink
+// swapped mid-request, two concurrent decisions racing one dossier (atomic rename keeps it
+// non-corrupting, last-writer-wins), and synchronous small-file reads — all require a local attacker
+// who already has workspace write access, which is game-over regardless.
 import http from "node:http";
-import { existsSync, mkdirSync, writeFileSync, readFileSync, statSync, realpathSync, lstatSync, opendirSync, readdirSync, watch as fsWatch } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, statSync, realpathSync, lstatSync, opendirSync, readdirSync, renameSync, rmSync, openSync, closeSync, constants as FS, watch as fsWatch } from "node:fs";
 import { join, dirname, resolve, normalize, extname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
@@ -27,6 +31,18 @@ const SUBJECT_CAP = 200;         // max claim subject chars
 const BODY_TEXT_CAP = 10_000;    // max claim body chars
 
 function safe(fn, dflt) { try { return fn(); } catch { return dflt; } }
+
+// no-symlink-follow file primitives — close the symlink-swap TOCTOU on the final path component
+// (the residual parent-directory race is out of the single-user-localhost threat model). `writeNew`
+// is an exclusive create; `readNoFollow` refuses to read through a symlinked file.
+function writeNew(path, data) {
+  let fd; try { fd = openSync(path, FS.O_WRONLY | FS.O_CREAT | FS.O_EXCL | FS.O_NOFOLLOW, 0o644); } catch { return false; }
+  try { writeFileSync(fd, data); return true; } catch { return false; } finally { safe(() => closeSync(fd), null); } // writeFileSync writes ALL bytes (no short-write)
+}
+function readNoFollow(path) {
+  let fd; try { fd = openSync(path, FS.O_RDONLY | FS.O_NOFOLLOW); } catch { return null; }
+  try { return readFileSync(fd); } catch { return null; } finally { safe(() => closeSync(fd), null); }
+}
 
 // ── workspace + containment (same discipline as scripts/capture-stub.mjs) ──────────
 // realpath of `target`'s deepest EXISTING ancestor must sit inside `root` (symlink-safe).
@@ -67,11 +83,27 @@ function sendJson(res, code, obj) { send(res, code, "application/json; charset=u
 // read a bounded request body; reject (resolve null) if it exceeds the cap.
 function readBody(req) {
   return new Promise((res2) => {
-    let raw = "", over = false;
-    req.on("data", (c) => { if (over) return; raw += c; if (raw.length > BODY_CAP) { over = true; } });
-    req.on("end", () => res2(over ? null : raw));
-    req.on("error", () => res2(null));
+    const chunks = []; let bytes = 0, done = false;
+    const settle = (v) => { if (!done) { done = true; res2(v); } };
+    req.on("data", (c) => {
+      if (done) return;
+      bytes += c.length;                                   // BYTES, not string chars (multibyte-safe)
+      if (bytes > BODY_CAP) { settle(null); return; }       // stop buffering; let the handler send 413, no socket reset
+      chunks.push(c);
+    });
+    req.on("end", () => settle(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", () => settle(null));
+    req.on("aborted", () => settle(null));                 // client abort → settle once, no pending handler
+    req.on("close", () => settle(null));
   });
+}
+
+// reject cross-site browser requests (CSRF). Browsers attach Origin on cross-origin writes; the
+// chamber page is same (loopback) origin; non-browser clients (curl, the AI seat) send no Origin.
+function csrfOK(req) {
+  const o = req.headers["origin"];
+  if (!o) return true;
+  try { return ["127.0.0.1", "::1", "[::1]", "localhost"].includes(new URL(o).hostname); } catch { return false; }
 }
 
 // ── intake: a proposed claim → an append-only logbook minute (low authority) ───────
@@ -115,8 +147,7 @@ function writeIntake(ctx, body) {
     "",
   ].filter((l) => l !== null).join("\n");
 
-  try { writeFileSync(file, fm, { flag: "wx" }); }      // exclusive create — never clobber a minute
-  catch (e) { return { code: 500, err: "could not write minute (" + (e && e.code || "error") + ")" }; }
+  if (!writeNew(file, fm)) return { code: 500, err: "could not write minute" }; // exclusive, no-follow create
   return { code: 200, path: join(LOG_DRAWER, iso.slice(0, 4), iso.slice(5, 7), id + ".md") };
 }
 
@@ -131,7 +162,7 @@ function serveStatic(res, outDir, rel) {
   let file = target;
   if (st && st.isDirectory()) { file = join(target, "index.html"); st = safe(() => statSync(file), null); }
   if (!st || !st.isFile() || !containedUnder(file, outDir)) return send(res, 404, "text/plain", "not found");
-  const data = safe(() => readFileSync(file), null);
+  const data = readNoFollow(file);                          // refuses a file swapped to a symlink after the check
   if (data == null) return send(res, 404, "text/plain", "not found");
   send(res, 200, TYPES[extname(file).toLowerCase()] || "application/octet-stream", data);
 }
@@ -204,18 +235,26 @@ function applyDecision(ctx, body) {
   const changes = decision === "approve" ? { status: "canonical", updated: date, reviewed: date } : { status: "contested", updated: date };
   const next = rewriteFrontmatter(text, changes);
   if (next == null) return { code: 500, err: "dossier has no frontmatter" };
-  if (safe(() => writeFileSync(abs, next), "fail") === "fail") return { code: 500, err: "could not write dossier" };
-  if (decision === "reject") appendReviewMinute(ctx, match, String(b.reason == null ? "" : b.reason));
+  if (safe(() => lstatSync(abs).isSymbolicLink(), false)) return { code: 500, err: "refusing to write through a symlink" };
+  // reject: write the audit minute FIRST — never flip a dossier without the promised audit trail
+  if (decision === "reject" && !appendReviewMinute(ctx, match, String(b.reason == null ? "" : b.reason)))
+    return { code: 500, err: "could not write the review minute — dossier left unchanged" };
+  // atomic write: exclusive no-follow temp in the same (contained) dir → rename (a crash can't truncate)
+  const tmp = abs + ".bureau-tmp-" + ctx.nextSeq();
+  if (!writeNew(tmp, next)) return { code: 500, err: "could not write dossier" };
+  if (safe(() => renameSync(tmp, abs), "fail") === "fail") { safe(() => rmSync(tmp), null); return { code: 500, err: "could not finalize dossier" }; }
   return { code: 200, path: rel, status: changes.status };
 }
 
 // append-only record of a rejection (mirrors the CLI review's "append a review minute").
+// Returns true only if the minute was durably written — the caller refuses to flip the dossier
+// without it, so the audit trail can't silently vanish.
 function appendReviewMinute(ctx, match, reason) {
   const iso = new Date().toISOString(), date = iso.slice(0, 10);
   const dir = join(ctx.wsDir, LOG_DRAWER, iso.slice(0, 4), iso.slice(5, 7));
-  if (!containedUnder(dir, ctx.wsDir)) return;
+  if (!containedUnder(dir, ctx.wsDir)) return false;
   safe(() => mkdirSync(dir, { recursive: true }), null);
-  if (!containedUnder(dir, ctx.wsDir)) return;
+  if (!containedUnder(dir, ctx.wsDir)) return false;
   const id = ctx.sessionId + "-review-" + ctx.nextSeq();
   const fm = [
     "---", "title: chamber review " + id + " · " + date, "updated: " + date, "status: logbook",
@@ -225,7 +264,7 @@ function appendReviewMinute(ctx, match, reason) {
     reason ? "\nReason: " + oneLine(reason) : "",
     "", "_Re-decide in a session; the gate is preserved._", "",
   ].join("\n");
-  safe(() => writeFileSync(join(dir, id + ".md"), fm, { flag: "wx" }), null);
+  return writeNew(join(dir, id + ".md"), fm);
 }
 
 function chamberPage(ctx) {
@@ -293,9 +332,7 @@ function chamberPage(ctx) {
     } catch (err) { out.className = "note err"; out.textContent = "Failed: " + err.message; }
   });
 
-  var tokenEl = document.getElementById("token");
-  tokenEl.value = sessionStorage.getItem("bureau-token") || "";
-  tokenEl.addEventListener("input", function () { sessionStorage.setItem("bureau-token", tokenEl.value); });
+  var tokenEl = document.getElementById("token"); // kept in the field for the page lifetime only — never persisted to Web Storage
   var pending = document.getElementById("pending"), rout = document.getElementById("rout"), rcount = document.getElementById("rcount");
   async function loadReview() {
     var j = await (await fetch("/review")).json();
@@ -338,6 +375,7 @@ function handle(req, res, ctx) {
     return serveStatic(res, ctx.outDir, path.replace(/^\/gazette\/?/, ""));
   }
   if (req.method === "POST" && path === "/intake") {
+    if (!csrfOK(req)) return sendJson(res, 403, { err: "cross-site request refused" });
     return readBody(req).then((body) => {
       if (body == null) return sendJson(res, 413, { err: "request body too large or unreadable" });
       const r = writeIntake(ctx, body);
@@ -348,6 +386,7 @@ function handle(req, res, ctx) {
   // dispose — listing is open (read-only); deciding is the human's act, token-gated.
   if (req.method === "GET" && path === "/review") return sendJson(res, 200, { pending: cabinetDossiers(ctx.wsDir) });
   if (req.method === "POST" && path === "/review/decision") {
+    if (!csrfOK(req)) return sendJson(res, 403, { err: "cross-site request refused" });
     if (req.headers["x-bureau-review"] !== ctx.reviewToken) return sendJson(res, 403, { err: "reviewer token required — see the bureau:serve terminal output" });
     return readBody(req).then((body) => {
       if (body == null) return sendJson(res, 413, { err: "request body too large or unreadable" });
@@ -385,6 +424,7 @@ function rebuildGazette(ctx) {
 // Start the chamber. Resolves the workspace, binds 127.0.0.1, returns the live server.
 // `host`/`port` are overridable for tests (port 0 = ephemeral). Never binds beyond localhost.
 export async function start({ cwd = process.cwd(), out = "gazette", port = 4317, host = "127.0.0.1", watch = false } = {}) {
+  if (!["127.0.0.1", "::1", "localhost"].includes(host)) throw new Error("bureau serve binds loopback only — refusing host " + host);
   const wsDir = workspaceDir(cwd);
   if (!wsDir) throw new Error("no bureau workspace found in " + cwd + " — run bureau:init first");
   const ctx = {
@@ -396,7 +436,11 @@ export async function start({ cwd = process.cwd(), out = "gazette", port = 4317,
   await new Promise((res2, rej) => { server.once("error", rej); server.listen(port, host, res2); });
   let watcher = null;
   if (watch) {
-    watcher = makeWatcher(wsDir, () => rebuildGazette(ctx));
+    // serialize rebuilds: never run two gazette builds over the same out dir at once; a change
+    // arriving mid-build coalesces into a single follow-up build.
+    let building = false, again = false;
+    const build = async () => { if (building) { again = true; return; } building = true; try { do { again = false; await rebuildGazette(ctx); } while (again); } finally { building = false; } };
+    watcher = makeWatcher(wsDir, build);
     if (!watcher.supported) safe(() => process.stderr.write("bureau serve: recursive watch unsupported here — live-rebuild disabled\n"), null);
   }
   const close = () => { safe(() => watcher && watcher.close(), null); server.close(); };
@@ -409,9 +453,12 @@ export const _internal = { workspaceDir, containedUnder, safeId, writeIntake };
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
   const args = process.argv.slice(2);
   const opt = (n, d) => { const i = args.indexOf("--" + n); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
-  start({ out: opt("out", "gazette"), port: parseInt(opt("port", "4317"), 10), host: opt("host", "127.0.0.1"), watch: args.includes("--watch") })
+  const portArg = opt("port", "4317");
+  const portNum = Number(portArg);
+  if (!Number.isInteger(portNum) || portNum < 1024 || portNum > 65535) { process.stderr.write("bureau serve: --port must be an integer in 1024–65535\n"); process.exit(1); }
+  start({ out: opt("out", "gazette"), port: portNum, host: opt("host", "127.0.0.1"), watch: args.includes("--watch") })
     .then(({ host, port, wsName, reviewToken, watcher }) => process.stdout.write(
-      "bureau chamber → http://" + host + ":" + port + "  (workspace: " + wsName + ")\n" +
+      "bureau chamber → http://" + (host.includes(":") ? "[" + host + "]" : host) + ":" + port + "  (workspace: " + wsName + ")\n" +
       "  Reviewer token (paste in the chamber to approve/reject): " + reviewToken + "\n" +
       (watcher && watcher.supported ? "  Watching the workspace — the gazette rebuilds on change.\n" : "") +
       "  Ctrl-C to stop.\n"))

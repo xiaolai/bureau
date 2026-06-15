@@ -146,6 +146,13 @@ test("nav: navigating into a collapsed group force-opens it (current page stays 
   w.location.hash = "#/Bx";
   w.dispatchEvent(new w.Event("hashchange"));
   assert.equal(nav.querySelector('details[data-group="b"]').open, true, "opens on navigation into it");
+  // but a forced open must NOT rewrite the user's persisted collapse preference
+  assert.deepEqual(JSON.parse(w.localStorage.getItem("bureau:nav:T")), ["b"], "force-open does not persist");
+  // navigating away to another group re-collapses the forced-open group (restores what you left)
+  w.location.hash = "#/Home";
+  w.dispatchEvent(new w.Event("hashchange"));
+  assert.equal(nav.querySelector('details[data-group="b"]').open, false, "re-collapses when you leave it");
+  assert.deepEqual(JSON.parse(w.localStorage.getItem("bureau:nav:T")), ["b"], "still no persistence change");
 });
 
 // ── tabs hydration (Phase 3) ──────────────────────────────────────────────────

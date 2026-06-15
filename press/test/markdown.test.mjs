@@ -70,3 +70,11 @@ test("markdownToHtml: a ```tabs with no === markers falls back to a plain code b
   const html = markdownToHtml("```tabs\njust text, no markers\n```\n");
   assert.doesNotMatch(html, /class="tabs"/, "no panels → not a tabs widget");
 });
+
+test("markdownToHtml: a === line inside a panel's nested code fence is body, not a tab marker", () => {
+  const html = markdownToHtml("```tabs\n=== Real\nbefore\n~~~\n=== not a tab\n~~~\nafter\n=== Second\nx\n```\n");
+  assert.equal((html.match(/class="tab-panel"/g) || []).length, 2, "exactly two real panels");
+  assert.match(html, /data-tab="Real"/);
+  assert.match(html, /data-tab="Second"/);
+  assert.doesNotMatch(html, /data-tab="not a tab"/, "marker inside a code fence does not open a panel");
+});

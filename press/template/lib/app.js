@@ -378,14 +378,26 @@ function buildNav() {
     html += "</div></details>";
   });
   nav.innerHTML = html;
-  // Persist on user toggle. The `toggle` event does NOT bubble, so delegate on the
-  // capture phase (one listener survives the innerHTML above since it's on #nav).
-  nav.addEventListener("toggle", (e) => {
-    const d = e.target;
-    if (!d || !d.classList || !d.classList.contains("nav-group")) return;
-    if (d.open) navCollapsed.delete(d.dataset.group); else navCollapsed.add(d.dataset.group);
-    saveCollapsed();
-  }, true);
+  // Persist ONLY on a user gesture: a click/keyboard activation on a summary toggles the <details>
+  // as its default action, so we read the resulting state in a microtask and persist that. The
+  // active-group sync below opens/closes groups programmatically (no click), so it never rewrites
+  // the preference — which is what kept "navigate into a collapsed group" from corrupting it.
+  nav.addEventListener("click", (e) => {
+    const sum = e.target.closest && e.target.closest("summary.nav-group__label");
+    if (!sum || !sum.parentElement) return;
+    const d = sum.parentElement, g = d.dataset.group;
+    Promise.resolve().then(() => { if (d.open) navCollapsed.delete(g); else navCollapsed.add(g); saveCollapsed(); });
+  });
+}
+
+// Keep the current page visible without rewriting preferences: among collapsed-preference groups,
+// open exactly the one holding the active page and re-close the rest (restoring a group you left).
+// Programmatic — persistence is click-driven — so this never touches localStorage.
+function syncActiveGroup(activeGroup) {
+  document.querySelectorAll("details.nav-group").forEach((d) => {
+    if (!navCollapsed.has(d.dataset.group)) return;   // user wants this one open → leave it
+    d.open = (d === activeGroup);
+  });
 }
 
 const BL_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7H6a3 3 0 0 0 0 6h2M12 7h2a3 3 0 0 1 0 6h-2M7.5 10h5"/></svg>';
@@ -428,12 +440,13 @@ function renderDoc(name) {
     renderMermaid(canvas);
   }
   canvas.scrollTop = 0;
+  let activeGroup = null;
   document.querySelectorAll(".nav-item").forEach((el) => {
     const on = el.getAttribute("data-doc") === name;
     el.classList.toggle("nav-item--active", on);
-    // keep the current page visible: open its (possibly collapsed) cabinet group
-    if (on) { const grp = el.closest("details.nav-group"); if (grp && !grp.open) grp.open = true; }
+    if (on) activeGroup = el.closest("details.nav-group");
   });
+  syncActiveGroup(activeGroup);
   document.title = name + " · " + STORY.meta.title;
 }
 
