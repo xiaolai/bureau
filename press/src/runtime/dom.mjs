@@ -139,7 +139,14 @@ function renderDoc(name) {
 
 // ── viz hydration (ECharts charts/graphs + sortable tables) ───────────────────
 let vizCharts = [];
-function disposeCharts() { vizCharts.forEach((c) => { try { c.dispose(); } catch (e) { /* ignore */ } }); vizCharts = []; }
+// pan-zoom viewports observe their own SVG so a width-driven height change (e.g.
+// entering fullscreen) re-fits the frozen viewport height. Tracked here so a route
+// change tears the observers down with the rest of the doc's live render state.
+let pzObservers = [];
+function disposeCharts() {
+  vizCharts.forEach((c) => { try { c.dispose(); } catch (e) { /* ignore */ } }); vizCharts = [];
+  pzObservers.forEach((o) => { try { o.disconnect(); } catch (e) { /* ignore */ } }); pzObservers = [];
+}
 
 function vizPalette() {
   const cs = getComputedStyle(document.documentElement);
@@ -336,11 +343,35 @@ function attachPanZoom(host, svg) {
   vp.addEventListener("pointerup", end); vp.addEventListener("pointercancel", end);
   vp.addEventListener("wheel", (e) => { if (!(e.ctrlKey || e.metaKey)) return; e.preventDefault(); const r = vp.getBoundingClientRect(); zoomAbout(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? STEP : 1 / STEP); }, { passive: false });
   apply();
+  // initial fit: size the viewport to the natural diagram height, scaling down (and
+  // recentering) only if it would exceed the height cap. Runs once after layout and
+  // establishes the reset baseline (s0/tx0/ty0).
   requestAnimationFrame(() => {
     const vw = vp.getBoundingClientRect().width, ph = pan.getBoundingClientRect().height || 320, maxH = Math.round(window.innerHeight * 0.82);
     if (ph > maxH) { s = maxH / ph; tx = (vw - vw * s) / 2; apply(); vp.style.height = maxH + "px"; }
     else { vp.style.height = ph + "px"; }
     s0 = s; tx0 = tx; ty0 = ty;
+    // The SVG keeps a responsive width (max-width:100%; height:auto), so widening the
+    // container (e.g. fullscreen) grows its natural height — but the viewport height
+    // was frozen above and the lone window resize handler only resizes ECharts. Watch
+    // the SVG's *layout* box (transform-independent, so a zoom never trips it) and
+    // re-fit only the viewport height — never the user's pan/zoom or the reset baseline.
+    if (svgEl && typeof ResizeObserver === "function") {
+      let pending = false;
+      const ro = new ResizeObserver(() => {
+        if (pending) return; pending = true;
+        requestAnimationFrame(() => {
+          pending = false;
+          if (!vp.isConnected) return;
+          // natural height = current visual height with the zoom factor divided out
+          const nat = (svgEl.getBoundingClientRect().height / s) || 0;
+          if (!nat) return;
+          vp.style.height = Math.min(nat, Math.round(window.innerHeight * 0.82)) + "px";
+        });
+      });
+      ro.observe(svgEl);
+      pzObservers.push(ro);
+    }
   });
 }
 
