@@ -6,7 +6,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -106,6 +106,22 @@ test("DOT hardening: author links scrubbed + malformed graph errors without cras
   assert.ok(errored, "malformed DOT rendered an inline .dot-error, not a thrown exception");
   assert.deepEqual(errs, [], "no page errors from the malformed graph:\n" + errs.join("\n"));
   await p2.close();
+});
+
+test("diagram toolbar downloads a standalone SVG with theme vars inlined (blob download under CSP)", async (t) => {
+  guard(t); if (!available) return;
+  await page.evaluate(() => { const k = Object.keys(window.STORY.docs).find((d) => /class="dot/.test(window.STORY.docs[d].html || "")); if (k) location.hash = "#/" + encodeURIComponent(k); });
+  await page.waitForSelector(".dot svg", { timeout: 20000 });      // DOT rendered (its text carries var(--sans))
+  const btn = await page.waitForSelector('.dot .mmd-tool[data-a="download"]', { timeout: 5000 });
+  const [download] = await Promise.all([
+    page.waitForEvent("download", { timeout: 10000 }),           // proves blob download isn't blocked by the strict CSP
+    btn.click({ force: true }),                                   // toolbar is hover-revealed (opacity:0)
+  ]);
+  assert.match(download.suggestedFilename(), /\.svg$/, "downloaded file is named *.svg");
+  const body = readFileSync(await download.path(), "utf8");
+  assert.ok(body.includes("<svg"), "download is an SVG document");
+  assert.ok(!body.includes("var(--"), "every theme var() was inlined to a concrete value for standalone viewing");
+  await download.delete().catch(() => {});
 });
 
 test("echarts chart renders to a canvas", async (t) => {

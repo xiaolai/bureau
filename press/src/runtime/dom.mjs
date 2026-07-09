@@ -295,8 +295,39 @@ const PZ = {
   right: pzIcon('<path d="M8 6l4 4-4 4"/>'),
   up: pzIcon('<path d="M6 12l4-4 4 4"/>'),
   down: pzIcon('<path d="M6 8l4 4 4-4"/>'),
+  download: pzIcon('<path d="M10 4v8"/><path d="M6.5 9l3.5 3.5L13.5 9"/><path d="M5 15.5h10"/>'),
   grip: '<svg viewBox="0 0 20 20" fill="currentColor" stroke="none"><circle cx="8" cy="6" r="1.1"/><circle cx="12" cy="6" r="1.1"/><circle cx="8" cy="10" r="1.1"/><circle cx="12" cy="10" r="1.1"/><circle cx="8" cy="14" r="1.1"/><circle cx="12" cy="14" r="1.1"/></svg>',
 };
+
+// Save the rendered <svg> as a standalone file. The gazette references theme colors/fonts
+// via var(--…), which won't resolve outside the page — so we clone the SVG and inline every
+// var() (in attributes, inline styles, and <style> blocks) to its concrete computed value,
+// so the downloaded file looks identical on its own. Covers mermaid, DOT, and the graph view.
+function resolveVars(str, cs) {
+  return str.replace(/var\(\s*(--[\w-]+)\s*(?:,\s*([^)]*))?\)/g, (m, name, fb) => {
+    const v = (cs.getPropertyValue(name) || "").trim();
+    return v || (fb != null ? fb.trim() : m);
+  });
+}
+function downloadSvg(svgEl) {
+  if (!svgEl || typeof XMLSerializer !== "function") return;
+  const clone = svgEl.cloneNode(true);
+  const cs = getComputedStyle(document.documentElement);
+  const inlineVars = (el) => { for (const a of Array.from(el.attributes)) { if (a.value && a.value.indexOf("var(") >= 0) el.setAttribute(a.name, resolveVars(a.value, cs)); } };
+  inlineVars(clone);
+  clone.querySelectorAll("*").forEach(inlineVars);
+  clone.querySelectorAll("style").forEach((st) => { if (st.textContent && st.textContent.indexOf("var(") >= 0) st.textContent = resolveVars(st.textContent, cs); });
+  // strip the responsive sizing we added at mount so the file opens at its natural size
+  clone.style.maxWidth = ""; clone.style.height = "";
+  if (!clone.getAttribute("xmlns")) clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  const src = '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
+  const url = URL.createObjectURL(new Blob([src], { type: "image/svg+xml;charset=utf-8" }));
+  const name = ((document.title || "diagram").replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "diagram") + ".svg";
+  const a = document.createElement("a");
+  a.href = url; a.download = name; a.rel = "noopener";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ } }, 4000);
+}
 function attachPanZoom(host, svg) {
   host.classList.add("mmd-has-pz");
   host.innerHTML =
@@ -311,6 +342,8 @@ function attachPanZoom(host, svg) {
     '<button class="mmd-tool" data-a="right" title="right">' + PZ.right + "</button>" +
     '<button class="mmd-tool" data-a="up" title="up">' + PZ.up + "</button>" +
     '<button class="mmd-tool" data-a="down" title="down">' + PZ.down + "</button>" +
+    '<span class="mmd-tool__sep"></span>' +
+    '<button class="mmd-tool" data-a="download" title="download SVG" aria-label="download SVG">' + PZ.download + "</button>" +
     "</div>";
   const vp = host.querySelector(".mmd-viewport"), pan = host.querySelector(".mmd-pan");
   const svgEl = pan.querySelector("svg");
@@ -330,6 +363,7 @@ function attachPanZoom(host, svg) {
     else if (a === "right") { tx -= NUDGE; apply(); }
     else if (a === "up") { ty += NUDGE; apply(); }
     else if (a === "down") { ty -= NUDGE; apply(); }
+    else if (a === "download") downloadSvg(svgEl);
   });
   const tools = host.querySelector(".mmd-tools"), grip = tools.querySelector(".mmd-tools__grip");
   let gdrag = false, gx = 0, gy = 0;
