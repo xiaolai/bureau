@@ -28,7 +28,7 @@ import { nfc } from "./services/i18n.mjs";
 const HEALTH_TITLE = "Health";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_DIR = resolve(__dirname, "..", "template");
-const ENGINE_LIB = ["app.js", "mermaid.min.js", "echarts.min.js", "js-yaml.min.js", "papaparse.min.js"]; // theme.css generated, not copied
+const ENGINE_LIB = ["app.js", "mermaid.min.js", "echarts.min.js", "js-yaml.min.js", "papaparse.min.js", "viz.min.js", "rough.min.js"]; // theme.css generated, not copied
 
 // Refuse to rmSync the project root, an ancestor of it, or a filesystem root (grill M1).
 // resolve a path through its deepest EXISTING ancestor's realpath, so a symlink anywhere

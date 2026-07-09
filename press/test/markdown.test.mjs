@@ -25,6 +25,15 @@ test("markdownToHtml: fences → widget divs", () => {
   assert.match(h, /<div class="mermaid">graph LR/);
 });
 
+test("markdownToHtml: ```dot fence → dot widget div (engine/roughness carried, source escaped)", () => {
+  const h = markdownToHtml("```dot engine=neato roughness=1.6\ndigraph { a -> b; c -> \"<x>\" }\n```\n");
+  assert.match(h, /<div class="dot" data-engine="neato" data-roughness="1.6">digraph/);
+  assert.match(h, /a -&gt; b/);          // DOT source is HTML-escaped, so it survives the sanitizer
+  assert.match(h, /&quot;&lt;x&gt;&quot;/); // '<' in a label never reaches the DOM as markup
+  const plain = markdownToHtml("```dot\ndigraph{a->b}\n```\n");
+  assert.match(plain, /<div class="dot">digraph\{a-&gt;b\}/); // no options → bare div, engine defaults at runtime
+});
+
 test("parseMarkdownDoc: frontmatter meta + typed relation + code-aware body links", () => {
   const p = parseMarkdownDoc("---\ntitle: Lin\nicon: user\nstatus: draft\ncontradicts: [[Villain]]\n---\n# Heading\nsee [[Wei]] and `[[InCode]]` and\n```\n[[Fenced]]\n```\n");
   assert.equal(p.meta.title, "Lin");          // frontmatter wins over the heading

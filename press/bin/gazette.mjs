@@ -21366,6 +21366,51 @@ function mdEngine() {
     const tag = (parts[0] || "").toLowerCase();
     const content = escapeHtml2(tk.content.replace(/\n+$/, ""));
     if (tag === "mermaid") return '<div class="mermaid">' + content + "</div>\n";
+    if (tag === "dot") {
+      const kv = {};
+      for (const p of parts.slice(1)) {
+        const i = p.indexOf("=");
+        if (i > 0) kv[p.slice(0, i)] = p.slice(i + 1);
+        else kv[p] = "";
+      }
+      let attrs = "";
+      for (const k of ["engine", "roughness"]) if (kv[k]) attrs += " data-" + k + '="' + escapeAttr(kv[k]) + '"';
+      return '<div class="dot"' + attrs + ">" + content + "</div>\n";
+    }
+    if (tag === "tabs") {
+      const depth = env && env._tabsDepth || 0;
+      if (depth >= 3) return defaultFence(tokens, idx, options, env, self2);
+      const panels = [];
+      let cur = null, preamble = false, inFence = null;
+      for (const line of tk.content.replace(/\n+$/, "").split("\n")) {
+        const fb = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+        if (inFence) {
+          const fc = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
+          if (fc && fc[1][0] === inFence.ch && fc[1].length >= inFence.len) inFence = null;
+          if (cur) cur.body.push(line);
+          else if (line.trim()) preamble = true;
+          continue;
+        }
+        if (fb) {
+          inFence = { ch: fb[1][0], len: fb[1].length };
+          if (cur) cur.body.push(line);
+          else if (line.trim()) preamble = true;
+          continue;
+        }
+        const mt = /^={3,}\s+(.+?)\s*$/.exec(line);
+        const title = mt && mt[1].trim();
+        if (title) {
+          cur = { title, body: [] };
+          panels.push(cur);
+        } else if (cur) cur.body.push(line);
+        else if (line.trim()) preamble = true;
+      }
+      if (!panels.length || preamble) return defaultFence(tokens, idx, options, env, self2);
+      const childEnv = Object.assign({}, env, { _tabsDepth: depth + 1 });
+      let out = '<div class="tabs">';
+      for (const p of panels) out += '<section class="tab-panel" role="tabpanel" data-tab="' + escapeAttr(p.title) + '">' + m.render(p.body.join("\n"), childEnv) + "</section>";
+      return out + "</div>\n";
+    }
     if (tag === "viz" || tag === "chart" || tag === "table" || tag === "graph") {
       const kv = {};
       for (const p of parts.slice(1)) {
@@ -22633,7 +22678,7 @@ function cspMeta() {
     "img-src 'self' data:",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
-    "script-src 'self'",
+    "script-src 'self' 'wasm-unsafe-eval'",
     "connect-src 'none'",
     "base-uri 'none'"
   ].join("; ");
@@ -22735,7 +22780,7 @@ function bundleReport(outDir, budget = DEFAULT_BUDGET) {
 var HEALTH_TITLE = "Health";
 var __dirname = dirname2(fileURLToPath(import.meta.url));
 var TEMPLATE_DIR = resolve(__dirname, "..", "template");
-var ENGINE_LIB = ["app.js", "mermaid.min.js", "echarts.min.js", "js-yaml.min.js", "papaparse.min.js"];
+var ENGINE_LIB = ["app.js", "mermaid.min.js", "echarts.min.js", "js-yaml.min.js", "papaparse.min.js", "viz.min.js", "rough.min.js"];
 function physicalPath(p) {
   let anc = p, tail = [];
   while (!existsSync5(anc)) {

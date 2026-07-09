@@ -125,6 +125,7 @@ function renderDoc(name) {
     hydrateTabs(canvas);
     wireSortable(canvas);
     renderMermaid(canvas);
+    renderDot(canvas);
   }
   canvas.scrollTop = 0;
   let activeGroup = null;
@@ -415,6 +416,116 @@ function renderMermaid(scope) {
         }
       }).catch((e) => { if (!el.isConnected) return; el.innerHTML = '<pre class="mermaid-error">diagram render failed: ' + escapeHtml(String((e && e.message) || e)) + "</pre>"; });
     } catch (e) { if (el.isConnected) el.innerHTML = '<pre class="mermaid-error">diagram render failed</pre>'; }
+  });
+}
+
+// ── Graphviz DOT (Viz-in-WASM layout → rough.js hand-drawn) ───────────────────
+// Mirrors renderMermaid: the ```dot fence ships as <div class="dot">SOURCE</div>
+// (a plain div that survives the build sanitizer). Here we lay it out with Viz
+// (Graphviz→WASM), redraw every shape hand-sketched with rough.js, recolor to the
+// active theme, scrub the SVG (belt-and-suspenders atop the strict CSP), then hand
+// it to the SAME pan/zoom viewport mermaid uses. Skips cleanly when the libs are
+// absent (e.g. the offline jsdom test stubs neither) — the source just stays visible.
+const DOT_MAX = 20000; // cap source so a giant graph can't freeze layout (mirrors MMD_MAX)
+const DOT_ENGINES = new Set(["dot", "neato", "fdp", "sfdp", "circo", "twopi", "osage", "patchwork"]);
+let _vizInstance = null;
+function getViz() {
+  if (!_vizInstance) {
+    _vizInstance = window.Viz.instance();
+    _vizInstance.catch(() => { _vizInstance = null; }); // never cache a rejected init — let the next graph retry
+  }
+  return _vizInstance;
+}
+
+// node/edge/text colors from theme vars (reuses mermaid's --mmd-* tokens so DOT and
+// mermaid diagrams share one palette across themes).
+function dotPalette() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (n, d) => ((cs.getPropertyValue(n) || "").trim() || d);
+  return {
+    node: v("--mmd-node", v("--paper-2", "#efeae0")),
+    nodeStroke: v("--mmd-node-stroke", v("--line-strong", "#ddd6c8")),
+    text: v("--mmd-node-text", v("--ink", "#22201b")),
+    edge: v("--mmd-edge", v("--faint", "#b8b0a0")),
+  };
+}
+// Graphviz's OWN defaults (black outline / unfilled) — remapped to theme tokens so a
+// plain graph follows the active theme. Any OTHER value is an author color and passes
+// through. Caveat: a value can't be traced back to author-vs-default from the SVG, so an
+// intentional pure `black`/`none` is theme-mapped; every explicit color (incl. white) is kept.
+const DOT_DEFAULT = new Set(["", "black", "#000000", "none"]);
+function themed(v, fallback) { return (!v || DOT_DEFAULT.has(String(v).toLowerCase())) ? fallback : v; }
+
+// replace every graphviz shape with a rough.js drawing; keep <text> (recolored to
+// theme). A per-shape seed keeps the sketch identical across re-renders of one graph.
+function roughenDot(svg, pal, roughness) {
+  const rc = window.rough.svg(svg);
+  const graph = svg.querySelector("g.graph");
+  const bg = graph && graph.querySelector(":scope > polygon"); // graphviz canvas fill → let the theme show through
+  if (bg) bg.setAttribute("fill", "transparent");
+  let seed = 1;
+  // node bodies, edge splines/arrowheads, AND subgraph cluster boxes all get roughened.
+  svg.querySelectorAll("g.node, g.edge, g.cluster").forEach((grp) => {
+    const kind = grp.classList.contains("node") ? "node" : grp.classList.contains("cluster") ? "cluster" : "edge";
+    const fillFallback = kind === "node" ? pal.node : "none"; // clusters stay unfilled unless the author filled them
+    grp.querySelectorAll("ellipse, polygon, path").forEach((shape) => {
+      seed++;
+      const tag = shape.tagName.toLowerCase();
+      const stroke = themed(shape.getAttribute("stroke"), kind === "edge" ? pal.edge : pal.nodeStroke);
+      const o = { roughness, seed, stroke, strokeWidth: 1.15, bowing: 1 };
+      // honor an explicit fillcolor; else a subtle themed hachure for nodes, nothing for clusters/edges.
+      const filled = (raw) => { const f = themed(raw, fillFallback); return f && f !== "none" ? { ...o, fill: f, fillStyle: "hachure", fillWeight: 0.7, hachureGap: 4 } : o; };
+      let drawn = null;
+      if (tag === "ellipse") {
+        drawn = rc.ellipse(+shape.getAttribute("cx"), +shape.getAttribute("cy"), +shape.getAttribute("rx") * 2, +shape.getAttribute("ry") * 2, kind === "edge" ? o : filled(shape.getAttribute("fill")));
+      } else if (tag === "polygon") {
+        const pts = (shape.getAttribute("points") || "").trim().split(/\s+/).map((p) => p.split(",").map(Number)).filter((a) => a.length === 2 && a.every(Number.isFinite));
+        if (pts.length) drawn = kind === "edge" ? rc.polygon(pts, { ...o, fill: stroke, fillStyle: "solid" }) : rc.polygon(pts, filled(shape.getAttribute("fill"))); // edge polygon = arrowhead
+      } else if (tag === "path") {
+        const d = shape.getAttribute("d");
+        if (d) drawn = rc.path(d, o); // spline — stroke only
+      }
+      if (drawn) shape.parentNode.replaceChild(drawn, shape);
+    });
+  });
+  svg.querySelectorAll("text").forEach((t) => { t.setAttribute("fill", pal.text); t.style.fontFamily = "var(--sans)"; });
+}
+
+// belt-and-suspenders on top of the strict CSP: drop <script>/<foreignObject>, inline on*
+// handlers, and EVERY link target. Graphviz turns author `URL=`/`href=` into <a> nav — not
+// a bureau feature — so we strip all href/xlink:href/target outright (allowlist stance: no
+// author-controlled navigation is injected), rather than blacklisting only javascript:.
+function scrubSvg(svg) {
+  svg.querySelectorAll("script, foreignObject").forEach((n) => n.remove());
+  svg.querySelectorAll("*").forEach((el) => {
+    for (const a of Array.from(el.attributes)) {
+      const n = a.name.toLowerCase();
+      if (n.startsWith("on") || n === "href" || n === "xlink:href" || n === "target" || n === "xlink:show") el.removeAttribute(a.name);
+    }
+  });
+}
+
+function renderDot(scope) {
+  if (!window.Viz || !window.rough) return; // libs absent — leave the source text visible, no crash
+  const nodes = scope.querySelectorAll(".dot");
+  if (!nodes.length) return;
+  const pal = dotPalette();
+  nodes.forEach((el) => {
+    const src = el.textContent || "";
+    if (src.length > DOT_MAX) { el.innerHTML = '<pre class="dot-error">graph too large to render (' + src.length + " chars, limit " + DOT_MAX + ") — split it</pre>"; return; }
+    let engine = (el.getAttribute("data-engine") || "dot").toLowerCase();
+    if (!DOT_ENGINES.has(engine)) engine = "dot";
+    let roughness = parseFloat(el.getAttribute("data-roughness"));
+    roughness = Number.isFinite(roughness) ? Math.max(0, Math.min(3, roughness)) : 1.1;
+    getViz().then((viz) => {
+      if (!el.isConnected) return; // routed away before layout finished — element is stale
+      let svg;
+      try { svg = viz.renderSVGElement(src, { engine }); }
+      catch (e) { el.innerHTML = '<pre class="dot-error">graph render failed: ' + escapeHtml(String((e && e.message) || e)) + "</pre>"; return; }
+      roughenDot(svg, pal, roughness);
+      scrubSvg(svg);
+      attachPanZoom(el, svg.outerHTML);
+    }).catch((e) => { if (el.isConnected) el.innerHTML = '<pre class="dot-error">graph engine failed: ' + escapeHtml(String((e && e.message) || e)) + "</pre>"; });
   });
 }
 

@@ -187,6 +187,17 @@ function mdEngine() {
     const tag = (parts[0] || "").toLowerCase();
     const content = escapeHtml(tk.content.replace(/\n+$/, ""));
     if (tag === "mermaid") return '<div class="mermaid">' + content + "</div>\n";
+    if (tag === "dot") {
+      // Graphviz DOT — laid out + drawn hand-sketched at runtime (Viz WASM + rough.js),
+      // same lane as ```mermaid. `engine=` picks the layout (dot|neato|fdp|circo|twopi|…),
+      // `roughness=` tunes the sketch. Source ships escaped inside a plain div (survives
+      // the build sanitizer); dom.js reads it back and renders after sanitize.
+      const kv = {};
+      for (const p of parts.slice(1)) { const i = p.indexOf("="); if (i > 0) kv[p.slice(0, i)] = p.slice(i + 1); else kv[p] = ""; }
+      let attrs = "";
+      for (const k of ["engine", "roughness"]) if (kv[k]) attrs += " data-" + k + '="' + escapeAttr(kv[k]) + '"';
+      return '<div class="dot"' + attrs + ">" + content + "</div>\n";
+    }
     if (tag === "tabs") {
       // ```tabs with `=== Title` markers per panel; each panel body is rendered as markdown
       // (same engine → wiki-links, tags, tables work). Runtime hydrates into an ARIA tablist.

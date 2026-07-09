@@ -47,14 +47,16 @@ export function sanitizeBody(html) {
 // origins (fonts are system-stack, grill M4), no network connections (connect-src
 // 'none' blocks exfiltration even if a render layer is later compromised). Inline
 // styles are allowed because app.js sets element.style for pan/zoom and mermaid/
-// ECharts emit inline styles.
+// ECharts emit inline styles. `'wasm-unsafe-eval'` is the NARROW token that lets the
+// Graphviz-in-WASM DOT engine (viz.min.js) compile — it permits WebAssembly ONLY,
+// never JS eval()/new Function(), so the no-arbitrary-script guarantee still holds.
 export function cspMeta() {
   const policy = [
     "default-src 'none'",
     "img-src 'self' data:",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
-    "script-src 'self'",
+    "script-src 'self' 'wasm-unsafe-eval'",
     "connect-src 'none'",
     "base-uri 'none'",
   ].join("; ");

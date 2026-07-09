@@ -6,7 +6,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -68,6 +68,44 @@ test("mermaid renders to SVG", async (t) => {
   await page.evaluate(() => { const k = Object.keys(window.STORY.docs).find((d) => /sequence|timeline|cold/i.test(JSON.stringify(window.STORY.docs[d]))); if (k) location.hash = "#/" + encodeURIComponent(k); });
   const svg = await page.waitForSelector(".mermaid svg", { timeout: 15000 }).catch(() => null);
   assert.ok(svg, "a .mermaid block produced an <svg>");
+});
+
+test("DOT graph renders to a hand-drawn SVG (Viz WASM compiles under the CSP)", async (t) => {
+  guard(t); if (!available) return;
+  // navigate to a doc carrying a .dot block (the overview has the pipeline digraph)
+  await page.evaluate(() => { const k = Object.keys(window.STORY.docs).find((d) => /class="dot/.test(window.STORY.docs[d].html || "")); if (k) location.hash = "#/" + encodeURIComponent(k); });
+  const svg = await page.waitForSelector(".dot svg", { timeout: 20000 }).catch(() => null);
+  assert.ok(svg, "a .dot block produced an <svg> (Graphviz-in-WASM ran, so 'wasm-unsafe-eval' is sufficient)");
+  // rough.js redraws every shape as a <path>; a plain graphviz box graph has none until roughened
+  const roughPaths = await page.$$eval(".dot svg path", (ps) => ps.length);
+  assert.ok(roughPaths > 0, "rough.js redrew the graph as hand-drawn paths");
+});
+
+test("DOT hardening: author links scrubbed + malformed graph errors without crashing", async (t) => {
+  guard(t); if (!available) return;
+  // isolated fixture (does NOT touch the shared example board): a graph carrying URL= links
+  // (scrub target) plus a syntactically broken graph (error path).
+  const dir = mkdtempSync(join(tmpdir(), "gz-dotedge-"));
+  writeFileSync(join(dir, "_config.json"), JSON.stringify({ meta: { title: "Edge", home: "DotEdge" }, groups: [{ id: "overview", label: "Overview" }] }));
+  writeFileSync(join(dir, "10-dotedge.html"),
+    '<article data-title="DotEdge" data-group="overview" data-updated="2026-06-01"><h1>DotEdge</h1>' +
+    '<div class="dot" id="d-url">digraph { a [URL="https://evil.example/x"]; a -> b [URL="https://evil.example/y"] }</div>' +
+    '<div class="dot" id="d-bad">digraph { this is not valid dot syntax</div>' +
+    "</article>");
+  const out = mkdtempSync(join(tmpdir(), "gz-dotedge-out-"));
+  execFileSync("node", [join(GZ, "bin", "gazette.mjs"), "build", "--dir", dir, "--out", out], { stdio: "ignore" });
+  const p2 = await browser.newPage();
+  const errs = [];
+  p2.on("pageerror", (e) => errs.push("pageerror: " + e.message));
+  await p2.goto(pathToFileURL(join(out, "index.html")).href, { waitUntil: "networkidle" });
+  await p2.evaluate(() => { location.hash = "#/" + encodeURIComponent("DotEdge"); });
+  await p2.waitForSelector("#d-url svg", { timeout: 20000 });      // the valid graph rendered
+  const links = await p2.$$eval("#d-url svg *", (els) => els.filter((e) => e.hasAttribute("href") || e.hasAttribute("xlink:href") || e.hasAttribute("target")).length);
+  assert.equal(links, 0, "scrubSvg stripped every author link target from the rendered graph");
+  const errored = await p2.$("#d-bad .dot-error");
+  assert.ok(errored, "malformed DOT rendered an inline .dot-error, not a thrown exception");
+  assert.deepEqual(errs, [], "no page errors from the malformed graph:\n" + errs.join("\n"));
+  await p2.close();
 });
 
 test("echarts chart renders to a canvas", async (t) => {
