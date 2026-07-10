@@ -3,8 +3,10 @@
 // "connected" and must still be eligible for the orphan check (grill M12).
 
 export function deriveBacklinks(model) {
-  const inbound = {};
-  const outbound = {};
+  // null-proto: a dangling wiki-link to an inherited key ([[constructor]], [[toString]]) must
+  // index as "no such node", not resolve to a prototype member and crash on .includes/.push.
+  const inbound = Object.create(null);
+  const outbound = Object.create(null);
   for (const id of Object.keys(model.nodes)) {
     inbound[id] = [];
     outbound[id] = [];

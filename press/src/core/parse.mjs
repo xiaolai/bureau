@@ -79,7 +79,7 @@ export function splitFrontmatter(raw) {
   const text = String(raw).replace(/^﻿/, ""); // strip BOM (grill M15)
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!m) return { frontmatter: null, body: text };
-  const fm = {};
+  const fm = Object.create(null); // null-proto: a `__proto__:`/`constructor:` frontmatter key is data, not a prototype mutation
   for (const line of m[1].split(/\r?\n/)) {
     const i = line.indexOf(":");
     if (i < 0) continue;
@@ -141,7 +141,7 @@ export function parseHtmlDoc(raw) {
   const metaChips = {};
   for (const k of META_CHIP_KEYS) { const v = fm[k] != null ? fm[k] : dget(k); if (v) metaChips[k] = v; }
 
-  const edges = [], attrs = {};
+  const edges = [], attrs = Object.create(null); // null-proto: a `data-__proto__`/relation key is data, not a prototype mutation
   const addRel = (key, value) => {
     const ts = relTargets(value);
     if (ts.length) { for (const t of ts) edges.push({ target: t, edgeType: key }); return; }
@@ -364,7 +364,7 @@ export function parseMarkdownDoc(raw) {
   const meta = { title: title || "", group: fmStr("group") ?? null, icon: fmStr("icon") ?? "file", updated: fmStr("updated") ?? null };
   const metaChips = {};
   for (const k of META_CHIP_KEYS) if (fm[k] != null) metaChips[k] = String(fm[k]);
-  const edges = [], attrs = {};
+  const edges = [], attrs = Object.create(null); // null-proto: a `data-__proto__`/relation key is data, not a prototype mutation
   const addRel = (key, value) => {
     const ts = relTargets(value);
     if (ts.length) { for (const t of ts) edges.push({ target: t, edgeType: key }); return; }

@@ -21274,7 +21274,7 @@ function splitFrontmatter(raw) {
   const text2 = String(raw).replace(/^﻿/, "");
   const m = text2.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!m) return { frontmatter: null, body: text2 };
-  const fm = {};
+  const fm = /* @__PURE__ */ Object.create(null);
   for (const line of m[1].split(/\r?\n/)) {
     const i = line.indexOf(":");
     if (i < 0) continue;
@@ -21320,7 +21320,7 @@ function parseHtmlDoc(raw) {
     const v = fm[k] != null ? fm[k] : dget(k);
     if (v) metaChips[k] = v;
   }
-  const edges = [], attrs = {};
+  const edges = [], attrs = /* @__PURE__ */ Object.create(null);
   const addRel = (key, value) => {
     const ts = relTargets(value);
     if (ts.length) {
@@ -21549,7 +21549,7 @@ function parseMarkdownDoc(raw) {
   const meta = { title: title || "", group: fmStr("group") ?? null, icon: fmStr("icon") ?? "file", updated: fmStr("updated") ?? null };
   const metaChips = {};
   for (const k of META_CHIP_KEYS) if (fm[k] != null) metaChips[k] = String(fm[k]);
-  const edges = [], attrs = {};
+  const edges = [], attrs = /* @__PURE__ */ Object.create(null);
   const addRel = (key, value) => {
     const ts = relTargets(value);
     if (ts.length) {
@@ -21710,7 +21710,7 @@ import { readFileSync } from "fs";
 import { join as join2 } from "path";
 var asList = (v) => v == null ? [] : Array.isArray(v) ? v.map(String) : [String(v)];
 function loadTypes(typesDir, typeFiles) {
-  const schemas = {};
+  const schemas = /* @__PURE__ */ Object.create(null);
   for (const f of typeFiles) {
     const { frontmatter: fm } = splitFrontmatter(readFileSync(join2(typesDir, f), "utf8"));
     if (!fm || !fm.applies) continue;
@@ -21882,8 +21882,8 @@ function buildModel({ docsDir, corpus } = {}) {
 
 // src/derive/backlinks.mjs
 function deriveBacklinks(model) {
-  const inbound = {};
-  const outbound = {};
+  const inbound = /* @__PURE__ */ Object.create(null);
+  const outbound = /* @__PURE__ */ Object.create(null);
   for (const id of Object.keys(model.nodes)) {
     inbound[id] = [];
     outbound[id] = [];
@@ -22210,8 +22210,9 @@ var groupColor = (g) => "hsl(" + hash32(g) % 360 + ", 32%, 56%)";
 function renderGraphSvg(layout, model) {
   const W2 = layout.width || 100, H2 = layout.height || 100;
   let s = '<svg viewBox="0 0 ' + W2 + " " + H2 + '" width="' + W2 + '" height="' + H2 + '" xmlns="http://www.w3.org/2000/svg" font-family="var(--sans)">';
+  const placed = (k) => Object.prototype.hasOwnProperty.call(layout.nodes, k);
   for (const e of layout.edges) {
-    const a = layout.nodes[e.source], b = layout.nodes[e.target];
+    const a = placed(e.source) ? layout.nodes[e.source] : null, b = placed(e.target) ? layout.nodes[e.target] : null;
     if (!a || !b) continue;
     s += '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="var(--line-strong)" stroke-width="1" opacity="0.7"/>';
   }
@@ -22230,8 +22231,8 @@ var NW = 200;
 var NH = 60;
 var num = (v, d = 0) => Number.isFinite(+v) ? +v : d;
 function renderCanvasSvg(canvas) {
-  const nodes = canvas && canvas.nodes || [];
-  const edges = canvas && canvas.edges || [];
+  const nodes = Array.isArray(canvas && canvas.nodes) ? canvas.nodes : [];
+  const edges = Array.isArray(canvas && canvas.edges) ? canvas.edges : [];
   if (!nodes.length) return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>';
   const x = (n) => num(n.x), y = (n) => num(n.y), w = (n) => num(n.width, NW), h = (n) => num(n.height, NH);
   const minX = Math.min(...nodes.map(x));
@@ -22239,7 +22240,8 @@ function renderCanvasSvg(canvas) {
   const maxX = Math.max(...nodes.map((n) => x(n) + w(n)));
   const maxY = Math.max(...nodes.map((n) => y(n) + h(n)));
   const W2 = maxX - minX, H2 = maxY - minY;
-  const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
+  const byId = /* @__PURE__ */ Object.create(null);
+  for (const n of nodes) byId[n.id] = n;
   const cx = (n) => x(n) + w(n) / 2;
   const cy = (n) => y(n) + h(n) / 2;
   let s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + minX + " " + minY + " " + W2 + " " + H2 + '" width="' + W2 + '" height="' + H2 + '" font-family="var(--sans)">';
@@ -22455,7 +22457,7 @@ var base = (p) => p.split(/[\\/]/).pop();
 function renderTreemapSvg(scan) {
   const files = scan.files;
   if (!files.length) return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>';
-  const byDir = {};
+  const byDir = /* @__PURE__ */ Object.create(null);
   for (const f of files) (byDir[f.group] = byDir[f.group] || []).push(f);
   const total = scan.totalLoc || 1;
   const dirs = Object.keys(byDir).sort((a, b) => sum(byDir[b]) - sum(byDir[a]) || (a < b ? -1 : 1));
@@ -22669,7 +22671,12 @@ function sanitizeBody(html) {
     allowedAttributes: ALLOWED_ATTRS,
     allowedSchemes: ["http", "https", "mailto"],
     allowedSchemesByTag: { img: ["data", "http", "https"] },
-    allowProtocolRelative: false
+    allowProtocolRelative: false,
+    transformTags: {
+      // a target=_blank link lets the opened tab reach window.opener — force rel to close the
+      // tabnabbing/opener vector on any anchor the author points at a new browsing context.
+      a: (tagName, attribs) => attribs.target ? { tagName, attribs: { ...attribs, rel: "noopener noreferrer" } } : { tagName, attribs }
+    }
   });
 }
 function cspMeta() {

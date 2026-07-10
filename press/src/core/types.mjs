@@ -17,7 +17,7 @@ const asList = (v) => (v == null ? [] : Array.isArray(v) ? v.map(String) : [Stri
 
 // rich schemas (Sets) for the linter, keyed by `applies` (group id)
 export function loadTypes(typesDir, typeFiles) {
-  const schemas = {};
+  const schemas = Object.create(null); // null-proto: a type whose `applies` is an inherited key must index as data
   for (const f of typeFiles) {
     const { frontmatter: fm } = splitFrontmatter(readFileSync(join(typesDir, f), "utf8"));
     if (!fm || !fm.applies) continue;

@@ -40,6 +40,11 @@ export function sanitizeBody(html) {
     allowedSchemes: ["http", "https", "mailto"],
     allowedSchemesByTag: { img: ["data", "http", "https"] },
     allowProtocolRelative: false,
+    transformTags: {
+      // a target=_blank link lets the opened tab reach window.opener — force rel to close the
+      // tabnabbing/opener vector on any anchor the author points at a new browsing context.
+      a: (tagName, attribs) => (attribs.target ? { tagName, attribs: { ...attribs, rel: "noopener noreferrer" } } : { tagName, attribs }),
+    },
   });
 }
 

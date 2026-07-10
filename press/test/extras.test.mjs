@@ -49,6 +49,19 @@ test("model: data + *.canvas files are discovered into model.data", () => {
   assert.ok(m.data.canvas.includes("map.canvas"));
 });
 
+test("backlinks: a dangling wiki-link to an inherited key ([[constructor]]) does not crash the build", () => {
+  // regression: inbound/outbound were plain {}, so inbound["constructor"]/["toString"] resolved
+  // to a prototype member and `.includes` threw — killing every build that contained such a link.
+  const model = { nodes: { A: {}, B: {} }, edges: [
+    { source: "A", target: "B" },
+    { source: "A", target: "constructor" }, // dangling — no such node
+    { source: "B", target: "toString" },    // dangling inherited key
+  ] };
+  const bl = deriveBacklinks(model);           // must not throw
+  assert.deepEqual(bl.inbound.B, ["A"]);
+  assert.equal(bl.inbound.constructor, undefined); // no prototype leakage
+});
+
 test("assets: bundleReport sums bytes and stays under budget for a small board", () => {
   const { root, docsDir } = corpus({
     config: { meta: { home: "A" }, groups: [{ id: "g", label: "G" }] },

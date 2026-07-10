@@ -9,8 +9,8 @@ const NW = 200, NH = 60; // defaults when a node omits width/height
 const num = (v, d = 0) => (Number.isFinite(+v) ? +v : d);
 
 export function renderCanvasSvg(canvas) {
-  const nodes = (canvas && canvas.nodes) || [];
-  const edges = (canvas && canvas.edges) || [];
+  const nodes = Array.isArray(canvas && canvas.nodes) ? canvas.nodes : []; // schema-invalid JSON (nodes not an array) → empty, never a crash
+  const edges = Array.isArray(canvas && canvas.edges) ? canvas.edges : [];
   if (!nodes.length) return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>';
 
   const x = (n) => num(n.x), y = (n) => num(n.y), w = (n) => num(n.width, NW), h = (n) => num(n.height, NH);
@@ -19,7 +19,8 @@ export function renderCanvasSvg(canvas) {
   const maxX = Math.max(...nodes.map((n) => x(n) + w(n)));
   const maxY = Math.max(...nodes.map((n) => y(n) + h(n)));
   const W = maxX - minX, H = maxY - minY;
-  const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
+  const byId = Object.create(null); // null-proto: edges referencing an inherited key ("toString") must not resolve to a phantom endpoint
+  for (const n of nodes) byId[n.id] = n;
   const cx = (n) => x(n) + w(n) / 2;
   const cy = (n) => y(n) + h(n) / 2;
 

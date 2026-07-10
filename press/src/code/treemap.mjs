@@ -12,7 +12,7 @@ const base = (p) => p.split(/[\\/]/).pop();
 export function renderTreemapSvg(scan) {
   const files = scan.files;
   if (!files.length) return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>';
-  const byDir = {};
+  const byDir = Object.create(null); // null-proto: a dir literally named constructor/__proto__ must not hit a prototype member
   for (const f of files) (byDir[f.group] = byDir[f.group] || []).push(f);
   const total = scan.totalLoc || 1;
   const dirs = Object.keys(byDir).sort((a, b) => sum(byDir[b]) - sum(byDir[a]) || (a < b ? -1 : 1));

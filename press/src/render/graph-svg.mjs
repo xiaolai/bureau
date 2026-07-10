@@ -11,9 +11,12 @@ export function renderGraphSvg(layout, model) {
   const W = layout.width || 100, H = layout.height || 100;
   let s = '<svg viewBox="0 0 ' + W + " " + H + '" width="' + W + '" height="' + H + '" xmlns="http://www.w3.org/2000/svg" font-family="var(--sans)">';
 
-  // edges (skip those whose endpoint wasn't placed — e.g. dangling targets)
+  // edges (skip those whose endpoint wasn't placed — e.g. dangling targets). own-property
+  // guard: a dangling target named an inherited key (constructor/toString) must be skipped,
+  // not resolve to a prototype member and emit NaN coordinates.
+  const placed = (k) => Object.prototype.hasOwnProperty.call(layout.nodes, k);
   for (const e of layout.edges) {
-    const a = layout.nodes[e.source], b = layout.nodes[e.target];
+    const a = placed(e.source) ? layout.nodes[e.source] : null, b = placed(e.target) ? layout.nodes[e.target] : null;
     if (!a || !b) continue;
     s += '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="var(--line-strong)" stroke-width="1" opacity="0.7"/>';
   }
