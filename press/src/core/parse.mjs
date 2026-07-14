@@ -77,6 +77,12 @@ function parseScalar(raw) {
 // The frontmatter grammar this parser can actually represent: FLAT `key: value` lines.
 // A key is a plain identifier — anything else is a line we misread, not a key.
 const FM_KEY = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
+// The two YAML constructs we refuse rather than misread. A block-scalar HEADER is the marker
+// alone (`|`, `>`, with optional chomp/indent indicators and trailing comment) — not any value
+// that merely starts with `|`. An anchor is `&name`. Deliberately NOT here: `*alias` (anchors
+// are rejected, so an alias can't resolve — `*emph*` is just text) and `-1` / `--flag`.
+const BLOCK_SCALAR = /^[|>][+-]?[0-9]*[+-]?\s*(#.*)?$/;
+const ANCHOR = /^&\S/;
 
 // Split a doc into { frontmatter: {key: value}, body }. Throws on duplicate keys, on a
 // key we can't represent, and on YAML the flat grammar would silently mangle.
@@ -113,6 +119,11 @@ export function splitFrontmatter(raw) {
       throw new Error('duplicate frontmatter key "' + key + '"');
     }
     const inline = line.slice(i + 1).trim();
+    // `key: |` / `key: >` (a block-scalar header) and `key: &anchor` are YAML we do not implement;
+    // reading them as the literal strings "|" or "&anchor …" would be a silent misread. Keep the
+    // guard TIGHT: only the actual YAML forms. A value like `*emph*` or `-1` is ordinary text —
+    // and since anchors are rejected, a `*alias` can never refer to anything, so it is text too.
+    if (inline !== "" && (BLOCK_SCALAR.test(inline) || ANCHOR.test(inline))) throw new Error(unsupportedFm(line));
     if (inline !== "") { fm[key] = parseScalar(inline); continue; }
     // A bare `key:` opens a multi-line sequence — the idiom every author reaches for:
     //     sources:
@@ -124,7 +135,7 @@ export function splitFrontmatter(raw) {
     while (li + 1 < lines.length) {
       const it = lines[li + 1].match(/^[ \t]*-[ \t]+(.*)$/);
       if (!it) break;
-      items.push(unquoteItem(it[1]));
+      items.push(seqItem(it[1], lines[li + 1]));
       li++;
     }
     fm[key] = items.length ? items : "";
@@ -132,13 +143,18 @@ export function splitFrontmatter(raw) {
   return { frontmatter: fm, body: m[2] };
 }
 
-// a sequence item: strip one layer of matching quotes, keep the rest verbatim (a `:` inside
-// is just text — it used to be harvested as a bogus frontmatter key).
-function unquoteItem(raw) {
+// One sequence item → a string. QUOTED wins: inside quotes a `:` is plain text, which is what
+// makes real provenance strings ("… theorist: Wayne") work. UNQUOTED, a `: ` makes it a YAML
+// *mapping* (`- theorist: Wayne` is a map, not a string) — we don't implement maps, so reading
+// it as text would be the same silent misread this parser exists to stop. Reject it instead.
+function seqItem(raw, line) {
   const v = raw.trim();
   const q = v[0];
   if ((q === '"' || q === "'") && v.length > 1 && v[v.length - 1] === q) return v.slice(1, -1);
-  return v;
+  if (BLOCK_SCALAR.test(v) || ANCHOR.test(v)) throw new Error(unsupportedFm(line));
+  if (/^-(\s|$)/.test(v)) throw new Error(unsupportedFm(line));  // `- - x` → a nested sequence
+  if (/:(\s|$)/.test(v)) throw new Error(unsupportedFm(line));   // `- key: value` → a mapping
+  return v;                                                      // `-1`, `--flag`, `*emph*` are just text
 }
 
 function unsupportedFm(line) {
@@ -147,7 +163,8 @@ function unsupportedFm(line) {
     "  lists of scalars:\n" +
     "      sources:\n" +
     '        - "[[session <id> · <date>]]"\n' +
-    "  Nested maps, block scalars (`|`, `>`), and anchors are not supported.";
+    "  A list item containing a colon must be QUOTED — `- \"theorist: Wayne\"`. Unquoted, `- key: value`\n" +
+    "  is a YAML mapping, which is not supported (nor are block scalars `|` / `>`, or anchors).";
 }
 
 // ── HTML doc model ────────────────────────────────────────────────────────────
@@ -413,6 +430,16 @@ function stripMdCode(s) {
   return out.join("\n");
 }
 
+// Markdown prose with EVERY literal region removed: markdown code (fences + inline spans)
+// AND raw HTML <pre>/<code>/comments — markdown allows raw HTML, and stripMdCode alone does
+// not see it. The renderer protects exactly these regions when it resolves links, so a model
+// that counted them would record edges the page never draws. That gap is not cosmetic: a
+// `[[session …]]` sitting inside a code sample would forge a provenance edge and satisfy the
+// unsourced lane — a false all-clear from a link the reader can't even click.
+function stripMdLiteral(s) {
+  return stripMdCode(s).replace(RAW_BLOCK, " ");
+}
+
 // Parse one markdown/Obsidian doc → the SAME shape as parseHtmlDoc. Metadata comes
 // from YAML frontmatter (Obsidian-style); title falls back to the first ATX heading;
 // typed relations are frontmatter keys with `[[..]]` values; body links are `[[..]]`
@@ -421,8 +448,9 @@ export function parseMarkdownDoc(raw) {
   const { frontmatter, body } = splitFrontmatter(raw);
   const fm = frontmatter || {};
   const fmStr = (k) => (fm[k] != null ? String(fm[k]) : undefined);
+  const prose = stripMdLiteral(body);
   let title = fmStr("title");
-  if (title == null) { const h = stripMdCode(body).match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/m); title = h ? h[1].trim() : ""; }
+  if (title == null) { const h = prose.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/m); title = h ? h[1].trim() : ""; }
   const meta = { title: title || "", group: fmStr("group") ?? null, icon: fmStr("icon") ?? "file", updated: fmStr("updated") ?? null };
   const metaChips = {};
   for (const k of META_CHIP_KEYS) if (fm[k] != null) metaChips[k] = String(fm[k]);
@@ -433,7 +461,7 @@ export function parseMarkdownDoc(raw) {
     if (value != null && value !== "") attrs[key] = parseAttrValue(value);
   };
   for (const k of Object.keys(fm)) { if (!FM_RESERVED.has(k)) addRel(k, fm[k]); }
-  return { meta, metaChips, attrs, edges, bodyLinks: extractBodyLinks(stripMdCode(body)), body };
+  return { meta, metaChips, attrs, edges, bodyLinks: extractBodyLinks(prose), body };
 }
 
 // ── build-time wiki-link resolution (HTML) ─────────────────────────────────────

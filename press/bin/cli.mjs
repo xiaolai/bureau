@@ -222,8 +222,15 @@ function runOpen() {
   // `cmd /c start`. macOS: open; Linux: xdg-open (both pass the path as one argv).
   const opener = process.platform === "darwin" ? "open" : win ? "rundll32" : "xdg-open";
   const args = win ? ["url.dll,FileProtocolHandler", idx] : [idx];
-  try { spawn(opener, args, { stdio: "ignore", detached: true }).unref(); console.log("→ opened " + idx); }
-  catch { console.log("open this in your browser: " + idx); }
+  // spawn reports a missing opener (no `xdg-open` on a headless box) ASYNCHRONOUSLY, via an
+  // 'error' event — try/catch never sees it, so the old code printed "opened" and then died on
+  // an unhandled error. Handle the event; only claim success once the child is actually up.
+  const fallback = () => console.log("open this in your browser: " + idx);
+  try {
+    const child = spawn(opener, args, { stdio: "ignore", detached: true });
+    child.once("error", fallback);
+    child.once("spawn", () => { console.log("→ opened " + idx); child.unref(); });
+  } catch { fallback(); }
 }
 
 const MIME = {

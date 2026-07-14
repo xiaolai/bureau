@@ -22,6 +22,33 @@ import { lintSchema } from "./schema.mjs";
 
 const DAY = 86400000;
 
+// Read `_config.json` → `meta.provenance`. Absent means the lane is OFF (the generic press).
+// PRESENT-BUT-MALFORMED is a different animal: `requireFor: "canonical"` (a string, not a list)
+// would previously fall back to "off" and report a clean bill for a canon with zero provenance —
+// a gate silently disarming itself, which is the exact failure this lane exists to prevent.
+// So: absent → inert; malformed → throw.
+function parseProvenanceConfig(prov) {
+  const OFF = { sourceGroup: null, requireFor: new Set(), excluded: new Set() };
+  if (prov == null) return OFF;
+  const bad = (why) => {
+    throw new Error(
+      "_config.json: meta.provenance is malformed — " + why + "\n" +
+      '  Expected: { "requireFor": ["proposed", …], "sourceGroup": "logbook", "exclude": ["Logbook"] }\n' +
+      "  Remove the block to disable the unsourced check; a malformed one is never silently ignored.",
+    );
+  };
+  if (typeof prov !== "object" || Array.isArray(prov)) bad("it must be an object");
+  if (!Array.isArray(prov.requireFor)) bad("`requireFor` must be an array of status tiers");
+  if (!prov.requireFor.length) bad("`requireFor` must name at least one status tier");
+  if (typeof prov.sourceGroup !== "string" || !prov.sourceGroup.trim()) bad("`sourceGroup` must be a non-empty string");
+  if (prov.exclude != null && !Array.isArray(prov.exclude)) bad("`exclude` must be an array of document titles");
+  return {
+    sourceGroup: prov.sourceGroup,
+    requireFor: new Set(prov.requireFor.map((s) => String(s).toLowerCase())),
+    excluded: new Set((prov.exclude || []).map((s) => String(s).normalize("NFC"))),
+  };
+}
+
 export function deriveHealth(model, backlinks, { now = null, staleWindowDays = 30, knownTargets = new Set() } = {}) {
   const nodes = model.nodes;
   const ids = new Set(Object.keys(nodes));
@@ -84,14 +111,8 @@ export function deriveHealth(model, backlinks, { now = null, staleWindowDays = 3
   // page ("see the [[Logbook]]") is NOT provenance for a claim, and letting it satisfy the
   // check would recreate the false all-clear this lane exists to prevent.
   const unsourced = [];
-  const prov = (model.meta && model.meta.provenance) || null;
-  const sourceGroup = prov && prov.sourceGroup != null ? String(prov.sourceGroup) : null;
-  const requireFor = new Set(
-    (prov && Array.isArray(prov.requireFor) ? prov.requireFor : []).map((s) => String(s).toLowerCase()),
-  );
-  const excluded = new Set(
-    (prov && Array.isArray(prov.exclude) ? prov.exclude : []).map((s) => String(s).normalize("NFC")),
-  );
+  const prov = (model.meta && model.meta.provenance) != null ? model.meta.provenance : null;
+  const { sourceGroup, requireFor, excluded } = parseProvenanceConfig(prov);
   if (sourceGroup && requireFor.size) {
     const inDrawer = (id) => Object.prototype.hasOwnProperty.call(nodes, id) && nodes[id].group === sourceGroup;
     const isSource = (id) => inDrawer(id) && !excluded.has(id);

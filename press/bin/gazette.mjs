@@ -15918,7 +15918,7 @@ and ensure you are accounting for this risk.
 });
 
 // bin/cli.mjs
-import { existsSync as existsSync6, mkdirSync as mkdirSync2, writeFileSync as writeFileSync4, appendFileSync, readFileSync as readFileSync8, statSync as statSync2, lstatSync as lstatSync6, readdirSync as readdirSync5, realpathSync as realpathSync3, watch } from "fs";
+import { existsSync as existsSync6, mkdirSync as mkdirSync2, writeFileSync as writeFileSync4, appendFileSync, readFileSync as readFileSync8, statSync as statSync2, lstatSync as lstatSync7, readdirSync as readdirSync5, realpathSync as realpathSync3, watch } from "fs";
 import { join as join10, resolve as resolve2, dirname as dirname3, extname as extname2, sep as sep4, relative as relative4 } from "path";
 import { createServer } from "http";
 import { spawn } from "child_process";
@@ -21271,6 +21271,8 @@ function parseScalar(raw) {
   return v;
 }
 var FM_KEY = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
+var BLOCK_SCALAR = /^[|>][+-]?[0-9]*[+-]?\s*(#.*)?$/;
+var ANCHOR = /^&\S/;
 function splitFrontmatter(raw) {
   const text2 = String(raw).replace(/^﻿/, "");
   const m = text2.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
@@ -21291,6 +21293,7 @@ function splitFrontmatter(raw) {
       throw new Error('duplicate frontmatter key "' + key + '"');
     }
     const inline2 = line.slice(i + 1).trim();
+    if (inline2 !== "" && (BLOCK_SCALAR.test(inline2) || ANCHOR.test(inline2))) throw new Error(unsupportedFm(line));
     if (inline2 !== "") {
       fm[key] = parseScalar(inline2);
       continue;
@@ -21299,21 +21302,24 @@ function splitFrontmatter(raw) {
     while (li + 1 < lines.length) {
       const it = lines[li + 1].match(/^[ \t]*-[ \t]+(.*)$/);
       if (!it) break;
-      items.push(unquoteItem(it[1]));
+      items.push(seqItem(it[1], lines[li + 1]));
       li++;
     }
     fm[key] = items.length ? items : "";
   }
   return { frontmatter: fm, body: m[2] };
 }
-function unquoteItem(raw) {
+function seqItem(raw, line) {
   const v = raw.trim();
   const q = v[0];
   if ((q === '"' || q === "'") && v.length > 1 && v[v.length - 1] === q) return v.slice(1, -1);
+  if (BLOCK_SCALAR.test(v) || ANCHOR.test(v)) throw new Error(unsupportedFm(line));
+  if (/^-(\s|$)/.test(v)) throw new Error(unsupportedFm(line));
+  if (/:(\s|$)/.test(v)) throw new Error(unsupportedFm(line));
   return v;
 }
 function unsupportedFm(line) {
-  return 'unsupported frontmatter line: "' + line.trim() + '"\n  Frontmatter supports flat `key: value` lines, inline lists (`key: [a, b]`), and multi-line\n  lists of scalars:\n      sources:\n        - "[[session <id> \xB7 <date>]]"\n  Nested maps, block scalars (`|`, `>`), and anchors are not supported.';
+  return 'unsupported frontmatter line: "' + line.trim() + '"\n  Frontmatter supports flat `key: value` lines, inline lists (`key: [a, b]`), and multi-line\n  lists of scalars:\n      sources:\n        - "[[session <id> \xB7 <date>]]"\n  A list item containing a colon must be QUOTED \u2014 `- "theorist: Wayne"`. Unquoted, `- key: value`\n  is a YAML mapping, which is not supported (nor are block scalars `|` / `>`, or anchors).';
 }
 function relTargets(value) {
   const parts = Array.isArray(value) ? value : [value];
@@ -21570,13 +21576,17 @@ function stripMdCode(s) {
   });
   return out.join("\n");
 }
+function stripMdLiteral(s) {
+  return stripMdCode(s).replace(RAW_BLOCK, " ");
+}
 function parseMarkdownDoc(raw) {
   const { frontmatter, body } = splitFrontmatter(raw);
   const fm = frontmatter || {};
   const fmStr = (k) => fm[k] != null ? String(fm[k]) : void 0;
+  const prose = stripMdLiteral(body);
   let title = fmStr("title");
   if (title == null) {
-    const h = stripMdCode(body).match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/m);
+    const h = prose.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/m);
     title = h ? h[1].trim() : "";
   }
   const meta = { title: title || "", group: fmStr("group") ?? null, icon: fmStr("icon") ?? "file", updated: fmStr("updated") ?? null };
@@ -21594,7 +21604,7 @@ function parseMarkdownDoc(raw) {
   for (const k of Object.keys(fm)) {
     if (!FM_RESERVED.has(k)) addRel(k, fm[k]);
   }
-  return { meta, metaChips, attrs, edges, bodyLinks: extractBodyLinks(stripMdCode(body)), body };
+  return { meta, metaChips, attrs, edges, bodyLinks: extractBodyLinks(prose), body };
 }
 var PROTECT = RAW_BLOCK;
 var A_WIKI = /<a\b[^>]*?\bdata-wiki\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s">]+))[^>]*>([\s\S]*?)<\/a>/gi;
@@ -21789,7 +21799,16 @@ function readConfig(docsDir) {
   } catch (e) {
     throw new Error("_config.json is not valid JSON (" + p + "): " + e.message);
   }
-  return { meta: cfg.meta || {}, groups: cfg.groups || [] };
+  const where = " (" + p + ")";
+  if (cfg === null || typeof cfg !== "object" || Array.isArray(cfg)) throw new Error("_config.json must be a JSON object" + where);
+  const meta = cfg.meta == null ? {} : cfg.meta;
+  if (typeof meta !== "object" || Array.isArray(meta)) throw new Error('_config.json: "meta" must be an object' + where);
+  const groups = cfg.groups == null ? [] : cfg.groups;
+  if (!Array.isArray(groups)) throw new Error('_config.json: "groups" must be an array' + where);
+  for (const g of groups) {
+    if (g === null || typeof g !== "object" || Array.isArray(g)) throw new Error('_config.json: every "groups" entry must be an object' + where);
+  }
+  return { meta, groups };
 }
 function topFolderId(relPath) {
   const i = relPath.indexOf("/");
@@ -21984,6 +22003,25 @@ function lintSchema(model, types) {
 
 // src/derive/health.mjs
 var DAY = 864e5;
+function parseProvenanceConfig(prov) {
+  const OFF = { sourceGroup: null, requireFor: /* @__PURE__ */ new Set(), excluded: /* @__PURE__ */ new Set() };
+  if (prov == null) return OFF;
+  const bad = (why) => {
+    throw new Error(
+      "_config.json: meta.provenance is malformed \u2014 " + why + '\n  Expected: { "requireFor": ["proposed", \u2026], "sourceGroup": "logbook", "exclude": ["Logbook"] }\n  Remove the block to disable the unsourced check; a malformed one is never silently ignored.'
+    );
+  };
+  if (typeof prov !== "object" || Array.isArray(prov)) bad("it must be an object");
+  if (!Array.isArray(prov.requireFor)) bad("`requireFor` must be an array of status tiers");
+  if (!prov.requireFor.length) bad("`requireFor` must name at least one status tier");
+  if (typeof prov.sourceGroup !== "string" || !prov.sourceGroup.trim()) bad("`sourceGroup` must be a non-empty string");
+  if (prov.exclude != null && !Array.isArray(prov.exclude)) bad("`exclude` must be an array of document titles");
+  return {
+    sourceGroup: prov.sourceGroup,
+    requireFor: new Set(prov.requireFor.map((s) => String(s).toLowerCase())),
+    excluded: new Set((prov.exclude || []).map((s) => String(s).normalize("NFC")))
+  };
+}
 function deriveHealth(model, backlinks, { now = null, staleWindowDays = 30, knownTargets = /* @__PURE__ */ new Set() } = {}) {
   const nodes = model.nodes;
   const ids = new Set(Object.keys(nodes));
@@ -22033,14 +22071,8 @@ function deriveHealth(model, backlinks, { now = null, staleWindowDays = 30, know
     }
   }
   const unsourced = [];
-  const prov = model.meta && model.meta.provenance || null;
-  const sourceGroup = prov && prov.sourceGroup != null ? String(prov.sourceGroup) : null;
-  const requireFor = new Set(
-    (prov && Array.isArray(prov.requireFor) ? prov.requireFor : []).map((s) => String(s).toLowerCase())
-  );
-  const excluded = new Set(
-    (prov && Array.isArray(prov.exclude) ? prov.exclude : []).map((s) => String(s).normalize("NFC"))
-  );
+  const prov = (model.meta && model.meta.provenance) != null ? model.meta.provenance : null;
+  const { sourceGroup, requireFor, excluded } = parseProvenanceConfig(prov);
   if (sourceGroup && requireFor.size) {
     const inDrawer = (id) => Object.prototype.hasOwnProperty.call(nodes, id) && nodes[id].group === sourceGroup;
     const isSource = (id) => inDrawer(id) && !excluded.has(id);
@@ -22549,14 +22581,14 @@ function renderTreemapSvg(scan) {
 }
 
 // src/render/health-report.mjs
-var wl = (id) => "[[" + id + "]]";
+var wl = (id) => '<a data-wiki="' + escapeAttr(String(id == null ? "" : id)) + '">' + escapeHtml2(String(id == null ? "" : id)) + "</a>";
 var esc3 = (s) => escapeHtml2(String(s == null ? "" : s));
 function renderHealthHtml(health) {
   const c = health.counts;
   const clean = healthTotal(health) === 0;
   let b = '<article data-generated="health"><h1>Health</h1>';
   b += "<blockquote><p>Automatic, deterministic check (no LLM) of the read-only projection \u2014 it watches for what the writing side hasn't caught up on.";
-  if (health.now) b += "<br>Baseline <code>" + esc3(health.now) + "</code>, stale window " + c.stale + " \xB7 " + health.staleWindowDays + " days.";
+  if (health.now) b += "<br>Baseline <code>" + esc3(health.now) + "</code>, stale window " + health.staleWindowDays + " days.";
   b += "</p></blockquote>";
   const rows = [
     ["Dangling links (likely rename/typo)", c.dangling],
@@ -22633,12 +22665,13 @@ function renderHealthHtml(health) {
     b += section(
       "Unsourced",
       c.unsourced,
-      "This page states a claim (it carries a trust tier) but links back to nothing that justifies it. Add a body <code>**Sources.**</code> line linking the minute the claim came from \u2014 a frontmatter <code>sources:</code> key is not provenance.",
+      "This page states a claim (it carries a trust tier) but links back to nothing that justifies it. Add a body <code>**Sources.**</code> line linking the source document the claim came from. Provenance must be a <code>[[wiki-link]]</code> \u2014 a plain string is prose, not a link.",
       tbl(["Document", "Tier"], health.unsourced.map((u) => "<tr><td>" + wl(u.node) + "</td><td><code>" + esc3(u.status) + "</code></td></tr>").join(""))
     );
   }
   return b + "</article>";
 }
+var plain = (s) => String(s == null ? "" : s).replace(/[\u0000-\u001F\u007F-\u009F]/g, " ");
 function renderHealthText(health) {
   const c = health.counts;
   const lines = [
@@ -22652,14 +22685,14 @@ function renderHealthText(health) {
     "  stale          : " + c.stale,
     "  unsourced      : " + c.unsourced
   ];
-  for (const d of health.dangling) lines.push("  x dangling  " + d.source + " -> " + d.target + " (" + (d.edgeType || "body") + ")");
-  for (const o of health.orphan) lines.push("  o orphan    " + o.node);
-  for (const x of health.contradiction) lines.push("  ! contra    " + x.a + " <> " + x.b);
-  for (const d of health.invalidDate) lines.push("  ? baddate   " + d.node + " (updated=" + d.updated + ")");
-  for (const s of health.schema) lines.push("  # schema    " + s.node + " " + s.kind + " '" + s.key + "'");
+  for (const d of health.dangling) lines.push("  x dangling  " + plain(d.source) + " -> " + plain(d.target) + " (" + plain(d.edgeType || "body") + ")");
+  for (const o of health.orphan) lines.push("  o orphan    " + plain(o.node));
+  for (const x of health.contradiction) lines.push("  ! contra    " + plain(x.a) + " <> " + plain(x.b));
+  for (const d of health.invalidDate) lines.push("  ? baddate   " + plain(d.node) + " (updated=" + plain(d.updated) + ")");
+  for (const s of health.schema) lines.push("  # schema    " + plain(s.node) + " " + plain(s.kind) + " '" + plain(s.key) + "'");
   for (const d of health.drift) lines.push("  = drift     declared " + d.declared + " vs actual " + d.actual);
-  for (const s of health.stale) lines.push("  . stale     " + s.node + " (neighbor " + s.newerNeighbor + " newer)");
-  for (const u of health.unsourced) lines.push("  ~ unsourced " + u.node + " (" + u.status + ", no provenance link)");
+  for (const s of health.stale) lines.push("  . stale     " + plain(s.node) + " (neighbor " + plain(s.newerNeighbor) + " newer)");
+  for (const u of health.unsourced) lines.push("  ~ unsourced " + plain(u.node) + " (" + plain(u.status) + ", no provenance link)");
   return lines.join("\n");
 }
 
@@ -23286,7 +23319,7 @@ function applyRename(plan, docsDir) {
 }
 
 // src/maintain/doctor.mjs
-import { readFileSync as readFileSync7, writeFileSync as writeFileSync3 } from "fs";
+import { readFileSync as readFileSync7, writeFileSync as writeFileSync3, lstatSync as lstatSync6 } from "fs";
 import { join as join9 } from "path";
 function levenshtein(a, b) {
   const m = a.length, n = b.length;
@@ -23302,9 +23335,13 @@ function levenshtein(a, b) {
   }
   return prev[n];
 }
-function closest(target, titles) {
+var MAX_FUZZY_LEN = 256;
+function closest(target, titles, maxDist = Infinity) {
+  if (target.length > MAX_FUZZY_LEN) return null;
   let best = null, ties = 0;
   for (const t of titles) {
+    if (t.length > MAX_FUZZY_LEN) continue;
+    if (Math.abs(t.length - target.length) > maxDist) continue;
     const d = levenshtein(target, t);
     if (best === null || d < best.dist) {
       best = { title: t, dist: d };
@@ -23317,8 +23354,8 @@ function buildRepairPlan(model, health) {
   const titles = Object.keys(model.nodes);
   const fixes = [];
   for (const d of health.dangling) {
-    const c = titles.length ? closest(d.target, titles) : null;
     const thresh = Math.max(1, Math.floor(d.target.length * 0.34));
+    const c = titles.length ? closest(d.target, titles, thresh) : null;
     const suggest = c && c.dist <= thresh ? c.title : null;
     fixes.push({ kind: "dangling", source: d.source, target: d.target, suggest, dist: c ? c.dist : null, auto: !!suggest && c.dist <= 1 && c.unique });
   }
@@ -23328,7 +23365,8 @@ function buildRepairPlan(model, health) {
   for (const s of health.stale) fixes.push({ kind: "stale", node: s.node, auto: false, advice: "revisit - neighbor " + s.newerNeighbor + " was updated" });
   for (const i of health.invalidDate) fixes.push({ kind: "invalidDate", node: i.node, value: i.updated, auto: false, advice: "fix to a valid YYYY-MM-DD" });
   for (const sc of health.schema) fixes.push({ kind: "schema", node: sc.node, key: sc.key, why: sc.kind, auto: false, advice: "adjust the _types schema or the document" });
-  for (const u of health.unsourced || []) fixes.push({ kind: "unsourced", node: u.node, status: u.status, auto: false, advice: "add a body `**Sources.** [[session <id> \xB7 <date>]]` line naming the minute this claim came from (never a frontmatter `sources:` key)" });
+  const drawer = model.meta && model.meta.provenance && model.meta.provenance.sourceGroup || "the source drawer";
+  for (const u of health.unsourced || []) fixes.push({ kind: "unsourced", node: u.node, status: u.status, auto: false, advice: "add a body `**Sources.** [[\u2026]]` line linking the " + drawer + " document this claim came from (a plain string is not provenance \u2014 it must be a [[wiki-link]])" });
   return fixes;
 }
 function applySafe(docsDir, fixes, model) {
@@ -23336,6 +23374,7 @@ function applySafe(docsDir, fixes, model) {
   const drift = fixes.find((f) => f.kind === "drift");
   if (drift) {
     const cfg = join9(docsDir, "_config.json");
+    if (lstatSync6(cfg).isSymbolicLink()) throw new Error("refusing to write a symlinked _config.json: " + cfg);
     const c = JSON.parse(readFileSync7(cfg, "utf8"));
     c.meta = c.meta || {};
     c.meta.expectedDocs = drift.actual;
@@ -23345,7 +23384,7 @@ function applySafe(docsDir, fixes, model) {
   for (const f of fixes.filter((x) => x.kind === "dangling" && x.auto)) {
     const node = model.nodes[f.source];
     if (!node) continue;
-    const p = join9(docsDir, node.file);
+    const p = safeDocPath(docsDir, node.file);
     const raw = readFileSync7(p, "utf8");
     const { html: next, count } = rewriteWikiRef(raw, f.target, f.suggest);
     if (count > 0 && next !== raw) {
@@ -23580,11 +23619,16 @@ function runOpen() {
   const win = process.platform === "win32";
   const opener = process.platform === "darwin" ? "open" : win ? "rundll32" : "xdg-open";
   const args = win ? ["url.dll,FileProtocolHandler", idx] : [idx];
+  const fallback = () => console.log("open this in your browser: " + idx);
   try {
-    spawn(opener, args, { stdio: "ignore", detached: true }).unref();
-    console.log("\u2192 opened " + idx);
+    const child = spawn(opener, args, { stdio: "ignore", detached: true });
+    child.once("error", fallback);
+    child.once("spawn", () => {
+      console.log("\u2192 opened " + idx);
+      child.unref();
+    });
   } catch {
-    console.log("open this in your browser: " + idx);
+    fallback();
   }
 }
 var MIME = {

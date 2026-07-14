@@ -102,3 +102,41 @@ test("doctor: an ambiguous (tied) dangling typo is suggested but NOT auto-applie
   assert.ok(dangling.suggest);      // still suggested
   assert.equal(dangling.auto, false); // tie (Alpha/Alphab both dist 1) → not auto-applied
 });
+
+// ── doctor: the unsourced lane is advisory, never auto-applied ────────────────
+function unsourcedPlan(sourceGroup = "logbook") {
+  const model = {
+    nodes: { A: { id: "A", group: "decisions", status: "proposed", file: "decisions/a.md", updated: "2026-06-12" } },
+    edges: [],
+    meta: { provenance: { requireFor: ["proposed"], sourceGroup, exclude: [] } },
+  };
+  const health = { dangling: [], orphan: [], contradiction: [], invalidDate: [], stale: [], schema: [], drift: [], unsourced: [{ node: "A", status: "proposed" }] };
+  return { model, fixes: buildRepairPlan(model, health) };
+}
+
+test("doctor: an unsourced finding is surfaced as pending, never auto-fixable", () => {
+  const { fixes } = unsourcedPlan();
+  const f = fixes.find((x) => x.kind === "unsourced");
+  assert.ok(f, "the unsourced lane must reach the repair plan");
+  assert.equal(f.auto, false, "provenance is a judgment call — a machine must not invent a source");
+  assert.equal(f.node, "A");
+});
+
+test("doctor: unsourced advice names the CONFIGURED source drawer, not a hardcoded one", () => {
+  const { fixes } = unsourcedPlan("archive");
+  const f = fixes.find((x) => x.kind === "unsourced");
+  assert.match(f.advice, /archive/, "advice must follow meta.provenance.sourceGroup");
+  assert.doesNotMatch(f.advice, /logbook/i);
+});
+
+test("doctor: applySafe never writes anything for an unsourced finding", () => {
+  const dir = mkdtempSync(join(tmpdir(), "doc-unsourced-"));
+  mkdirSync(join(dir, "decisions"), { recursive: true });
+  const p = join(dir, "decisions", "a.md");
+  const before = "---\ntitle: A\nstatus: proposed\n---\n\n# A\n\nno sources\n";
+  writeFileSync(p, before);
+  const { model, fixes } = unsourcedPlan();
+  const applied = applySafe(dir, fixes, model);
+  assert.deepEqual(applied, []);
+  assert.equal(readFileSync(p, "utf8"), before, "the page must be untouched");
+});

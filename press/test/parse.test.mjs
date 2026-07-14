@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { splitFrontmatter, parseHtmlDoc, extractLinks, relTargets } from "../src/core/parse.mjs";
+import { splitFrontmatter, parseHtmlDoc, parseMarkdownDoc, extractLinks, relTargets } from "../src/core/parse.mjs";
 
 test("parse: BOM before --- does not defeat frontmatter (M15)", () => {
   const { frontmatter } = splitFrontmatter("﻿---\ntitle: X\n---\nbody");
@@ -75,7 +75,7 @@ test("parse: a stray list item under no key still throws", () => {
 });
 
 test("parse: the error names the supported forms (actionable)", () => {
-  assert.throws(() => splitFrontmatter("---\ntitle: X\nmeta:\n  a: 1\n---\nb"), /multi-line[\s\S]*Nested maps, block scalars/);
+  assert.throws(() => splitFrontmatter("---\ntitle: X\nmeta:\n  a: 1\n---\nb"), /multi-line[\s\S]*must be QUOTED[\s\S]*not supported/);
 });
 
 test("parse: the supported single-line forms still work", () => {
@@ -88,4 +88,86 @@ test("parse: the supported single-line forms still work", () => {
 test("parse: blank lines and # comments in frontmatter are still ignored", () => {
   const { frontmatter } = splitFrontmatter("---\ntitle: X\n\n# a note: not a key\nstatus: proposed\n---\nb");
   assert.deepEqual(Object.keys(frontmatter), ["title", "status"]);
+});
+
+// ── frontmatter: constructs we deliberately do NOT implement ─────────────────
+test("parse: an UNQUOTED `- key: value` item is a YAML mapping and throws", () => {
+  // the docs promise nested maps are rejected; silently reading this as the string
+  // "theorist: Wayne" would be the same class of misread the parser exists to stop
+  assert.throws(() => splitFrontmatter("---\ntitle: X\nsources:\n  - theorist: Wayne\n---\nb"), /unsupported frontmatter line/);
+});
+
+test("parse: a QUOTED item keeps its colon as text (real provenance strings work)", () => {
+  const { frontmatter } = splitFrontmatter('---\ntitle: X\nsources:\n  - "session abc (theorist: Wayne)"\n---\nb');
+  assert.deepEqual(frontmatter.sources, ["session abc (theorist: Wayne)"]);
+});
+
+test("parse: an unquoted URL item is not mistaken for a mapping", () => {
+  const { frontmatter } = splitFrontmatter("---\ntitle: X\nrefs:\n  - https://example.com/a\n---\nb");
+  assert.deepEqual(frontmatter.refs, ["https://example.com/a"]);
+});
+
+test("parse: an inline block-scalar marker throws (was silently the string '|')", () => {
+  assert.throws(() => splitFrontmatter("---\ntitle: X\ndesc: |\n---\nb"), /unsupported frontmatter line/);
+  assert.throws(() => splitFrontmatter("---\ntitle: X\ndesc: >\n---\nb"), /unsupported frontmatter line/);
+});
+
+test("parse: a YAML anchor throws (was silently the string '&a X')", () => {
+  assert.throws(() => splitFrontmatter("---\ntitle: &a X\n---\nb"), /unsupported frontmatter line/);
+});
+
+// The guard must be TIGHT: rejecting anything that merely starts with | > & * - would throw on
+// ordinary text. Anchors are rejected, so a `*alias` can never resolve — it is text, not YAML.
+test("parse: ordinary values that LOOK yaml-ish are still plain text", () => {
+  const { frontmatter } = splitFrontmatter("---\ntitle: *Hamlet*\nscore: -1\nnote: 3 > 2\n---\nb");
+  assert.equal(frontmatter.title, "*Hamlet*");
+  assert.equal(frontmatter.score, "-1");
+  assert.equal(frontmatter.note, "3 > 2");
+});
+
+test("parse: list items that look yaml-ish are plain text, not nested sequences", () => {
+  const { frontmatter } = splitFrontmatter("---\ntitle: X\nvals:\n  - -1\n  - --flag\n  - *emph*\n---\nb");
+  assert.deepEqual(frontmatter.vals, ["-1", "--flag", "*emph*"]);
+});
+
+test("parse: an indented continuation under a list item throws (wrapped scalar)", () => {
+  assert.throws(() => splitFrontmatter("---\ntitle: X\ntags:\n  - a\n    continued\n---\nb"), /unsupported frontmatter line/);
+});
+
+test("parse: a nested sequence item throws", () => {
+  assert.throws(() => splitFrontmatter("---\ntitle: X\ntags:\n  - - a\n---\nb"), /unsupported frontmatter line/);
+});
+
+test("parse: CRLF frontmatter with a multi-line list parses (Windows-authored docs)", () => {
+  const { frontmatter } = splitFrontmatter('---\r\ntitle: X\r\nsources:\r\n  - "[[session a]]"\r\n  - "[[session b]]"\r\n---\r\nbody');
+  assert.deepEqual(frontmatter.sources, ["[[session a]]", "[[session b]]"]);
+  assert.deepEqual(relTargets(frontmatter.sources), ["session a", "session b"]);
+});
+
+test("parse: a bare `key:` with no items is an empty scalar, not a list", () => {
+  const { frontmatter } = splitFrontmatter("---\ntitle: X\nsources:\n---\nb");
+  assert.equal(frontmatter.sources, ""); // pinned: empty → no edge, no attribute
+});
+
+// ── body links: the model must not count what the renderer won't draw ────────
+test("parse: a [[link]] inside a fenced code block is not a body link", () => {
+  const d = parseMarkdownDoc("---\ntitle: X\n---\n\n# X\n\n```\n[[session a1b2 · 2026-06-10]]\n```\n");
+  assert.deepEqual(d.bodyLinks, []);
+});
+
+test("parse: a [[link]] inside RAW HTML <pre>/<code> is not a body link either", () => {
+  // markdown allows raw HTML; the renderer protects these regions, so counting them would
+  // forge an edge the page never draws — and could forge provenance from inside a code sample
+  const d = parseMarkdownDoc("---\ntitle: X\n---\n\n# X\n\n<pre>[[session a1b2 · 2026-06-10]]</pre>\n<code>[[session other]]</code>\n");
+  assert.deepEqual(d.bodyLinks, []);
+});
+
+test("parse: a real [[link]] outside code is still counted", () => {
+  const d = parseMarkdownDoc("---\ntitle: X\n---\n\n# X\n\n**Sources.** [[session a1b2 · 2026-06-10]]\n");
+  assert.deepEqual(d.bodyLinks, ["session a1b2 · 2026-06-10"]);
+});
+
+test("parse: an <h1> inside raw HTML <pre> does not become the title", () => {
+  const d = parseMarkdownDoc("<pre>\n# Fake Title\n</pre>\n\n# Real Title\n");
+  assert.equal(d.meta.title, "Real Title");
 });

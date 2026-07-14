@@ -27,7 +27,18 @@ function readConfig(docsDir) {
   } catch (e) {
     throw new Error("_config.json is not valid JSON (" + p + "): " + e.message);
   }
-  return { meta: cfg.meta || {}, groups: cfg.groups || [] };
+  // valid JSON is not a valid CONFIG — a scalar `meta`, or a `groups` that isn't a list of
+  // objects, would sail through here and surface later as an opaque TypeError deep in the model.
+  const where = " (" + p + ")";
+  if (cfg === null || typeof cfg !== "object" || Array.isArray(cfg)) throw new Error("_config.json must be a JSON object" + where);
+  const meta = cfg.meta == null ? {} : cfg.meta;
+  if (typeof meta !== "object" || Array.isArray(meta)) throw new Error('_config.json: "meta" must be an object' + where);
+  const groups = cfg.groups == null ? [] : cfg.groups;
+  if (!Array.isArray(groups)) throw new Error('_config.json: "groups" must be an array' + where);
+  for (const g of groups) {
+    if (g === null || typeof g !== "object" || Array.isArray(g)) throw new Error('_config.json: every "groups" entry must be an object' + where);
+  }
+  return { meta, groups };
 }
 
 // a doc's nav section = its TOP-LEVEL folder under the content dir (flat sections:
@@ -42,7 +53,7 @@ function topFolderId(relPath) {
 // Defense in depth (discovery already skips symlinks): before reading a discovered doc,
 // confirm its real path is a regular file inside the real content dir — never follow a
 // link out of the tree. Returns the verified absolute path.
-function safeDocPath(docsDir, file) {
+export function safeDocPath(docsDir, file) {
   const root = realpathSync(docsDir);
   const abs = realpathSync(join(docsDir, file));
   if (abs !== root && !abs.startsWith(root + sep)) throw new Error("doc path escapes content dir: " + file);

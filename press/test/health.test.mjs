@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "fs";
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import { resolve } from "path";
 import { GOLDEN_DOCS, FIXED_NOW } from "./helpers.mjs";
 import { buildModel } from "../src/core/model.mjs";
@@ -38,7 +40,7 @@ test("health: stale is Stale with newer neighbor Hero", () => {
   assert.deepEqual(golden().stale, [{ node: "Stale", updated: "2026-01-01", newerNeighbor: "Hero" }]);
 });
 
-test("health: no findings when now is far in the past (nothing stale) is still deterministic", () => {
+test("health: deriveHealth is deterministic — same input, identical canonical JSON", () => {
   const a = canonicalJSON(golden());
   const b = canonicalJSON(golden());
   assert.equal(a, b);
@@ -108,4 +110,133 @@ test("health: the unsourced lane is inert without a _config provenance block (ge
 
 test("health: unsourced counts toward the total, so it can actually fail a check", () => {
   assert.equal(healthTotal(provModel()), 2);
+});
+
+// ── unsourced: against a REAL corpus on disk, not a hand-built model ─────────
+// The synthetic tests above hand-write model.meta/nodes/edges, so they would still pass if
+// _config.json loading, status extraction, or body-link parsing regressed. This one drives the
+// real path: files on disk → loadConfig → buildModel → deriveHealth.
+function realCorpus(t, docs, config) {
+  const dir = mkdtempSync(join(tmpdir(), "prov-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, "logbook"), { recursive: true });
+  mkdirSync(join(dir, "decisions"), { recursive: true });
+  writeFileSync(join(dir, "_config.json"), JSON.stringify(config, null, 2));
+  for (const [rel, body] of Object.entries(docs)) writeFileSync(join(dir, rel), body);
+  const m = buildModel({ docsDir: dir });
+  return deriveHealth(m, deriveBacklinks(m), { now: FIXED_NOW });
+}
+
+const PROV_CFG = {
+  meta: { provenance: { requireFor: ["proposed", "canonical"], sourceGroup: "logbook", exclude: ["Logbook"] } },
+};
+const DOCS = {
+  "logbook/00-logbook.md": "---\ntitle: Logbook\nstatus: logbook\nupdated: 2026-06-12\n---\n\n# Logbook\n\nIndex.\n",
+  "logbook/m1.md": "---\ntitle: session m1 · 2026-06-12\nstatus: logbook\nupdated: 2026-06-12\n---\n\n# m1\n\nMinute.\n",
+};
+
+test("health/real: a body **Sources.** link to a minute is provenance", (t) => {
+  const h = realCorpus(t, { ...DOCS,
+    "decisions/a.md": "---\ntitle: A\nstatus: proposed\nupdated: 2026-06-12\n---\n\n# A\n\n**Sources.** [[session m1 · 2026-06-12]]\n",
+  }, PROV_CFG);
+  assert.deepEqual(h.unsourced, []);
+});
+
+test("health/real: a claim with no provenance link is flagged", (t) => {
+  const h = realCorpus(t, { ...DOCS,
+    "decisions/a.md": "---\ntitle: A\nstatus: proposed\nupdated: 2026-06-12\n---\n\n# A\n\nNo sources at all.\n",
+  }, PROV_CFG);
+  assert.deepEqual(h.unsourced, [{ node: "A", status: "proposed" }]);
+});
+
+test("health/real: a frontmatter sources: wiki-link ALSO counts as provenance", (t) => {
+  // pins the documented contract: a [[wiki-link]] is provenance wherever it sits
+  const h = realCorpus(t, { ...DOCS,
+    "decisions/a.md": '---\ntitle: A\nstatus: proposed\nupdated: 2026-06-12\nsources:\n  - "[[session m1 · 2026-06-12]]"\n---\n\n# A\n\nBody.\n',
+  }, PROV_CFG);
+  assert.deepEqual(h.unsourced, []);
+});
+
+test("health/real: a plain-string sources: list is NOT provenance", (t) => {
+  // the reporter's real page: prose, not a link → no edge, no backlink, still unsourced
+  const h = realCorpus(t, { ...DOCS,
+    "decisions/a.md": '---\ntitle: A\nstatus: proposed\nupdated: 2026-06-12\nsources:\n  - "session m1 (RT-03 pilot; theorist: Wayne)"\n---\n\n# A\n\nBody.\n',
+  }, PROV_CFG);
+  assert.deepEqual(h.unsourced, [{ node: "A", status: "proposed" }]);
+});
+
+test("health/real: a [[minute]] hidden inside a code block does NOT satisfy provenance", (t) => {
+  const h = realCorpus(t, { ...DOCS,
+    "decisions/a.md": "---\ntitle: A\nstatus: proposed\nupdated: 2026-06-12\n---\n\n# A\n\n```\n**Sources.** [[session m1 · 2026-06-12]]\n```\n",
+  }, PROV_CFG);
+  assert.deepEqual(h.unsourced, [{ node: "A", status: "proposed" }], "a link the reader can't click is not provenance");
+});
+
+test("health/real: linking only the drawer index is not provenance", (t) => {
+  const h = realCorpus(t, { ...DOCS,
+    "decisions/a.md": "---\ntitle: A\nstatus: canonical\nupdated: 2026-06-12\n---\n\n# A\n\nSee the [[Logbook]].\n",
+  }, PROV_CFG);
+  assert.deepEqual(h.unsourced, [{ node: "A", status: "canonical" }]);
+});
+
+// ── malformed provenance config: fail loud, never silently disarm ────────────
+for (const [why, prov] of [
+  ["requireFor is a string, not an array", { requireFor: "canonical", sourceGroup: "logbook" }],
+  ["requireFor is empty", { requireFor: [], sourceGroup: "logbook" }],
+  ["sourceGroup is missing", { requireFor: ["proposed"] }],
+  ["exclude is a string, not an array", { requireFor: ["proposed"], sourceGroup: "logbook", exclude: "Logbook" }],
+  ["provenance is an array", []],
+]) {
+  test("health: malformed provenance config throws — " + why, (t) => {
+    assert.throws(
+      () => realCorpus(t, { ...DOCS, "decisions/a.md": "---\ntitle: A\nstatus: proposed\nupdated: 2026-06-12\n---\n\n# A\n\nx\n" }, { meta: { provenance: prov } }),
+      /meta\.provenance is malformed/,
+      "a misconfigured gate must fail loud, not report a clean bill",
+    );
+  });
+}
+
+// ── unsourced: it must actually SHOW UP in both reports ──────────────────────
+test("health/render: the unsourced lane renders in the HTML and text reports", async () => {
+  const { renderHealthHtml, renderHealthText } = await import("../src/render/health-report.mjs");
+  const h = provModel();
+  const html = renderHealthHtml(h);
+  assert.match(html, /Unsourced/, "the board must show the lane");
+  assert.match(html, /<a data-wiki="IndexOnly">IndexOnly<\/a>/, "and link the page");
+  const text = renderHealthText(h);
+  assert.match(text, /unsourced\s+: 2/);
+  assert.match(text, /~ unsourced IndexOnly \(canonical/);
+});
+
+test("health/render: a control character in a title cannot forge a line in the text report", async () => {
+  const { renderHealthText } = await import("../src/render/health-report.mjs");
+  // a doc titled with an embedded newline could otherwise print its own "clean" summary line
+  const h = {
+    now: "2026-07-14", staleWindowDays: 30,
+    counts: { dangling: 0, orphan: 1, contradiction: 0, invalidDate: 0, stale: 0, schema: 0, drift: 0, unsourced: 0 },
+    dangling: [], orphan: [{ node: "evil\n  dangling links : 999" }], contradiction: [],
+    invalidDate: [], schema: [], drift: [], stale: [], unsourced: [],
+  };
+  const body = renderHealthText(h).split("\n").slice(9).join("\n"); // past the summary block
+  assert.doesNotMatch(body, /^ {2}dangling links : 999$/m, "a title must not be able to forge a summary line");
+});
+
+test("health/render: a hostile doc title cannot inject raw HTML into the board report", async () => {
+  const { renderHealthHtml } = await import("../src/render/health-report.mjs");
+  const evil = '<img src=x onerror=alert(1)>';
+  const h = {
+    now: "2026-07-14", staleWindowDays: 30,
+    counts: { dangling: 0, orphan: 1, contradiction: 0, invalidDate: 0, stale: 0, schema: 0, drift: 0, unsourced: 0 },
+    dangling: [], orphan: [{ node: evil }], contradiction: [], invalidDate: [], schema: [], drift: [], stale: [], unsourced: [],
+  };
+  const html = renderHealthHtml(h);
+  // the security property: the title never becomes a live tag, and can't break out of the
+  // attribute. (`onerror=` may survive as ESCAPED TEXT inside data-wiki — that is inert.)
+  assert.doesNotMatch(html, /<img/, "a title must never reach the page as a live tag");
+  // pin the exact anchor: escaped in the attribute AND in the text, and still a data-wiki
+  // reference so build.mjs resolves it and the backlink index is unchanged
+  assert.match(
+    html,
+    /<a data-wiki="&lt;img src=x onerror=alert\(1\)&gt;">&lt;img src=x onerror=alert\(1\)&gt;<\/a>/,
+  );
 });

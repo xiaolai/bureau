@@ -2,9 +2,14 @@
 // (b) a CLI text summary. The board "view" is a generated doc, like the timeline.
 // [[id]] links are resolved + the HTML sanitized by build.mjs before shipping.
 import { healthTotal } from "../derive/health.mjs";
-import { escapeHtml } from "../shared/escape.mjs";
+import { escapeHtml, escapeAttr } from "../shared/escape.mjs";
 
-const wl = (id) => "[[" + id + "]]";
+// A doc title is untrusted. Emitting `[[<title>]]` put it into the page's HTML RAW — a title
+// like `<img src=x onerror=…>` landed as a live tag and only the downstream sanitizer's
+// allowlist stood between it and the reader. Emit a resolved-at-build `data-wiki` anchor
+// instead, with the title escaped in both the attribute and the link text. build.mjs indexes
+// data-wiki references exactly like [[..]], so backlinks are unchanged.
+const wl = (id) => '<a data-wiki="' + escapeAttr(String(id == null ? "" : id)) + '">' + escapeHtml(String(id == null ? "" : id)) + "</a>";
 const esc = (s) => escapeHtml(String(s == null ? "" : s));
 
 export function renderHealthHtml(health) {
@@ -12,7 +17,7 @@ export function renderHealthHtml(health) {
   const clean = healthTotal(health) === 0;
   let b = '<article data-generated="health"><h1>Health</h1>';
   b += "<blockquote><p>Automatic, deterministic check (no LLM) of the read-only projection — it watches for what the writing side hasn't caught up on.";
-  if (health.now) b += "<br>Baseline <code>" + esc(health.now) + "</code>, stale window " + c.stale + " · " + health.staleWindowDays + " days.";
+  if (health.now) b += "<br>Baseline <code>" + esc(health.now) + "</code>, stale window " + health.staleWindowDays + " days.";
   b += "</p></blockquote>";
 
   const rows = [
@@ -65,11 +70,17 @@ export function renderHealthHtml(health) {
       tbl(["Document", "Updated", "Newer neighbor"], health.stale.map((s) => "<tr><td>" + wl(s.node) + "</td><td>" + esc(s.updated) + "</td><td>" + wl(s.newerNeighbor) + "</td></tr>").join("")));
   }
   if (c.unsourced) {
-    b += section("Unsourced", c.unsourced, "This page states a claim (it carries a trust tier) but links back to nothing that justifies it. Add a body <code>**Sources.**</code> line linking the minute the claim came from — a frontmatter <code>sources:</code> key is not provenance.",
+    b += section("Unsourced", c.unsourced, "This page states a claim (it carries a trust tier) but links back to nothing that justifies it. Add a body <code>**Sources.**</code> line linking the source document the claim came from. Provenance must be a <code>[[wiki-link]]</code> — a plain string is prose, not a link.",
       tbl(["Document", "Tier"], health.unsourced.map((u) => "<tr><td>" + wl(u.node) + "</td><td><code>" + esc(u.status) + "</code></td></tr>").join("")));
   }
   return b + "</article>";
 }
+
+// A doc title is untrusted text. In the TEXT report it is concatenated straight into lines the
+// reader trusts, so a control character (newline, CR, ANSI escape) could forge output — e.g. a
+// title carrying "\n  dangling links : 0" fakes a clean bill in the terminal or in CI logs.
+// Collapse every control char to a space; the HTML path is escaped separately by esc().
+const plain = (s) => String(s == null ? "" : s).replace(/[\u0000-\u001F\u007F-\u009F]/g, " ");
 
 export function renderHealthText(health) {
   const c = health.counts;
@@ -84,13 +95,13 @@ export function renderHealthText(health) {
     "  stale          : " + c.stale,
     "  unsourced      : " + c.unsourced,
   ];
-  for (const d of health.dangling) lines.push("  x dangling  " + d.source + " -> " + d.target + " (" + (d.edgeType || "body") + ")");
-  for (const o of health.orphan) lines.push("  o orphan    " + o.node);
-  for (const x of health.contradiction) lines.push("  ! contra    " + x.a + " <> " + x.b);
-  for (const d of health.invalidDate) lines.push("  ? baddate   " + d.node + " (updated=" + d.updated + ")");
-  for (const s of health.schema) lines.push("  # schema    " + s.node + " " + s.kind + " '" + s.key + "'");
+  for (const d of health.dangling) lines.push("  x dangling  " + plain(d.source) + " -> " + plain(d.target) + " (" + plain(d.edgeType || "body") + ")");
+  for (const o of health.orphan) lines.push("  o orphan    " + plain(o.node));
+  for (const x of health.contradiction) lines.push("  ! contra    " + plain(x.a) + " <> " + plain(x.b));
+  for (const d of health.invalidDate) lines.push("  ? baddate   " + plain(d.node) + " (updated=" + plain(d.updated) + ")");
+  for (const s of health.schema) lines.push("  # schema    " + plain(s.node) + " " + plain(s.kind) + " '" + plain(s.key) + "'");
   for (const d of health.drift) lines.push("  = drift     declared " + d.declared + " vs actual " + d.actual);
-  for (const s of health.stale) lines.push("  . stale     " + s.node + " (neighbor " + s.newerNeighbor + " newer)");
-  for (const u of health.unsourced) lines.push("  ~ unsourced " + u.node + " (" + u.status + ", no provenance link)");
+  for (const s of health.stale) lines.push("  . stale     " + plain(s.node) + " (neighbor " + plain(s.newerNeighbor) + " newer)");
+  for (const u of health.unsourced) lines.push("  ~ unsourced " + plain(u.node) + " (" + plain(u.status) + ", no provenance link)");
   return lines.join("\n");
 }
