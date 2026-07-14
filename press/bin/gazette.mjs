@@ -21276,7 +21276,9 @@ function splitFrontmatter(raw) {
   const m = text2.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!m) return { frontmatter: null, body: text2 };
   const fm = /* @__PURE__ */ Object.create(null);
-  for (const line of m[1].split(/\r?\n/)) {
+  const lines = m[1].split(/\r?\n/);
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
     if (!line.trim()) continue;
     if (/^\s*#/.test(line)) continue;
     if (/^\s/.test(line) || /^-\s/.test(line)) throw new Error(unsupportedFm(line));
@@ -21288,16 +21290,39 @@ function splitFrontmatter(raw) {
     if (Object.prototype.hasOwnProperty.call(fm, key)) {
       throw new Error('duplicate frontmatter key "' + key + '"');
     }
-    fm[key] = parseScalar(line.slice(i + 1));
+    const inline2 = line.slice(i + 1).trim();
+    if (inline2 !== "") {
+      fm[key] = parseScalar(inline2);
+      continue;
+    }
+    const items = [];
+    while (li + 1 < lines.length) {
+      const it = lines[li + 1].match(/^[ \t]*-[ \t]+(.*)$/);
+      if (!it) break;
+      items.push(unquoteItem(it[1]));
+      li++;
+    }
+    fm[key] = items.length ? items : "";
   }
   return { frontmatter: fm, body: m[2] };
 }
+function unquoteItem(raw) {
+  const v = raw.trim();
+  const q = v[0];
+  if ((q === '"' || q === "'") && v.length > 1 && v[v.length - 1] === q) return v.slice(1, -1);
+  return v;
+}
 function unsupportedFm(line) {
-  return 'unsupported frontmatter line: "' + line.trim() + '"\n  Frontmatter is flat `key: value` lines only \u2014 no multi-line YAML lists, nested maps, or block scalars.\n  For a list, use one line: `key: [a, b]`. For a relation, use one line: `key: [[Target]]`.\n  Provenance does NOT go in frontmatter \u2014 put it in a body line: `**Sources.** [[session <id> \xB7 <date>]]`.';
+  return 'unsupported frontmatter line: "' + line.trim() + '"\n  Frontmatter supports flat `key: value` lines, inline lists (`key: [a, b]`), and multi-line\n  lists of scalars:\n      sources:\n        - "[[session <id> \xB7 <date>]]"\n  Nested maps, block scalars (`|`, `>`), and anchors are not supported.';
 }
 function relTargets(value) {
-  const s = String(value == null ? "" : value);
-  return s.includes("[[") ? extractLinks(s) : [];
+  const parts = Array.isArray(value) ? value : [value];
+  const out = [];
+  for (const p of parts) {
+    const s = String(p == null ? "" : p);
+    if (s.includes("[[")) out.push(...extractLinks(s));
+  }
+  return out;
 }
 function parseAttrValue(v) {
   if (Array.isArray(v)) return v;

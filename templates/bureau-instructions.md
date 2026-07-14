@@ -41,17 +41,24 @@ not hand-edit cabinet pages. Memory is gated: **capture** (it lands in the low-a
 **compile** (into cabinet pages as `proposed`/`verified`) → **review** (a human promotes to
 `canonical`). The logbook is append-only — never rewrite a past entry.
 
-## Provenance goes in the body, never in frontmatter
+## Cite the minute that introduced the claim
 
-Every cabinet claim links back to the minute that introduced it. That link is a **body** line:
+Every cabinet claim links back to the minute that introduced it. **Provenance is a `[[wiki-link]]`
+to a minute** — that is what makes it an edge the press can index and a backlink the minute can
+show. The convention `bureau:compile` writes is a **body** line:
 
 ```markdown
 **Sources.** [[session a1b2c3d4 · 2026-06-10]]
 ```
 
-- A frontmatter `sources:` key is **not** provenance — the press indexes body links, and a page
-  whose only "sources" are in frontmatter counts as **unsourced**. `gazette health` fails on it.
-- Frontmatter is **flat `key: value` lines only**. A multi-line YAML list is rejected outright —
-  for a list, write one line (`tags: [a, b]`); for a relation, write one line
-  (`contradicts: [[Other page]]`).
+- A frontmatter `sources:` list of `[[wiki-links]]` **also** counts — it becomes a typed edge and
+  a real backlink, exactly like the body line. Prefer the body line (one shape, and it's what
+  compile writes), but either is genuine provenance.
+- What is **not** provenance is a **plain string**: `sources: ["session 978074e1 (RT-03 pilot)"]`
+  is prose, not a link — no edge, no backlink. Wrap the target in `[[ ]]`.
 - Cite the **minute**, not the drawer: linking `[[Logbook]]` is not provenance for a claim.
+- A tiered page with no provenance link is reported as **unsourced** by `gazette health`.
+
+Frontmatter grammar: flat `key: value` lines, inline lists (`tags: [a, b]`), and multi-line lists
+of scalars. Values are always strings — no YAML type coercion. Nested maps and block scalars
+(`|`, `>`) are rejected outright.

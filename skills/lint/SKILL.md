@@ -56,8 +56,8 @@ With `--apply`, lint also writes conservative, reversible in-place markers so th
 health lane surfaces the hard cases:
 - a verified **contradiction** → set both pages `status: contested` and add a reciprocal
   single-line `contradicts: [[Other page]]` edge to each (2+ pages → one comma list
-  `contradicts: [[A]], [[B]]`, deduped, preserving any existing edge; never a multi-line YAML
-  list, which the press rejects). the press renders the contradiction;
+  `contradicts: [[A]], [[B]]`, deduped, preserving any existing edge — keep it single-line so the
+  edge reads as one diff). the press renders the contradiction;
 - a verified **superseded** claim → set the page `status: stale`.
 Gaps and drift are report-only (creating pages or renaming a concept is a human/`compile`
 decision, never an automatic edit).

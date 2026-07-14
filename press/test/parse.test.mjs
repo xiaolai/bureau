@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { splitFrontmatter, parseHtmlDoc, extractLinks } from "../src/core/parse.mjs";
+import { splitFrontmatter, parseHtmlDoc, extractLinks, relTargets } from "../src/core/parse.mjs";
 
 test("parse: BOM before --- does not defeat frontmatter (M15)", () => {
   const { frontmatter } = splitFrontmatter("﻿---\ntitle: X\n---\nbody");
@@ -28,28 +28,54 @@ test("parse: empty/whitespace [[ ]] targets are dropped (L5)", () => {
   assert.deepEqual(extractLinks("a [[]] b [[ ]] c [[Real]]"), ["Real"]);
 });
 
-// ── frontmatter: fail loud, never silently mangle ─────────────────────────────
+// ── frontmatter: multi-line lists parse; the rest fails loud ──────────────────
 // The regression: a multi-line YAML list used to (a) drop the list, and (b) harvest a bogus
 // key from any item containing a colon — so `sources:` provenance vanished silently, and two
-// colon-bearing items collided into a "duplicate key" crash. Flat `key: value` is the contract.
-test("parse: a multi-line YAML list throws instead of silently dropping the list", () => {
-  const doc = '---\ntitle: X\nsources:\n  - "session abc (theorist: Wayne)"\n---\nbody';
-  assert.throws(() => splitFrontmatter(doc), /unsupported frontmatter line/);
+// colon-bearing items collided into a "duplicate key" crash. It is the idiom every author
+// reaches for, so it now parses. What we can't represent still throws.
+test("parse: a multi-line YAML list parses into an array (no longer dropped)", () => {
+  const { frontmatter } = splitFrontmatter("---\ntitle: X\ntags:\n  - a\n  - b\n---\nbody");
+  assert.deepEqual(frontmatter.tags, ["a", "b"]);
 });
 
-test("parse: the multi-line-list error names the supported forms (actionable)", () => {
-  const doc = "---\ntitle: X\ntags:\n  - a\n  - b\n---\nbody";
-  assert.throws(() => splitFrontmatter(doc), /key: \[a, b\][\s\S]*\*\*Sources\.\*\*/);
-});
-
-test("parse: a colon in a list item can no longer become a frontmatter key", () => {
+test("parse: a colon inside a list item is text, never a frontmatter key", () => {
   const doc = '---\ntitle: X\nsources:\n  - "theorist: Wayne"\n  - "theorist: Ada"\n---\nbody';
+  const { frontmatter } = splitFrontmatter(doc);
   // used to throw `duplicate frontmatter key "- "theorist"` — a crash from reasonable data
-  assert.throws(() => splitFrontmatter(doc), /unsupported frontmatter line/);
+  assert.deepEqual(frontmatter.sources, ["theorist: Wayne", "theorist: Ada"]);
+  assert.deepEqual(Object.keys(frontmatter), ["title", "sources"]);
 });
 
-test("parse: a nested map / block scalar throws rather than half-parsing", () => {
+test("parse: multi-line list items keep their type — no YAML coercion", () => {
+  const { frontmatter } = splitFrontmatter("---\ntitle: X\nvals:\n  - 2026-06-12\n  - no\n  - 3\n---\nb");
+  // real YAML would hand back a Date, `false`, and a number. Strings only, by design.
+  assert.deepEqual(frontmatter.vals, ["2026-06-12", "no", "3"]);
+});
+
+test("parse: a multi-line list of wiki-links becomes edge targets", () => {
+  const { frontmatter } = splitFrontmatter('---\ntitle: X\nsources:\n  - "[[session a · 2026-06-10]]"\n  - "[[session b · 2026-06-11]]"\n---\nb');
+  assert.deepEqual(relTargets(frontmatter.sources), ["session a · 2026-06-10", "session b · 2026-06-11"]);
+});
+
+test("parse: sequence items may sit at the key's own indent (valid YAML)", () => {
+  const { frontmatter } = splitFrontmatter("---\ntitle: X\ntags:\n- a\n- b\n---\nb");
+  assert.deepEqual(frontmatter.tags, ["a", "b"]);
+});
+
+test("parse: a nested map still throws rather than half-parsing", () => {
   assert.throws(() => splitFrontmatter("---\ntitle: X\nmeta:\n  a: 1\n---\nb"), /unsupported frontmatter line/);
+});
+
+test("parse: a block scalar still throws rather than half-parsing", () => {
+  assert.throws(() => splitFrontmatter("---\ntitle: X\ndesc: |\n  line one\n---\nb"), /unsupported frontmatter line/);
+});
+
+test("parse: a stray list item under no key still throws", () => {
+  assert.throws(() => splitFrontmatter("---\ntitle: X\n- orphan\n---\nb"), /unsupported frontmatter line/);
+});
+
+test("parse: the error names the supported forms (actionable)", () => {
+  assert.throws(() => splitFrontmatter("---\ntitle: X\nmeta:\n  a: 1\n---\nb"), /multi-line[\s\S]*Nested maps, block scalars/);
 });
 
 test("parse: the supported single-line forms still work", () => {

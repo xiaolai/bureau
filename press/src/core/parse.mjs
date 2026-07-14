@@ -96,10 +96,13 @@ export function splitFrontmatter(raw) {
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!m) return { frontmatter: null, body: text };
   const fm = Object.create(null); // null-proto: a `__proto__:`/`constructor:` frontmatter key is data, not a prototype mutation
-  for (const line of m[1].split(/\r?\n/)) {
+  const lines = m[1].split(/\r?\n/);
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
     if (!line.trim()) continue;             // blank
     if (/^\s*#/.test(line)) continue;       // comment
-    // Anything indented, or a `- ` item: a list/nested map/block scalar. Not representable.
+    // A continuation line reaching the top level belongs to no key: a nested map, a block
+    // scalar's text, or a stray list item. Not representable — say so instead of guessing.
     if (/^\s/.test(line) || /^-\s/.test(line)) throw new Error(unsupportedFm(line));
     const i = line.indexOf(":");
     if (i < 0) continue;
@@ -109,24 +112,55 @@ export function splitFrontmatter(raw) {
     if (Object.prototype.hasOwnProperty.call(fm, key)) {
       throw new Error('duplicate frontmatter key "' + key + '"');
     }
-    fm[key] = parseScalar(line.slice(i + 1));
+    const inline = line.slice(i + 1).trim();
+    if (inline !== "") { fm[key] = parseScalar(inline); continue; }
+    // A bare `key:` opens a multi-line sequence — the idiom every author reaches for:
+    //     sources:
+    //       - "[[session a1b2c3d4 · 2026-06-10]]"
+    // Items stay STRINGS (no YAML type coercion: no `2026-06-12` → Date, no `no` → false).
+    // A following line that isn't a `- ` item ends the block; if it's indented, the next
+    // pass throws — so a nested map or block scalar is still rejected, not half-parsed.
+    const items = [];
+    while (li + 1 < lines.length) {
+      const it = lines[li + 1].match(/^[ \t]*-[ \t]+(.*)$/);
+      if (!it) break;
+      items.push(unquoteItem(it[1]));
+      li++;
+    }
+    fm[key] = items.length ? items : "";
   }
   return { frontmatter: fm, body: m[2] };
 }
 
+// a sequence item: strip one layer of matching quotes, keep the rest verbatim (a `:` inside
+// is just text — it used to be harvested as a bogus frontmatter key).
+function unquoteItem(raw) {
+  const v = raw.trim();
+  const q = v[0];
+  if ((q === '"' || q === "'") && v.length > 1 && v[v.length - 1] === q) return v.slice(1, -1);
+  return v;
+}
+
 function unsupportedFm(line) {
   return 'unsupported frontmatter line: "' + line.trim() + '"\n' +
-    "  Frontmatter is flat `key: value` lines only — no multi-line YAML lists, nested maps, or block scalars.\n" +
-    "  For a list, use one line: `key: [a, b]`. For a relation, use one line: `key: [[Target]]`.\n" +
-    "  Provenance does NOT go in frontmatter — put it in a body line: `**Sources.** [[session <id> · <date>]]`.";
+    "  Frontmatter supports flat `key: value` lines, inline lists (`key: [a, b]`), and multi-line\n" +
+    "  lists of scalars:\n" +
+    "      sources:\n" +
+    '        - "[[session <id> · <date>]]"\n' +
+    "  Nested maps, block scalars (`|`, `>`), and anchors are not supported.";
 }
 
 // ── HTML doc model ────────────────────────────────────────────────────────────
 // A relation value names edge targets ONLY via `[[A]] [[B]]` (mirrors the old
 // frontmatter rule: `[[..]]` ⇒ typed edge; anything else ⇒ a scalar/list attribute).
 export function relTargets(value) {
-  const s = String(value == null ? "" : value);
-  return s.includes("[[") ? extractLinks(s) : [];
+  const parts = Array.isArray(value) ? value : [value]; // a list value (inline or multi-line) names one target per item
+  const out = [];
+  for (const p of parts) {
+    const s = String(p == null ? "" : p);
+    if (s.includes("[[")) out.push(...extractLinks(s));
+  }
+  return out;
 }
 
 // a non-relation attribute value: `[a, b]` → array (for the schema single/list check),
