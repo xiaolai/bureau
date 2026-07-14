@@ -65,7 +65,11 @@ export function loadCorpus({ docsDir, dataDir = null } = {}) {
   const orderedGroups = []; const groupSeen = new Set(); // nav-section order = first appearance (folder-sorted)
   for (const file of files) {
     const isMd = file.endsWith(".md");
-    const parsed = (isMd ? parseMarkdownDoc : parseHtmlDoc)(readFileSync(safeDocPath(docsDir, file), "utf8"));
+    const raw = readFileSync(safeDocPath(docsDir, file), "utf8");
+    let parsed;
+    // the parser sees text, not paths — name the offending file, or the author can't find it
+    try { parsed = (isMd ? parseMarkdownDoc : parseHtmlDoc)(raw); }
+    catch (e) { throw new Error(file + ": " + e.message); }
     const dm = parsed.meta;
     if (dm.title == null || dm.title === "") throw new Error("missing title: " + file + " (add data-title, a frontmatter title, or an <h1>)");
     if (/[[\]|]/.test(String(dm.title))) throw new Error('invalid title (must not contain [ ] |): "' + dm.title + '" (' + file + ")"); // `|` is the wiki-link label delimiter
@@ -91,6 +95,7 @@ export function loadCorpus({ docsDir, dataDir = null } = {}) {
       format: isMd ? "md" : "html",
       icon: dm.icon || "file",
       updated: dm.updated || null,
+      status: parsed.metaChips.status != null ? String(parsed.metaChips.status) : null,
       attrs: parsed.attrs, edges,
       body: parsed.body, bodyLinks: parsed.bodyLinks.map(nfc),
       metaChips: parsed.metaChips,
@@ -145,7 +150,7 @@ export function buildModel({ docsDir, corpus } = {}) {
   for (const e of c.entries) {
     nodes[e.id] = {
       id: e.id, title: e.title, group: e.group, icon: e.icon,
-      updated: e.updated, file: e.file, attrs: e.attrs,
+      updated: e.updated, status: e.status ?? null, file: e.file, attrs: e.attrs,
     };
     for (const edge of e.edges) edges.push({ source: e.id, target: edge.target, edgeType: edge.edgeType });
   }

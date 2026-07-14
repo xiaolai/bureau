@@ -74,23 +74,51 @@ function parseScalar(raw) {
   return v;
 }
 
-// Split a doc into { frontmatter: {key: value}, body }. Throws on duplicate keys.
+// The frontmatter grammar this parser can actually represent: FLAT `key: value` lines.
+// A key is a plain identifier — anything else is a line we misread, not a key.
+const FM_KEY = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
+
+// Split a doc into { frontmatter: {key: value}, body }. Throws on duplicate keys, on a
+// key we can't represent, and on YAML the flat grammar would silently mangle.
+//
+// Why it throws instead of skipping: this is a line-by-line `indexOf(":")` reader, not a
+// YAML engine. Fed a nested block — the multi-line list every author reaches for —
+//
+//   sources:
+//     - "session 978074e1 (RT-03 pilot; theorist: Wayne)"
+//
+// it used to drop the list (`sources` → "") AND harvest a bogus key from the item's own
+// colon (`- "session … theorist` → `Wayne)"`), so two such items could even collide into
+// a "duplicate key" crash. Silent corruption of the very field that carries provenance.
+// The flat grammar is the contract; a block that isn't flat is now a loud, actionable error.
 export function splitFrontmatter(raw) {
   const text = String(raw).replace(/^﻿/, ""); // strip BOM (grill M15)
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!m) return { frontmatter: null, body: text };
   const fm = Object.create(null); // null-proto: a `__proto__:`/`constructor:` frontmatter key is data, not a prototype mutation
   for (const line of m[1].split(/\r?\n/)) {
+    if (!line.trim()) continue;             // blank
+    if (/^\s*#/.test(line)) continue;       // comment
+    // Anything indented, or a `- ` item: a list/nested map/block scalar. Not representable.
+    if (/^\s/.test(line) || /^-\s/.test(line)) throw new Error(unsupportedFm(line));
     const i = line.indexOf(":");
     if (i < 0) continue;
     const key = line.slice(0, i).trim();
     if (!key) continue;
+    if (!FM_KEY.test(key)) throw new Error(unsupportedFm(line));
     if (Object.prototype.hasOwnProperty.call(fm, key)) {
       throw new Error('duplicate frontmatter key "' + key + '"');
     }
     fm[key] = parseScalar(line.slice(i + 1));
   }
   return { frontmatter: fm, body: m[2] };
+}
+
+function unsupportedFm(line) {
+  return 'unsupported frontmatter line: "' + line.trim() + '"\n' +
+    "  Frontmatter is flat `key: value` lines only — no multi-line YAML lists, nested maps, or block scalars.\n" +
+    "  For a list, use one line: `key: [a, b]`. For a relation, use one line: `key: [[Target]]`.\n" +
+    "  Provenance does NOT go in frontmatter — put it in a body line: `**Sources.** [[session <id> · <date>]]`.";
 }
 
 // ── HTML doc model ────────────────────────────────────────────────────────────
