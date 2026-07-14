@@ -10,7 +10,7 @@ import { createServer } from "http";
 import { spawn } from "child_process";
 import { buildSite, computeHealth } from "../src/build.mjs";
 import { renderHealthText } from "../src/render/health-report.mjs";
-import { healthTotal } from "../src/derive/health.mjs";
+import { healthTotal, countsTotal } from "../src/derive/health.mjs";
 import { parseDate } from "../src/services/dates.mjs";
 import { planRename, applyRename } from "../src/maintain/rename.mjs";
 import { buildRepairPlan, applySafe, renderRepairText } from "../src/maintain/doctor.mjs";
@@ -53,8 +53,7 @@ function runBuild() {
     if (r.coldCount) bits.push("cold events " + r.coldCount + " → sequence diagrams + daily table");
     if (r.themeOverride) bits.push("theme.css override");
     if (r.assetsCopied) bits.push("assets/ copied");
-    const h = r.health;
-    const total = h.dangling + h.orphan + h.contradiction + h.invalidDate + h.stale + h.schema + h.drift;
+    const total = countsTotal(r.health); // r.health is the counts object (build.mjs); hand-summing it drops new lanes
     bits.push("health " + (r.healthClean ? "✅" : "⚠ " + total + (total === 1 ? " item" : " items")));
     console.log("✓ build: " + bits.join(", ") + " (" + r.totalDocs + " pages) -> " + r.outDir);
     return r;
@@ -324,7 +323,7 @@ switch (cmd) {
       "  gazette watch                      rebuild on save (no server)",
       "",
       "  maintain the knowledge base:",
-      "  gazette audit  (alias: health)     deterministic check: dangling/orphan/contradiction/stale/schema/drift",
+      "  gazette audit  (alias: health)     deterministic check: dangling/orphan/contradiction/stale/schema/drift/unsourced",
       "  gazette doctor [--apply]           audit → repair plan (--apply fixes the safe subset)",
       '  gazette rename "<old>" "<new>" [--dry]  rename a doc + propagate every reference',
       "",

@@ -23,6 +23,7 @@ export function renderHealthHtml(health) {
     ["<code>_types</code> schema violations", c.schema],
     ["Ledger drift (declared ≠ actual)", c.drift],
     ["Stale (neighbors moved, this didn't)", c.stale],
+    ["Unsourced (a claim with no provenance)", c.unsourced],
   ];
   b += '<table class="wb-table"><thead><tr><th>Check</th><th class="num">Count</th></tr></thead><tbody>' +
     rows.map(([k, v]) => "<tr><td>" + k + '</td><td class="num">' + v + "</td></tr>").join("") +
@@ -63,6 +64,10 @@ export function renderHealthHtml(health) {
     b += section("Stale", c.stale, "Hasn't changed in a while, but a doc it links to was updated more recently — may need a revisit.",
       tbl(["Document", "Updated", "Newer neighbor"], health.stale.map((s) => "<tr><td>" + wl(s.node) + "</td><td>" + esc(s.updated) + "</td><td>" + wl(s.newerNeighbor) + "</td></tr>").join("")));
   }
+  if (c.unsourced) {
+    b += section("Unsourced", c.unsourced, "This page states a claim (it carries a trust tier) but links back to nothing that justifies it. Add a body <code>**Sources.**</code> line linking the minute the claim came from — a frontmatter <code>sources:</code> key is not provenance.",
+      tbl(["Document", "Tier"], health.unsourced.map((u) => "<tr><td>" + wl(u.node) + "</td><td><code>" + esc(u.status) + "</code></td></tr>").join("")));
+  }
   return b + "</article>";
 }
 
@@ -77,6 +82,7 @@ export function renderHealthText(health) {
     "  schema viol.   : " + c.schema,
     "  ledger drift   : " + c.drift,
     "  stale          : " + c.stale,
+    "  unsourced      : " + c.unsourced,
   ];
   for (const d of health.dangling) lines.push("  x dangling  " + d.source + " -> " + d.target + " (" + (d.edgeType || "body") + ")");
   for (const o of health.orphan) lines.push("  o orphan    " + o.node);
@@ -85,5 +91,6 @@ export function renderHealthText(health) {
   for (const s of health.schema) lines.push("  # schema    " + s.node + " " + s.kind + " '" + s.key + "'");
   for (const d of health.drift) lines.push("  = drift     declared " + d.declared + " vs actual " + d.actual);
   for (const s of health.stale) lines.push("  . stale     " + s.node + " (neighbor " + s.newerNeighbor + " newer)");
+  for (const u of health.unsourced) lines.push("  ~ unsourced " + u.node + " (" + u.status + ", no provenance link)");
   return lines.join("\n");
 }

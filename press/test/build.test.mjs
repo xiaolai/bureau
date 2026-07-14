@@ -21,7 +21,7 @@ test("buildSite: integrated build emits deterministic model.json + health.json",
   const rb = buildTo(b);
 
   // health wired through the integrated path
-  assert.deepEqual(ra.health, { dangling: 1, orphan: 1, contradiction: 1, invalidDate: 0, stale: 1, schema: 1, drift: 0 });
+  assert.deepEqual(ra.health, { dangling: 1, orphan: 1, contradiction: 1, invalidDate: 0, stale: 1, schema: 1, drift: 0, unsourced: 0 });
   assert.equal(ra.healthClean, false);
 
   // double-build byte-identical across the WHOLE artifact (the determinism gate, P3 / grill M11)

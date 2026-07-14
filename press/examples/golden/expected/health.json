@@ -12,7 +12,8 @@
     "invalidDate": 0,
     "orphan": 1,
     "schema": 1,
-    "stale": 1
+    "stale": 1,
+    "unsourced": 0
   },
   "dangling": [
     {
@@ -43,5 +44,6 @@
       "updated": "2026-01-01"
     }
   ],
-  "staleWindowDays": 30
+  "staleWindowDays": 30,
+  "unsourced": []
 }

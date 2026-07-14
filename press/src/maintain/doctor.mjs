@@ -48,6 +48,7 @@ export function buildRepairPlan(model, health) {
   for (const s of health.stale) fixes.push({ kind: "stale", node: s.node, auto: false, advice: "revisit - neighbor " + s.newerNeighbor + " was updated" });
   for (const i of health.invalidDate) fixes.push({ kind: "invalidDate", node: i.node, value: i.updated, auto: false, advice: "fix to a valid YYYY-MM-DD" });
   for (const sc of health.schema) fixes.push({ kind: "schema", node: sc.node, key: sc.key, why: sc.kind, auto: false, advice: "adjust the _types schema or the document" });
+  for (const u of health.unsourced || []) fixes.push({ kind: "unsourced", node: u.node, status: u.status, auto: false, advice: "add a body `**Sources.** [[session <id> · <date>]]` line naming the minute this claim came from (never a frontmatter `sources:` key)" });
   return fixes;
 }
 

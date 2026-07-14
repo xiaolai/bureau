@@ -13,7 +13,7 @@ const CLEAN_DOCS = resolve(here, "..", "examples", "clean", "gazette");
 test("health: clean corpus reports ZERO findings (M8 — no false positives)", () => {
   const m = buildModel({ docsDir: CLEAN_DOCS });
   const h = deriveHealth(m, deriveBacklinks(m), { now: FIXED_NOW });
-  assert.deepEqual(h.counts, { dangling: 0, orphan: 0, contradiction: 0, invalidDate: 0, stale: 0, schema: 0, drift: 0 });
+  assert.deepEqual(h.counts, { dangling: 0, orphan: 0, contradiction: 0, invalidDate: 0, stale: 0, schema: 0, drift: 0, unsourced: 0 });
   assert.equal(healthTotal(h), 0);
 });
 

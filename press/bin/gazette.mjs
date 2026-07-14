@@ -21270,22 +21270,30 @@ function parseScalar(raw) {
   }
   return v;
 }
+var FM_KEY = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
 function splitFrontmatter(raw) {
   const text2 = String(raw).replace(/^﻿/, "");
   const m = text2.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!m) return { frontmatter: null, body: text2 };
   const fm = /* @__PURE__ */ Object.create(null);
   for (const line of m[1].split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    if (/^\s*#/.test(line)) continue;
+    if (/^\s/.test(line) || /^-\s/.test(line)) throw new Error(unsupportedFm(line));
     const i = line.indexOf(":");
     if (i < 0) continue;
     const key = line.slice(0, i).trim();
     if (!key) continue;
+    if (!FM_KEY.test(key)) throw new Error(unsupportedFm(line));
     if (Object.prototype.hasOwnProperty.call(fm, key)) {
       throw new Error('duplicate frontmatter key "' + key + '"');
     }
     fm[key] = parseScalar(line.slice(i + 1));
   }
   return { frontmatter: fm, body: m[2] };
+}
+function unsupportedFm(line) {
+  return 'unsupported frontmatter line: "' + line.trim() + '"\n  Frontmatter is flat `key: value` lines only \u2014 no multi-line YAML lists, nested maps, or block scalars.\n  For a list, use one line: `key: [a, b]`. For a relation, use one line: `key: [[Target]]`.\n  Provenance does NOT go in frontmatter \u2014 put it in a body line: `**Sources.** [[session <id> \xB7 <date>]]`.';
 }
 function relTargets(value) {
   const s = String(value == null ? "" : value);
@@ -21783,7 +21791,13 @@ function loadCorpus({ docsDir, dataDir = null } = {}) {
   const groupSeen = /* @__PURE__ */ new Set();
   for (const file of files) {
     const isMd = file.endsWith(".md");
-    const parsed = (isMd ? parseMarkdownDoc : parseHtmlDoc)(readFileSync2(safeDocPath(docsDir, file), "utf8"));
+    const raw = readFileSync2(safeDocPath(docsDir, file), "utf8");
+    let parsed;
+    try {
+      parsed = (isMd ? parseMarkdownDoc : parseHtmlDoc)(raw);
+    } catch (e) {
+      throw new Error(file + ": " + e.message);
+    }
     const dm = parsed.meta;
     if (dm.title == null || dm.title === "") throw new Error("missing title: " + file + " (add data-title, a frontmatter title, or an <h1>)");
     if (/[[\]|]/.test(String(dm.title))) throw new Error('invalid title (must not contain [ ] |): "' + dm.title + '" (' + file + ")");
@@ -21808,6 +21822,7 @@ function loadCorpus({ docsDir, dataDir = null } = {}) {
       format: isMd ? "md" : "html",
       icon: dm.icon || "file",
       updated: dm.updated || null,
+      status: parsed.metaChips.status != null ? String(parsed.metaChips.status) : null,
       attrs: parsed.attrs,
       edges,
       body: parsed.body,
@@ -21864,6 +21879,7 @@ function buildModel({ docsDir, corpus } = {}) {
       group: e.group,
       icon: e.icon,
       updated: e.updated,
+      status: e.status ?? null,
       file: e.file,
       attrs: e.attrs
     };
@@ -21991,6 +22007,26 @@ function deriveHealth(model, backlinks, { now = null, staleWindowDays = 30, know
       if (newest) stale.push({ node: id, updated: nodes[id].updated, newerNeighbor: newest });
     }
   }
+  const unsourced = [];
+  const prov = model.meta && model.meta.provenance || null;
+  const sourceGroup = prov && prov.sourceGroup != null ? String(prov.sourceGroup) : null;
+  const requireFor = new Set(
+    (prov && Array.isArray(prov.requireFor) ? prov.requireFor : []).map((s) => String(s).toLowerCase())
+  );
+  const excluded = new Set(
+    (prov && Array.isArray(prov.exclude) ? prov.exclude : []).map((s) => String(s).normalize("NFC"))
+  );
+  if (sourceGroup && requireFor.size) {
+    const inDrawer = (id) => Object.prototype.hasOwnProperty.call(nodes, id) && nodes[id].group === sourceGroup;
+    const isSource = (id) => inDrawer(id) && !excluded.has(id);
+    for (const id of ids) {
+      if (inDrawer(id)) continue;
+      const status = nodes[id].status;
+      if (!status || !requireFor.has(String(status).toLowerCase())) continue;
+      if ((backlinks.outbound[id] || []).some(isSource)) continue;
+      unsourced.push({ node: id, status: String(status) });
+    }
+  }
   const schema = lintSchema(model, model.types);
   const drift = [];
   if (model.meta && model.meta.expectedDocs != null && Number(model.meta.expectedDocs) !== ids.size) {
@@ -22004,6 +22040,7 @@ function deriveHealth(model, backlinks, { now = null, staleWindowDays = 30, know
   stale.sort(byJSON);
   schema.sort(byJSON);
   drift.sort(byJSON);
+  unsourced.sort(byJSON);
   return {
     now,
     staleWindowDays,
@@ -22014,7 +22051,8 @@ function deriveHealth(model, backlinks, { now = null, staleWindowDays = 30, know
       invalidDate: invalidDate.length,
       stale: stale.length,
       schema: schema.length,
-      drift: drift.length
+      drift: drift.length,
+      unsourced: unsourced.length
     },
     dangling,
     orphan,
@@ -22022,12 +22060,17 @@ function deriveHealth(model, backlinks, { now = null, staleWindowDays = 30, know
     invalidDate,
     stale,
     schema,
-    drift
+    drift,
+    unsourced
   };
 }
+function countsTotal(counts) {
+  let n = 0;
+  for (const v of Object.values(counts || {})) n += Number(v) || 0;
+  return n;
+}
 function healthTotal(health) {
-  const c = health.counts;
-  return c.dangling + c.orphan + c.contradiction + c.invalidDate + c.stale + c.schema + c.drift;
+  return countsTotal(health.counts);
 }
 
 // src/derive/timeline.mjs
@@ -22497,7 +22540,8 @@ function renderHealthHtml(health) {
     ["Invalid dates (bad <code>updated</code>)", c.invalidDate],
     ["<code>_types</code> schema violations", c.schema],
     ["Ledger drift (declared \u2260 actual)", c.drift],
-    ["Stale (neighbors moved, this didn't)", c.stale]
+    ["Stale (neighbors moved, this didn't)", c.stale],
+    ["Unsourced (a claim with no provenance)", c.unsourced]
   ];
   b += '<table class="wb-table"><thead><tr><th>Check</th><th class="num">Count</th></tr></thead><tbody>' + rows.map(([k, v]) => "<tr><td>" + k + '</td><td class="num">' + v + "</td></tr>").join("") + "</tbody></table>";
   if (clean) return b + "<blockquote><p>\u2705 No findings. The knowledge base is consistent.</p></blockquote></article>";
@@ -22560,6 +22604,14 @@ function renderHealthHtml(health) {
       tbl(["Document", "Updated", "Newer neighbor"], health.stale.map((s) => "<tr><td>" + wl(s.node) + "</td><td>" + esc3(s.updated) + "</td><td>" + wl(s.newerNeighbor) + "</td></tr>").join(""))
     );
   }
+  if (c.unsourced) {
+    b += section(
+      "Unsourced",
+      c.unsourced,
+      "This page states a claim (it carries a trust tier) but links back to nothing that justifies it. Add a body <code>**Sources.**</code> line linking the minute the claim came from \u2014 a frontmatter <code>sources:</code> key is not provenance.",
+      tbl(["Document", "Tier"], health.unsourced.map((u) => "<tr><td>" + wl(u.node) + "</td><td><code>" + esc3(u.status) + "</code></td></tr>").join(""))
+    );
+  }
   return b + "</article>";
 }
 function renderHealthText(health) {
@@ -22572,7 +22624,8 @@ function renderHealthText(health) {
     "  invalid dates  : " + c.invalidDate,
     "  schema viol.   : " + c.schema,
     "  ledger drift   : " + c.drift,
-    "  stale          : " + c.stale
+    "  stale          : " + c.stale,
+    "  unsourced      : " + c.unsourced
   ];
   for (const d of health.dangling) lines.push("  x dangling  " + d.source + " -> " + d.target + " (" + (d.edgeType || "body") + ")");
   for (const o of health.orphan) lines.push("  o orphan    " + o.node);
@@ -22581,6 +22634,7 @@ function renderHealthText(health) {
   for (const s of health.schema) lines.push("  # schema    " + s.node + " " + s.kind + " '" + s.key + "'");
   for (const d of health.drift) lines.push("  = drift     declared " + d.declared + " vs actual " + d.actual);
   for (const s of health.stale) lines.push("  . stale     " + s.node + " (neighbor " + s.newerNeighbor + " newer)");
+  for (const u of health.unsourced) lines.push("  ~ unsourced " + u.node + " (" + u.status + ", no provenance link)");
   return lines.join("\n");
 }
 
@@ -23249,6 +23303,7 @@ function buildRepairPlan(model, health) {
   for (const s of health.stale) fixes.push({ kind: "stale", node: s.node, auto: false, advice: "revisit - neighbor " + s.newerNeighbor + " was updated" });
   for (const i of health.invalidDate) fixes.push({ kind: "invalidDate", node: i.node, value: i.updated, auto: false, advice: "fix to a valid YYYY-MM-DD" });
   for (const sc of health.schema) fixes.push({ kind: "schema", node: sc.node, key: sc.key, why: sc.kind, auto: false, advice: "adjust the _types schema or the document" });
+  for (const u of health.unsourced || []) fixes.push({ kind: "unsourced", node: u.node, status: u.status, auto: false, advice: "add a body `**Sources.** [[session <id> \xB7 <date>]]` line naming the minute this claim came from (never a frontmatter `sources:` key)" });
   return fixes;
 }
 function applySafe(docsDir, fixes, model) {
@@ -23321,8 +23376,7 @@ function runBuild() {
     if (r.coldCount) bits.push("cold events " + r.coldCount + " \u2192 sequence diagrams + daily table");
     if (r.themeOverride) bits.push("theme.css override");
     if (r.assetsCopied) bits.push("assets/ copied");
-    const h = r.health;
-    const total = h.dangling + h.orphan + h.contradiction + h.invalidDate + h.stale + h.schema + h.drift;
+    const total = countsTotal(r.health);
     bits.push("health " + (r.healthClean ? "\u2705" : "\u26A0 " + total + (total === 1 ? " item" : " items")));
     console.log("\u2713 build: " + bits.join(", ") + " (" + r.totalDocs + " pages) -> " + r.outDir);
     return r;
@@ -23664,7 +23718,7 @@ switch (cmd) {
       "  gazette watch                      rebuild on save (no server)",
       "",
       "  maintain the knowledge base:",
-      "  gazette audit  (alias: health)     deterministic check: dangling/orphan/contradiction/stale/schema/drift",
+      "  gazette audit  (alias: health)     deterministic check: dangling/orphan/contradiction/stale/schema/drift/unsourced",
       "  gazette doctor [--apply]           audit \u2192 repair plan (--apply fixes the safe subset)",
       '  gazette rename "<old>" "<new>" [--dry]  rename a doc + propagate every reference',
       "",
