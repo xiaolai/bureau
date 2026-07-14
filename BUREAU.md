@@ -41,6 +41,21 @@ not hand-edit cabinet pages. Memory is gated: **capture** (it lands in the low-a
 **compile** (into cabinet pages as `proposed`/`verified`) → **review** (a human promotes to
 `canonical`). The logbook is append-only — never rewrite a past entry.
 
+## Provenance goes in the body, never in frontmatter
+
+Every cabinet claim links back to the minute that introduced it. That link is a **body** line:
+
+```markdown
+**Sources.** [[session a1b2c3d4 · 2026-06-10]]
+```
+
+- A frontmatter `sources:` key is **not** provenance — the press indexes body links, and a page
+  whose only "sources" are in frontmatter counts as **unsourced**. `gazette health` fails on it.
+- Frontmatter is **flat `key: value` lines only**. A multi-line YAML list is rejected outright —
+  for a list, write one line (`tags: [a, b]`); for a relation, write one line
+  (`contradicts: [[Other page]]`).
+- Cite the **minute**, not the drawer: linking `[[Logbook]]` is not provenance for a claim.
+
 <!-- bureau:crew -->
 @bureau/crew/auditor/brief.md
 <!-- /bureau:crew -->

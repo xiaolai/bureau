@@ -2,7 +2,6 @@
 title: ADR 0001 — Adopt bureau
 updated: {{DATE}}
 status: canonical
-sources: []
 ---
 
 # ADR 0001 — Adopt bureau
@@ -17,3 +16,5 @@ provenance back to the logbook.
 
 **Consequences.** Drift is fought structurally: one owned layer, mechanical render,
 every claim traceable to its origin session.
+
+**Sources.** [[session init · {{DATE}}]]

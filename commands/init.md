@@ -59,20 +59,41 @@ matter when the workspace already exists; on a first init they are no-ops.
 3. **Copy the template (no overwrite).** Copy `${CLAUDE_PLUGIN_ROOT}/templates/workspace/`
    into `<workspace>/` without overwriting any existing file, then replace every `{{DATE}}`
    token with today's date (YYYY-MM-DD). This lays down:
-   - `_config.json` (gazette meta)
+   - `_config.json` (gazette meta + the `provenance` block that arms the `unsourced` health lane)
    - `bureau.json` (profiles, workspace, board dir, autoCompile)
    - `00-overview.md`, `decisions/0001-adopt-bureau.md` (a starter cabinet drawer)
-   - `logbook/00-logbook.md` (the history drawer landing page)
+   - `logbook/00-logbook.md` (the history drawer landing page) and `logbook/0001-founding.md`
+     (the founding minute — the seed ADR cites it, so a fresh workspace demonstrates the whole
+     provenance loop: claim → minute, with the backlink rendered)
    - `.gitignore` (workspace-level note; the board is ignored at the repo root — step 5)
 
 4. **Write resolved config.** Update `<workspace>/bureau.json` so BOTH `profiles` AND
    `workspace` (and `board`) reflect the resolved values — a custom `--workspace` must not
    leave the template's default `"bureau"` behind.
 
-5. **Add profile drawers.** For each active profile, create the suggested empty drawers when
-   missing (never overwrite):
+5. **Add profile drawers, and arm the provenance check.** Two parts:
+
+   a. For each active profile, create the suggested empty drawers when missing (never overwrite):
    - **software** → `architecture/`, `modules/` (plus the shared `decisions/`)
    - **story** → `characters/`, `timeline/`, `canon/`
+
+   b. Ensure `<workspace>/_config.json` carries the `meta.provenance` block — **in every mode,
+      including `--reinit`**, since an existing workspace predates this check and is exactly the
+      one most likely to have unsourced pages. Merge it in without disturbing other `meta` keys:
+
+      ```json
+      "provenance": {
+        "requireFor": ["proposed", "verified", "canonical", "contested", "stale"],
+        "sourceGroup": "logbook",
+        "exclude": ["Logbook"]
+      }
+      ```
+
+      This arms the `unsourced` health lane: any page carrying a trust tier that never links back
+      into the logbook is a claim with no provenance, and `gazette health` fails on it. On an
+      existing workspace this can surface findings on the first run — that is the point; they were
+      always there, just invisible. Report them and point at the fix (a body `**Sources.**` line),
+      never a frontmatter `sources:` key.
 
 6. **Write the bureau instructions and wire `CLAUDE.md` to import them.** Two parts:
 

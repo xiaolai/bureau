@@ -29,5 +29,6 @@ test("bureau's own canon builds healthy (self-dogfood)", (t) => {
   assert.equal(n(/dangling links\s*:\s*(\d+)/), 0, "no dangling links (every provenance/wiki link resolves)");
   assert.equal(n(/orphans\s*:\s*(\d+)/), 0, "no orphan pages");
   assert.equal(n(/contradictions\s*:\s*(\d+)/), 0, "no unresolved contradictions");
+  assert.equal(n(/unsourced\s*:\s*(\d+)/), 0, "every cabinet claim links back to the minute that justifies it");
   assert.ok(existsSync(join(out, "index.html")), "the board rendered");
 });

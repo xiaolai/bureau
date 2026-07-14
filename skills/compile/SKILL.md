@@ -28,8 +28,10 @@ A dossier is one markdown file in a topic drawer (`decisions/`, `architecture/`,
 tier unambiguous). Frontmatter uses the press's simple parser: the **title is unique and
 unquoted** and a scalar value contains no `"`, newline, or `[ ] |`. The only values that carry
 `[[ ]]` are **single-line typed relation edges** like `contradicts: [[Other page]]` (never a
-multi-line YAML list — the simple parser ignores those). Provenance lives in the **body** (a
-`Sources` line), because the press's backlinks panel indexes body links, not frontmatter:
+multi-line YAML list — the parser **rejects** those and the build fails). Provenance lives in
+the **body** (a `Sources` line), because the press's backlinks panel indexes body links, not
+frontmatter — a frontmatter `sources:` key is not provenance, and `gazette health` now reports
+any tiered page without a body `Sources` link as **unsourced**:
 
 ```markdown
 ---
@@ -114,7 +116,7 @@ Instead:
 - keep both claims in the body, each with its own `[[session …]]` provenance;
 - add a typed `contradicts:` edge naming the other page — a **single line**:
   `contradicts: [[Other page]]` (for 2+, one comma list `contradicts: [[A]], [[B]]`,
-  deduped; **never** a multi-line YAML list, which the press ignores). Add the reciprocal edge
+  deduped; **never** a multi-line YAML list, which the press rejects). Add the reciprocal edge
   on the other page. the press's health lane then renders the contradiction;
 - name the conflict in the report so the human resolves it.
 

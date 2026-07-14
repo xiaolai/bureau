@@ -2,6 +2,11 @@
   "meta": {
     "title": "Bureau",
     "subtitle": "session canon",
-    "home": "Overview"
+    "home": "Overview",
+    "provenance": {
+      "requireFor": ["proposed", "verified", "canonical", "contested", "stale"],
+      "sourceGroup": "logbook",
+      "exclude": ["Logbook"]
+    }
   }
 }

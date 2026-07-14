@@ -29,4 +29,4 @@ them stay plain (*build*, *file*, *review*, *check*, *ask*).
 **Reserved dirs in a repo:** `bureau/` (the control plane — the crew lives at `bureau/crew/`),
 `gazette/` (the rendered output), `board`/`crew` — none of these can be the workspace name.
 
-**Sources.** [[Overview]]
+**Sources.** [[session init · 2026-06-12]]
