@@ -75,5 +75,8 @@ export const ICONS = {
   heart: '<path d="M10 16S4 12 4 7.8A2.8 2.8 0 0 1 10 6a2.8 2.8 0 0 1 6 1.8C16 12 10 16 10 16z"/>',
 };
 export function icon(n) {
-  return '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[n] || ICONS.file) + "</svg>";
+  // own-property only: a name like "constructor"/"__proto__"/"toString" must fall back to the
+  // default glyph, not resolve to an inherited Object member (which would inject junk into the SVG).
+  const glyph = Object.prototype.hasOwnProperty.call(ICONS, n) ? ICONS[n] : ICONS.file;
+  return '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' + glyph + "</svg>";
 }

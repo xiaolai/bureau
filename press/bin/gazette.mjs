@@ -11997,7 +11997,7 @@ var require_source_map = __commonJS({
 var require_previous_map = __commonJS({
   "node_modules/postcss/lib/previous-map.js"(exports, module) {
     "use strict";
-    var { existsSync: existsSync7, readFileSync: readFileSync9 } = __require("fs");
+    var { existsSync: existsSync6, readFileSync: readFileSync9 } = __require("fs");
     var { dirname: dirname4, join: join11 } = __require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     function fromBase64(str) {
@@ -12067,7 +12067,7 @@ var require_previous_map = __commonJS({
           }
         }
         this.root = dirname4(path);
-        if (existsSync7(path)) {
+        if (existsSync6(path)) {
           this.mapFile = path;
           return readFileSync9(path, "utf-8").toString().trim();
         }
@@ -15918,13 +15918,13 @@ and ensure you are accounting for this risk.
 });
 
 // bin/cli.mjs
-import { existsSync as existsSync6, mkdirSync as mkdirSync2, writeFileSync as writeFileSync4, appendFileSync, readFileSync as readFileSync8, statSync as statSync2, lstatSync as lstatSync7, readdirSync as readdirSync5, realpathSync as realpathSync3, watch } from "fs";
+import { existsSync as existsSync5, mkdirSync as mkdirSync2, writeFileSync as writeFileSync4, appendFileSync, readFileSync as readFileSync8, statSync as statSync2, lstatSync as lstatSync7, readdirSync as readdirSync5, realpathSync as realpathSync3, watch } from "fs";
 import { join as join10, resolve as resolve2, dirname as dirname3, extname as extname2, sep as sep4, relative as relative4 } from "path";
 import { createServer } from "http";
 import { spawn } from "child_process";
 
 // src/build.mjs
-import { readFileSync as readFileSync5, writeFileSync, existsSync as existsSync5, mkdirSync, copyFileSync, cpSync, rmSync, renameSync, readdirSync as readdirSync4, lstatSync as lstatSync5, realpathSync as realpathSync2 } from "fs";
+import { readFileSync as readFileSync5, writeFileSync, existsSync as existsSync4, mkdirSync, copyFileSync, cpSync, rmSync, renameSync, readdirSync as readdirSync4, lstatSync as lstatSync5, realpathSync as realpathSync2 } from "fs";
 import { join as join7, dirname as dirname2, resolve, sep as sep3, relative as relative3 } from "path";
 import { fileURLToPath } from "url";
 import { createHash } from "crypto";
@@ -21381,7 +21381,7 @@ function parseHtmlDoc(raw) {
   const walk4 = (node) => {
     for (const ch of node.childNodes) {
       if (ch.nodeType === 3) {
-        if (!isInRawText(ch)) for (const t of extractBodyLinks(ch.rawText)) seen.push(t);
+        if (!isInRawText(ch)) for (const t of extractBodyLinks(decodeEntities(ch.rawText))) seen.push(t);
       } else if (ch.nodeType === 1) walk4(ch);
     }
   };
@@ -21550,7 +21550,7 @@ function addHeadingIds(html) {
 }
 function resolveImageEmbeds(html, assetIndex) {
   return replaceOutsideRaw(html, (h) => replaceInGaps(h, (gap) => gap.replace(/!\[\[([^\]|#]+?)(?:\|([^\]]*))?\]\]/g, (m, target, label) => {
-    const name = String(target).trim();
+    const name = decodeEntities(String(target).trim());
     if (!IMG_EXT.test(name)) return m;
     const url = assetIndex && (assetIndex[name] || assetIndex[name.split("/").pop()]) || "";
     if (!url) return '<span class="wb-embed-missing">\u26D4 missing image: ' + escapeHtml2(name) + "</span>";
@@ -21577,7 +21577,7 @@ function stripMdCode(s) {
   return out.join("\n");
 }
 function stripMdLiteral(s) {
-  return stripMdCode(s).replace(RAW_BLOCK, " ");
+  return stripMdCode(s).replace(RAW_BLOCK, " ").replace(/<[^>]*>/g, " ");
 }
 function parseMarkdownDoc(raw) {
   const { frontmatter, body } = splitFrontmatter(raw);
@@ -21636,7 +21636,7 @@ function resolveLinks(html, resolve3) {
     const label = decodeEntities(stripTags(inner)) || target;
     return resolve3(target, label);
   });
-  h = replaceInGaps(h, (gap) => gap.replace(WIKI_RE2_LINK, (_, t, l) => resolve3(t.trim(), (l || t).trim())));
+  h = replaceInGaps(h, (gap) => gap.replace(WIKI_RE2_LINK, (_, t, l) => resolve3(decodeEntities(t.trim()), decodeEntities((l || t).trim()))));
   return h.replace(/\uE000(\d+)\uE001/g, (_, i) => slots[+i]);
 }
 var escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -21687,7 +21687,7 @@ function rewriteTitle(html, from, to) {
     return o + nb + c;
   });
   h = h.replace(/(\bdata-title\s*=\s*)("|')([\s\S]*?)\2/i, (m, p, q, v) => {
-    if (v.trim() === from) {
+    if (decodeEntities(v.trim()) === from) {
       changed = true;
       return p + '"' + escapeAttr(to) + '"';
     }
@@ -21735,7 +21735,14 @@ function discover({ docsDir, dataDir }) {
       return false;
     }
   };
-  const lsTop = (dir, pred) => existsSync(dir) ? readdirSync(dir).filter((f) => pred(f) && isFile(dir)(f)).sort() : [];
+  const realDir = (dir) => {
+    try {
+      return existsSync(dir) && !lstatSync(dir).isSymbolicLink();
+    } catch {
+      return false;
+    }
+  };
+  const lsTop = (dir, pred) => realDir(dir) ? readdirSync(dir).filter((f) => pred(f) && isFile(dir)(f)).sort() : [];
   return {
     docsDir,
     typesDir,
@@ -21757,8 +21764,12 @@ function loadTypes(typesDir, typeFiles) {
   for (const f of typeFiles) {
     const { frontmatter: fm } = splitFrontmatter(readFileSync(join2(typesDir, f), "utf8"));
     if (!fm || !fm.applies) continue;
-    schemas[String(fm.applies)] = {
-      applies: String(fm.applies),
+    const applies = String(fm.applies);
+    if (Object.prototype.hasOwnProperty.call(schemas, applies)) {
+      throw new Error('duplicate _types schema for group "' + applies + '": ' + schemas[applies].file + " and " + f);
+    }
+    schemas[applies] = {
+      applies,
       edges: new Set(asList(fm.edges)),
       fields: new Set(asList(fm.fields)),
       required: asList(fm.required),
@@ -21769,7 +21780,7 @@ function loadTypes(typesDir, typeFiles) {
   return schemas;
 }
 function typesPlain(schemas) {
-  const out = {};
+  const out = /* @__PURE__ */ Object.create(null);
   for (const [k, s] of Object.entries(schemas)) {
     out[k] = { applies: s.applies, edges: [...s.edges].sort(), fields: [...s.fields].sort(), required: [...s.required].sort(), single: [...s.single].sort() };
   }
@@ -21805,8 +21816,14 @@ function readConfig(docsDir) {
   if (typeof meta !== "object" || Array.isArray(meta)) throw new Error('_config.json: "meta" must be an object' + where);
   const groups = cfg.groups == null ? [] : cfg.groups;
   if (!Array.isArray(groups)) throw new Error('_config.json: "groups" must be an array' + where);
+  const seenId = /* @__PURE__ */ new Set();
   for (const g of groups) {
     if (g === null || typeof g !== "object" || Array.isArray(g)) throw new Error('_config.json: every "groups" entry must be an object' + where);
+    if (g.id != null) {
+      if (typeof g.id !== "string") throw new Error('_config.json: group "id" must be a string' + where);
+      if (seenId.has(g.id)) throw new Error('_config.json: duplicate group id "' + g.id + '"' + where);
+      seenId.add(g.id);
+    }
   }
   return { meta, groups };
 }
@@ -21824,6 +21841,7 @@ function safeDocPath(docsDir, file) {
 }
 function loadCorpus({ docsDir, dataDir = null } = {}) {
   if (!existsSync2(docsDir)) throw new Error("docs directory not found: " + docsDir + " (run `gazette init`)");
+  if (lstatSync2(docsDir).isSymbolicLink()) throw new Error("content directory is a symlink (refused): " + docsDir);
   const { meta, groups: cfgGroups } = readConfig(docsDir);
   const cfgById = new Map(cfgGroups.map((g) => [g.id, g]));
   const src = discover({ docsDir, dataDir });
@@ -21867,6 +21885,8 @@ function loadCorpus({ docsDir, dataDir = null } = {}) {
       icon: dm.icon || "file",
       updated: dm.updated || null,
       status: parsed.metaChips.status != null ? String(parsed.metaChips.status) : null,
+      type: parsed.metaChips.type != null ? String(parsed.metaChips.type) : null,
+      // schema `required: [type]` checks node.type
       attrs: parsed.attrs,
       edges,
       body: parsed.body,
@@ -21924,6 +21944,7 @@ function buildModel({ docsDir, corpus } = {}) {
       icon: e.icon,
       updated: e.updated,
       status: e.status ?? null,
+      type: e.type ?? null,
       file: e.file,
       attrs: e.attrs
     };
@@ -22222,7 +22243,13 @@ function deriveTimeline(dataDir) {
   const docs = /* @__PURE__ */ Object.create(null);
   let count = 0;
   const coldPath = join4(dataDir, "cold-events.md");
-  if (existsSync3(coldPath) && !lstatSync3(coldPath).isSymbolicLink()) {
+  let st = null;
+  try {
+    st = lstatSync3(coldPath);
+  } catch {
+    st = null;
+  }
+  if (st && st.isFile()) {
     const events = parseCold(readFileSync3(coldPath, "utf8"));
     if (events.length) {
       Object.assign(docs, coldEventDocs(events));
@@ -22236,7 +22263,7 @@ function deriveTimeline(dataDir) {
 function canonicalize(value) {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value && typeof value === "object") {
-    const out = {};
+    const out = /* @__PURE__ */ Object.create(null);
     for (const k of Object.keys(value).sort()) out[k] = canonicalize(value[k]);
     return out;
   }
@@ -22283,15 +22310,20 @@ function deriveLayout(model) {
   const regionSpan = (g) => sideOf[g] * CELL + PAD * 2;
   const regionBox = Math.max(...groups.map(regionSpan), CELL + PAD * 2);
   const nodes = {};
-  for (const id of ids) {
-    const g = model.nodes[id].group;
+  for (const g of groups) {
     const side = sideOf[g];
-    const slot = hash32(id) % (side * side);
-    const sx = slot % side, sy = Math.floor(slot / side);
+    const taken = /* @__PURE__ */ new Set();
+    const members = (membersByGroup[g] || []).slice().sort((a, b) => hash32(a) - hash32(b) || (a < b ? -1 : a > b ? 1 : 0));
     const r = regionOf[g];
-    const x = quantize(r.col * (regionBox + GAP) + PAD + sx * CELL);
-    const y = quantize(r.row * (regionBox + GAP) + PAD + sy * CELL);
-    nodes[id] = { x, y, group: g };
+    for (const id of members) {
+      let slot = hash32(id) % (side * side);
+      while (taken.has(slot)) slot = (slot + 1) % (side * side);
+      taken.add(slot);
+      const sx = slot % side, sy = Math.floor(slot / side);
+      const x = quantize(r.col * (regionBox + GAP) + PAD + sx * CELL);
+      const y = quantize(r.row * (regionBox + GAP) + PAD + sy * CELL);
+      nodes[id] = { x, y, group: g };
+    }
   }
   const gRows = Math.ceil(groups.length / gCols);
   return {
@@ -22367,24 +22399,28 @@ function deriveGit({ cwd, pathspec = "docs", exclude = DEFAULT_EXCLUDE, now = nu
   try {
     out = execFileSync(
       "git",
-      ["-C", cwd, "log", "--no-merges", "--name-only", "--format=@@@%H|%ct|%s", "--", pathspec],
+      ["-C", cwd, "log", "--no-merges", "-z", "--name-only", "--format=@@@%H%x1f%ct%x1f%s", "--", pathspec],
       { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 * 1024 * 1024 }
     );
   } catch {
     return null;
   }
   const commits = [];
-  for (const b of out.split(/^@@@/m).map((s) => s.replace(/\s+$/, "")).filter(Boolean)) {
-    const lines = b.split("\n");
-    const head = lines[0];
-    const i1 = head.indexOf("|"), i2 = head.indexOf("|", i1 + 1);
-    const sha = head.slice(0, i1), ct = head.slice(i1 + 1, i2), subject = head.slice(i2 + 1).trim();
-    const files = lines.slice(1).map((s) => s.trim()).filter(Boolean).filter((f) => {
+  let cur = null;
+  for (const tokRaw of out.split("\0")) {
+    if (!tokRaw) continue;
+    if (tokRaw.startsWith("@@@")) {
+      if (cur && cur.files.length) commits.push(cur);
+      const [sha, ct, ...rest] = tokRaw.slice(3).split("");
+      cur = { sha, ct: +ct, subject: (rest.join("") || "").trim(), files: [] };
+    } else if (cur) {
+      const f = tokRaw.replace(/^\n/, "");
+      if (!f) continue;
       const base2 = f.split("/").pop();
-      return !exclude.some((x) => base2 === x || f === x);
-    });
-    if (files.length) commits.push({ sha, ct: +ct, subject, files });
+      if (!exclude.some((x) => base2 === x || f === x)) cur.files.push(f);
+    }
   }
+  if (cur && cur.files.length) commits.push(cur);
   if (!commits.length) return null;
   commits.sort((a, b) => a.ct !== b.ct ? a.ct - b.ct : a.sha < b.sha ? -1 : 1);
   const churn = {}, last = {};
@@ -22402,12 +22438,12 @@ function deriveGit({ cwd, pathspec = "docs", exclude = DEFAULT_EXCLUDE, now = nu
     const fs = [...new Set(c.files)].sort();
     const w = 1 / fs.length;
     for (let i = 0; i < fs.length; i++) for (let j = i + 1; j < fs.length; j++) {
-      const k = fs[i] + "\n" + fs[j];
+      const k = fs[i] + "\0" + fs[j];
       pair[k] = (pair[k] || 0) + w;
     }
   }
   const coupling = Object.entries(pair).map(([k, score]) => {
-    const [a, b] = k.split("\n");
+    const [a, b] = k.split("\0");
     return { a, b, score: Math.round(score * 1e3) / 1e3 };
   }).filter((p) => p.score > 0.5).sort((x, y) => y.score - x.score || (x.a < y.a ? -1 : 1)).slice(0, 10);
   const recent = commits.slice(-500);
@@ -22483,13 +22519,19 @@ function renderTemporalHtml(git) {
 }
 
 // src/code/scan.mjs
-import { readdirSync as readdirSync2, lstatSync as lstatSync4, readFileSync as readFileSync4, existsSync as existsSync4 } from "fs";
+import { readdirSync as readdirSync2, lstatSync as lstatSync4, readFileSync as readFileSync4 } from "fs";
 import { join as join5, relative as relative2, dirname, extname } from "path";
 var CODE_EXT = /* @__PURE__ */ new Set([".mjs", ".js", ".cjs", ".ts", ".tsx", ".jsx"]);
 var SKIP_DIR = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "coverage", ".next", "vendor"]);
 var IMPORT_RE = /\b(?:from|import|require)\s*\(?\s*["']([^"']+)["']/g;
+var MAX_FILES = 5e3;
+var MAX_FILE_BYTES = 1e6;
+function stripComments(src) {
+  return String(src).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+}
 function walk2(dir, root, out) {
   for (const name of readdirSync2(dir).sort()) {
+    if (out.length >= MAX_FILES) return;
     if (SKIP_DIR.has(name) || name.startsWith(".")) continue;
     const p = join5(dir, name);
     let st;
@@ -22500,7 +22542,7 @@ function walk2(dir, root, out) {
     }
     if (st.isSymbolicLink()) continue;
     if (st.isDirectory()) walk2(p, root, out);
-    else if (st.isFile() && CODE_EXT.has(extname(name))) out.push(p);
+    else if (st.isFile() && CODE_EXT.has(extname(name)) && st.size <= MAX_FILE_BYTES) out.push(p);
   }
 }
 function resolveImport(spec, fromFile, fileSet) {
@@ -22511,7 +22553,13 @@ function resolveImport(spec, fromFile, fileSet) {
   return null;
 }
 function scanCode({ dir }) {
-  if (!existsSync4(dir)) return null;
+  let st;
+  try {
+    st = lstatSync4(dir);
+  } catch {
+    return null;
+  }
+  if (!st.isDirectory() || st.isSymbolicLink()) return null;
   const abs = [];
   walk2(dir, dir, abs);
   if (!abs.length) return null;
@@ -22520,14 +22568,15 @@ function scanCode({ dir }) {
   const edges = [];
   for (const p of abs) {
     const src = readFileSync4(p, "utf8");
-    const loc = src.split("\n").length;
+    const loc = src === "" ? 0 : src.replace(/\n$/, "").split("\n").length;
     const rel = relative2(dir, p);
     const top = rel.split(/[\\/]/)[0] || ".";
     files.push({ path: rel, loc, group: top });
+    const scanSrc = stripComments(src);
     let m;
     IMPORT_RE.lastIndex = 0;
     const seen = /* @__PURE__ */ new Set();
-    while (m = IMPORT_RE.exec(src)) {
+    while (m = IMPORT_RE.exec(scanSrc)) {
       const target = resolveImport(m[1], p, fileSet);
       if (target && target !== p) {
         const tr = relative2(dir, target);
@@ -22863,8 +22912,17 @@ function resolveTokens(...overrides) {
 function kebab(k) {
   return k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase()).replace(/([a-z])(\d)/g, "$1-$2");
 }
+var TOKEN_KEY = /^[A-Za-z][A-Za-z0-9]*$/;
+var CSS_VALUE_BREAKOUT = /[;{}<>\\]|\/\*|\*\/|[\x00-\x1f]/;
 function emitCssVars(tokens) {
-  const body = Object.keys(tokens).sort().map((k) => "  --" + kebab(k) + ": " + tokens[k] + ";").join("\n");
+  const body = Object.keys(tokens).sort().map((k) => {
+    if (!TOKEN_KEY.test(k)) throw new Error('invalid theme token name "' + k + '" (letters and digits only)');
+    const v = tokens[k];
+    if (typeof v !== "string" || CSS_VALUE_BREAKOUT.test(v)) {
+      throw new Error('invalid theme token value for "' + k + '": must be a string with no ; { } < > \\ or comment markers');
+    }
+    return "  --" + kebab(k) + ": " + v + ";";
+  }).join("\n");
   return ":root {\n" + body + "\n}\n";
 }
 
@@ -22902,7 +22960,7 @@ var TEMPLATE_DIR = resolve(__dirname, "..", "template");
 var ENGINE_LIB = ["app.js", "mermaid.min.js", "echarts.min.js", "js-yaml.min.js", "papaparse.min.js", "viz.min.js", "rough.min.js"];
 function physicalPath(p) {
   let anc = p, tail = [];
-  while (!existsSync5(anc)) {
+  while (!existsSync4(anc)) {
     const parent = dirname2(anc);
     if (parent === anc) return p;
     tail.unshift(anc.slice(parent.length + 1));
@@ -22958,7 +23016,7 @@ function htmlExcerpt(html, target) {
 }
 function buildAssetIndex(assetsDir) {
   const index = {};
-  if (!existsSync5(assetsDir)) return index;
+  if (!existsSync4(assetsDir)) return index;
   const baseCount = /* @__PURE__ */ new Map();
   const walk4 = (dir, rel) => {
     for (const name of readdirSync4(dir).sort()) {
@@ -23025,8 +23083,14 @@ function hashInputs({ root, docsDir, dataDir, now }) {
   h.update("schema:" + SCHEMA_VERSION + "|now:" + (now || ""));
   for (const f of [...ENGINE_LIB, "theme.css"]) h.update(readFileSync5(join7(TEMPLATE_DIR, "lib", f)));
   h.update(readFileSync5(join7(TEMPLATE_DIR, "index.html")));
+  h.update(readFileSync5(fileURLToPath(import.meta.url)));
   const addDir = (dir) => {
-    if (!existsSync5(dir)) return;
+    if (!existsSync4(dir)) return;
+    try {
+      if (lstatSync5(dir).isSymbolicLink()) return;
+    } catch {
+      return;
+    }
     for (const name of readdirSync4(dir).sort()) {
       const p = join7(dir, name);
       let st;
@@ -23052,7 +23116,7 @@ function hashInputs({ root, docsDir, dataDir, now }) {
   addDir(join7(root, "assets"));
   for (const f of ["theme.json", "theme.css"]) {
     const p = join7(root, f);
-    if (existsSync5(p)) h.update(readFileSync5(p));
+    if (existsSync4(p)) h.update(readFileSync5(p));
   }
   let meta = {};
   try {
@@ -23063,7 +23127,7 @@ function hashInputs({ root, docsDir, dataDir, now }) {
   if (meta.code && meta.code.dir) {
     const SKIP = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "coverage", ".next", "vendor"]);
     const statDir = (dir) => {
-      if (!existsSync5(dir)) return;
+      if (!existsSync4(dir)) return;
       for (const name of readdirSync4(dir).sort()) {
         if (SKIP.has(name) || name.startsWith(".")) continue;
         const p = join7(dir, name);
@@ -23095,6 +23159,13 @@ function computeHealth({ docsDir, dataDir, now = null }) {
   const backlinks = deriveBacklinks(model);
   const timeline = deriveTimeline(dataDir);
   const knownTargets = new Set(Object.keys(timeline.docs).map((t) => nfc(t)));
+  knownTargets.add(nfc(HEALTH_TITLE));
+  if (corpus.meta?.graph?.enabled !== false && model.nodeCount > 0) knownTargets.add(nfc("Graph"));
+  for (const cf of corpus.canvasFiles || []) knownTargets.add(nfc("Canvas \xB7 " + cf.replace(/\.canvas$/, "")));
+  if (corpus.meta?.code?.dir) {
+    knownTargets.add(nfc("Code \xB7 Module map"));
+    knownTargets.add(nfc("Code \xB7 Dependencies"));
+  }
   const health = deriveHealth(model, backlinks, { now, knownTargets });
   return { corpus, model, backlinks, health, timeline };
 }
@@ -23106,7 +23177,7 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
   guardOutDir(root, outDir, docsDir, dataDir);
   const hash = hashInputs({ root, docsDir, dataDir, now });
   const metaPath = join7(outDir, ".buildmeta.json");
-  if (!force && existsSync5(metaPath) && existsSync5(join7(outDir, "index.html"))) {
+  if (!force && existsSync4(metaPath) && existsSync4(join7(outDir, "index.html"))) {
     try {
       const meta = JSON.parse(readFileSync5(metaPath, "utf8"));
       if (meta.hash === hash) return { ...meta.summary, outDir, cached: true };
@@ -23210,7 +23281,7 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
   }
   const backlinks = buildBoardBacklinks(rawBodies, linksById);
   const tmp = outDir + ".tmp";
-  if (existsSync5(tmp)) rmSync(tmp, { recursive: true, force: true });
+  if (existsSync4(tmp)) rmSync(tmp, { recursive: true, force: true });
   mkdirSync(join7(tmp, "lib"), { recursive: true });
   writeFileSync(join7(tmp, "model.json"), canonicalJSON(model) + "\n");
   writeFileSync(join7(tmp, "health.json"), canonicalJSON(health) + "\n");
@@ -23224,7 +23295,7 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
   for (const f of ENGINE_LIB) copyFileSync(join7(TEMPLATE_DIR, "lib", f), join7(tmp, "lib", f));
   let projectTokens = null;
   const tokensPath = join7(root, "theme.json");
-  if (existsSync5(tokensPath)) {
+  if (existsSync4(tokensPath)) {
     try {
       projectTokens = JSON.parse(readFileSync5(tokensPath, "utf8"));
     } catch (e) {
@@ -23238,7 +23309,7 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
   html = html.replace("<!--TITLE-->", escapeHtml2(title)).replace("<!--CSP-->", cspMeta());
   let themeOverride = false;
   const projectTheme = join7(root, "theme.css");
-  if (existsSync5(projectTheme)) {
+  if (existsSync4(projectTheme)) {
     copyFileSync(projectTheme, join7(tmp, "theme.override.css"));
     html = html.replace("<!--THEME_OVERRIDE-->", '<link rel="stylesheet" href="theme.override.css" />');
     themeOverride = true;
@@ -23248,13 +23319,13 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
   writeFileSync(join7(tmp, "index.html"), html);
   let assetsCopied = false;
   const assetsDir = join7(root, "assets");
-  if (existsSync5(assetsDir)) {
+  if (existsSync4(assetsDir)) {
     cpSync(assetsDir, join7(tmp, "assets"), { recursive: true, dereference: false, filter: (src) => !lstatSync5(src).isSymbolicLink() });
     assetsCopied = true;
   }
-  if (existsSync5(outDir)) {
+  if (existsSync4(outDir)) {
     const bak = outDir + ".bak";
-    if (existsSync5(bak)) rmSync(bak, { recursive: true, force: true });
+    if (existsSync4(bak)) rmSync(bak, { recursive: true, force: true });
     renameSync(outDir, bak);
     try {
       renameSync(tmp, outDir);
@@ -23494,10 +23565,10 @@ function runWatch() {
     clearTimeout(timer);
     timer = setTimeout(build, 150);
   };
-  if (existsSync6(docsDir)) watchTree(docsDir, trigger);
+  if (existsSync5(docsDir)) watchTree(docsDir, trigger);
   for (const f of ["theme.json", "theme.css"]) {
     const p = join10(root, f);
-    if (existsSync6(p)) watch(p, trigger);
+    if (existsSync5(p)) watch(p, trigger);
   }
   console.log("\u{1F440} watching " + relative4(root, docsDir) + " + theme (Ctrl-C to stop)");
 }
@@ -23556,7 +23627,7 @@ function runInit() {
   mkdirSync2(dir, { recursive: true });
   const writeIf = (rel, content) => {
     const p = join10(dir, rel);
-    if (existsSync6(p)) {
+    if (existsSync5(p)) {
       console.log("\xB7 exists, skipping: " + base2 + "/" + rel);
       return;
     }
@@ -23584,7 +23655,7 @@ function runInit() {
     ""
   ].join("\n"));
   const giPath = join10(root, ".gitignore");
-  const has2 = existsSync6(giPath) && readFileSync8(giPath, "utf8").split(/\r?\n/).some((l) => l.trim() === "dist/");
+  const has2 = existsSync5(giPath) && readFileSync8(giPath, "utf8").split(/\r?\n/).some((l) => l.trim() === "dist/");
   if (!has2) {
     appendFileSync(giPath, "dist/\n");
     console.log("+ .gitignore: dist/");
@@ -23598,14 +23669,14 @@ function runNew() {
   const root = process.cwd();
   const base2 = dirArg() || "gazette";
   const dir = resolve2(root, base2);
-  if (!existsSync6(dir)) die("no " + base2 + "/ here \u2014 run `gazette init` first");
+  if (!existsSync5(dir)) die("no " + base2 + "/ here \u2014 run `gazette init` first");
   const rel = target.replace(/\\/g, "/").replace(/\.html$/, "") + ".html";
   const fp = resolve2(dir, rel);
   if (!(fp === dir || fp.startsWith(dir + sep4))) die("path escapes the content dir: " + target);
-  if (existsSync6(fp)) die("already exists: " + base2 + "/" + rel);
+  if (existsSync5(fp)) die("already exists: " + base2 + "/" + rel);
   const dirReal = realpathSync3(dir);
   let anc = dirname3(fp);
-  while (!existsSync6(anc) && anc !== dirname3(anc)) anc = dirname3(anc);
+  while (!existsSync5(anc) && anc !== dirname3(anc)) anc = dirname3(anc);
   const ancReal = realpathSync3(anc);
   if (!(ancReal === dirReal || ancReal.startsWith(dirReal + sep4))) die("path escapes the content dir (via symlink): " + target);
   const title = titleArg || prettify(rel.split("/").pop().replace(/\.html$/, ""));
@@ -23691,7 +23762,7 @@ function runServe() {
     try {
       if (p === "/" || p.endsWith("/")) p += "index.html";
       const fp = resolve2(out, "." + p);
-      if (!within(fp, out) || !existsSync6(fp) || statSync2(fp).isDirectory()) {
+      if (!within(fp, out) || !existsSync5(fp) || statSync2(fp).isDirectory()) {
         res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
         res.end("404 " + p);
         return;
@@ -23737,10 +23808,10 @@ function runServe() {
       }
     }, 150);
   };
-  if (existsSync6(docsDir)) watchTree(docsDir, trigger);
+  if (existsSync5(docsDir)) watchTree(docsDir, trigger);
   for (const f of ["theme.json", "theme.css"]) {
     const p = join10(root, f);
-    if (existsSync6(p)) watch(p, trigger);
+    if (existsSync5(p)) watch(p, trigger);
   }
 }
 switch (cmd) {

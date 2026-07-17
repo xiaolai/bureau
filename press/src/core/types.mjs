@@ -21,8 +21,14 @@ export function loadTypes(typesDir, typeFiles) {
   for (const f of typeFiles) {
     const { frontmatter: fm } = splitFrontmatter(readFileSync(join(typesDir, f), "utf8"));
     if (!fm || !fm.applies) continue;
-    schemas[String(fm.applies)] = {
-      applies: String(fm.applies),
+    const applies = String(fm.applies);
+    // two schema files claiming the same group silently dropped the earlier one — the last file
+    // read won, invisibly. Name both so the author fixes the collision instead of losing a schema.
+    if (Object.prototype.hasOwnProperty.call(schemas, applies)) {
+      throw new Error('duplicate _types schema for group "' + applies + '": ' + schemas[applies].file + " and " + f);
+    }
+    schemas[applies] = {
+      applies,
       edges: new Set(asList(fm.edges)),
       fields: new Set(asList(fm.fields)),
       required: asList(fm.required),
@@ -35,7 +41,7 @@ export function loadTypes(typesDir, typeFiles) {
 
 // plain, JSON-serializable form for the canonical model
 export function typesPlain(schemas) {
-  const out = {};
+  const out = Object.create(null); // null-proto: an `applies` of "__proto__" is data, not a prototype write
   for (const [k, s] of Object.entries(schemas)) {
     out[k] = { applies: s.applies, edges: [...s.edges].sort(), fields: [...s.fields].sort(), required: [...s.required].sort(), single: [...s.single].sort() };
   }

@@ -35,11 +35,25 @@ function kebab(k) {
   return k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase()).replace(/([a-z])(\d)/g, "$1-$2");
 }
 
+// A token name must be a plain identifier (kebab turns it into `--name`); a value must not carry
+// the characters that end a declaration or a rule. Without this, a `theme.json` value like
+// `red; } body { display:none` breaks out of `:root` and injects arbitrary CSS into every view,
+// and a crafted key does the same. theme.json is author-controlled, so validate before emitting.
+const TOKEN_KEY = /^[A-Za-z][A-Za-z0-9]*$/;
+const CSS_VALUE_BREAKOUT = /[;{}<>\\]|\/\*|\*\/|[\x00-\x1f]/; // decl/rule terminators, comment markers, tag/escape, control chars
+
 // tokens → :root CSS variables. Runtime stylesheets reference var(--token).
 export function emitCssVars(tokens) {
   const body = Object.keys(tokens)
     .sort()
-    .map((k) => "  --" + kebab(k) + ": " + tokens[k] + ";")
+    .map((k) => {
+      if (!TOKEN_KEY.test(k)) throw new Error('invalid theme token name "' + k + '" (letters and digits only)');
+      const v = tokens[k];
+      if (typeof v !== "string" || CSS_VALUE_BREAKOUT.test(v)) {
+        throw new Error('invalid theme token value for "' + k + '": must be a string with no ; { } < > \\ or comment markers');
+      }
+      return "  --" + kebab(k) + ": " + v + ";";
+    })
     .join("\n");
   return ":root {\n" + body + "\n}\n";
 }

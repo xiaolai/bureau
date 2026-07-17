@@ -35,8 +35,16 @@ function readConfig(docsDir) {
   if (typeof meta !== "object" || Array.isArray(meta)) throw new Error('_config.json: "meta" must be an object' + where);
   const groups = cfg.groups == null ? [] : cfg.groups;
   if (!Array.isArray(groups)) throw new Error('_config.json: "groups" must be an array' + where);
+  const seenId = new Set();
   for (const g of groups) {
     if (g === null || typeof g !== "object" || Array.isArray(g)) throw new Error('_config.json: every "groups" entry must be an object' + where);
+    // an id is how a group is keyed (cfgById); a non-string or duplicate silently drops or
+    // shadows a group's label/icon override, so reject both instead of failing quietly later.
+    if (g.id != null) {
+      if (typeof g.id !== "string") throw new Error('_config.json: group "id" must be a string' + where);
+      if (seenId.has(g.id)) throw new Error('_config.json: duplicate group id "' + g.id + '"' + where);
+      seenId.add(g.id);
+    }
   }
   return { meta, groups };
 }
@@ -64,6 +72,10 @@ export function safeDocPath(docsDir, file) {
 // Read + validate every doc once. Throws loudly on any boundary violation.
 export function loadCorpus({ docsDir, dataDir = null } = {}) {
   if (!existsSync(docsDir)) throw new Error("docs directory not found: " + docsDir + " (run `gazette init`)");
+  // The whole reader refuses to follow symlinks out of the content tree (safeDocPath, readConfig,
+  // discovery). A symlinked ROOT is the one hole that posture left open — it would let the content
+  // dir point anywhere and publish files from outside the project. Close it here, at the entry.
+  if (lstatSync(docsDir).isSymbolicLink()) throw new Error("content directory is a symlink (refused): " + docsDir);
   const { meta, groups: cfgGroups } = readConfig(docsDir);
   const cfgById = new Map(cfgGroups.map((g) => [g.id, g])); // optional label/icon overrides
 
@@ -107,6 +119,7 @@ export function loadCorpus({ docsDir, dataDir = null } = {}) {
       icon: dm.icon || "file",
       updated: dm.updated || null,
       status: parsed.metaChips.status != null ? String(parsed.metaChips.status) : null,
+      type: parsed.metaChips.type != null ? String(parsed.metaChips.type) : null, // schema `required: [type]` checks node.type
       attrs: parsed.attrs, edges,
       body: parsed.body, bodyLinks: parsed.bodyLinks.map(nfc),
       metaChips: parsed.metaChips,
@@ -161,7 +174,7 @@ export function buildModel({ docsDir, corpus } = {}) {
   for (const e of c.entries) {
     nodes[e.id] = {
       id: e.id, title: e.title, group: e.group, icon: e.icon,
-      updated: e.updated, status: e.status ?? null, file: e.file, attrs: e.attrs,
+      updated: e.updated, status: e.status ?? null, type: e.type ?? null, file: e.file, attrs: e.attrs,
     };
     for (const edge of e.edges) edges.push({ source: e.id, target: edge.target, edgeType: edge.edgeType });
   }

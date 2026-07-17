@@ -164,8 +164,13 @@ function hashInputs({ root, docsDir, dataDir, now }) {
   h.update("schema:" + SCHEMA_VERSION + "|now:" + (now || ""));
   for (const f of [...ENGINE_LIB, "theme.css"]) h.update(readFileSync(join(TEMPLATE_DIR, "lib", f)));
   h.update(readFileSync(join(TEMPLATE_DIR, "index.html")));
+  // Also hash the ENGINE ITSELF (this module's own bytes). In the shipped product that is the whole
+  // bundle, so a plugin upgrade — new render/build logic, same inputs — invalidates the cache instead
+  // of returning a dist built by the old engine. SCHEMA_VERSION alone only catches model-shape bumps.
+  h.update(readFileSync(fileURLToPath(import.meta.url)));
   const addDir = (dir) => {
     if (!existsSync(dir)) return;
+    try { if (lstatSync(dir).isSymbolicLink()) return; } catch { return; } // never walk a symlinked ROOT (child links are skipped below)
     for (const name of readdirSync(dir).sort()) {
       const p = join(dir, name);
       let st; try { st = lstatSync(p); } catch { continue; } // unreadable entry → skip, don't crash the build
@@ -218,7 +223,14 @@ export function computeHealth({ docsDir, dataDir, now = null }) {
   const model = buildModel({ corpus });
   const backlinks = deriveBacklinks(model);
   const timeline = deriveTimeline(dataDir); // { docs, count } — generated, valid link targets
+  // Generated docs are real link targets too. Without them, a doc that links [[Health]] or
+  // [[Graph]] is falsely reported dangling — health flagging a page the build actually produces.
+  // Mirror buildSite's own gating so the known set matches what will be emitted.
   const knownTargets = new Set(Object.keys(timeline.docs).map((t) => nfc(t)));
+  knownTargets.add(nfc(HEALTH_TITLE));
+  if (corpus.meta?.graph?.enabled !== false && model.nodeCount > 0) knownTargets.add(nfc("Graph"));
+  for (const cf of corpus.canvasFiles || []) knownTargets.add(nfc("Canvas · " + cf.replace(/\.canvas$/, "")));
+  if (corpus.meta?.code?.dir) { knownTargets.add(nfc("Code · Module map")); knownTargets.add(nfc("Code · Dependencies")); }
   const health = deriveHealth(model, backlinks, { now, knownTargets });
   return { corpus, model, backlinks, health, timeline };
 }
@@ -295,6 +307,9 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
   // ── Code map (cartography): off by default; set config.code.dir to a code dir to enable.
   //    module LOC treemap + import deps graph (reuses the topology layout / graph renderer).──
   if (corpus.meta && corpus.meta.code && corpus.meta.code.dir) {
+    // code.dir is the author's explicit choice on their own machine (it may legitimately point at a
+    // sibling checkout), so it is NOT constrained to the project root — the real risks are a bad path
+    // and unbounded I/O on a huge tree, both bounded inside scanCode.
     const scan = scanCode({ dir: resolve(root, corpus.meta.code.dir) });
     if (scan) {
       if (!groups.some((g) => g.id === "code")) groups.push({ id: "code", label: "Code" });

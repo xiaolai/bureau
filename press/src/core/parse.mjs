@@ -239,7 +239,7 @@ export function parseHtmlDoc(raw) {
   const seen = [];
   const walk = (node) => {
     for (const ch of node.childNodes) {
-      if (ch.nodeType === 3) { if (!isInRawText(ch)) for (const t of extractBodyLinks(ch.rawText)) seen.push(t); }
+      if (ch.nodeType === 3) { if (!isInRawText(ch)) for (const t of extractBodyLinks(decodeEntities(ch.rawText))) seen.push(t); }
       else if (ch.nodeType === 1) walk(ch);
     }
   };
@@ -400,7 +400,7 @@ export function addHeadingIds(html) {
 // rewritten into the tag.
 export function resolveImageEmbeds(html, assetIndex) {
   return replaceOutsideRaw(html, (h) => replaceInGaps(h, (gap) => gap.replace(/!\[\[([^\]|#]+?)(?:\|([^\]]*))?\]\]/g, (m, target, label) => {
-    const name = String(target).trim();
+    const name = decodeEntities(String(target).trim()); // `![[a&amp;b.png]]` must match asset "a&b.png"
     if (!IMG_EXT.test(name)) return m;
     const url = (assetIndex && (assetIndex[name] || assetIndex[name.split("/").pop()])) || "";
     if (!url) return '<span class="wb-embed-missing">⛔ missing image: ' + escapeHtml(name) + "</span>";
@@ -430,14 +430,18 @@ function stripMdCode(s) {
   return out.join("\n");
 }
 
-// Markdown prose with EVERY literal region removed: markdown code (fences + inline spans)
-// AND raw HTML <pre>/<code>/comments — markdown allows raw HTML, and stripMdCode alone does
-// not see it. The renderer protects exactly these regions when it resolves links, so a model
-// that counted them would record edges the page never draws. That gap is not cosmetic: a
-// `[[session …]]` sitting inside a code sample would forge a provenance edge and satisfy the
-// unsourced lane — a false all-clear from a link the reader can't even click.
+// Markdown prose reduced to just its RENDERED TEXT: markdown code (fences + inline spans),
+// raw HTML <pre>/<code>/comments, AND the markup of every other HTML tag are removed, leaving
+// only the text a reader sees. markdown allows raw HTML, and the renderer resolves links only
+// in rendered text — so a `[[..]]` that lives inside a tag (a code sample, OR an attribute like
+// `<span title="[[X]]">`) is never drawn as a link. Counting it would forge an edge the page
+// doesn't have — a false provenance link the reader can't click. Stripping tag markup (not the
+// text between tags) leaves exactly the links the renderer would draw. This is only for edge/
+// title extraction; the real body is rendered separately by markdownToHtml.
 function stripMdLiteral(s) {
-  return stripMdCode(s).replace(RAW_BLOCK, " ");
+  return stripMdCode(s)
+    .replace(RAW_BLOCK, " ")   // <pre>/<code>/comment BLOCKS (content and all)
+    .replace(/<[^>]*>/g, " "); // any remaining tag MARKUP — drops attribute text, keeps element text
 }
 
 // Parse one markdown/Obsidian doc → the SAME shape as parseHtmlDoc. Metadata comes
@@ -504,7 +508,10 @@ export function resolveLinks(html, resolve) {
     const label = decodeEntities(stripTags(inner)) || target; // decode before resolve (no double-escape)
     return resolve(target, label);
   });
-  h = replaceInGaps(h, (gap) => gap.replace(WIKI_RE2_LINK, (_, t, l) => resolve(t.trim(), (l || t).trim())));
+  // decode entities on the bare-link path too (the A_WIKI path above already does), so a
+  // markdown-rendered `[[A&amp;B|A &amp; B]]` resolves to the real title "A&B" and its label
+  // isn't double-escaped by the resolver.
+  h = replaceInGaps(h, (gap) => gap.replace(WIKI_RE2_LINK, (_, t, l) => resolve(decodeEntities(t.trim()), decodeEntities((l || t).trim()))));
   return h.replace(/\uE000(\d+)\uE001/g, (_, i) => slots[+i]);
 }
 
@@ -559,7 +566,7 @@ export function rewriteTitle(html, from, to) {
     if (nb !== b) changed = true;
     return o + nb + c;
   });
-  h = h.replace(/(\bdata-title\s*=\s*)("|')([\s\S]*?)\2/i, (m, p, q, v) => { if (v.trim() === from) { changed = true; return p + '"' + escapeAttr(to) + '"'; } return m; });
+  h = h.replace(/(\bdata-title\s*=\s*)("|')([\s\S]*?)\2/i, (m, p, q, v) => { if (decodeEntities(v.trim()) === from) { changed = true; return p + '"' + escapeAttr(to) + '"'; } return m; }); // decode so data-title="A&amp;B" matches from "A&B"
   h = h.replace(/(<h1\b[^>]*>)([\s\S]*?)(<\/h1>)/i, (m, o, t, c) => { if (t.trim() === from) { changed = true; return o + escapeHtml(to) + c; } return m; });
   return { html: h, changed };
 }

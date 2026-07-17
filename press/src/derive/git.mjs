@@ -12,20 +12,32 @@ const DEFAULT_EXCLUDE = ["index.md", "log.md", "Health", "Evolution"]; // struct
 export function deriveGit({ cwd, pathspec = "docs", exclude = DEFAULT_EXCLUDE, now = null } = {}) {
   let out;
   try {
-    out = execFileSync("git", ["-C", cwd, "log", "--no-merges", "--name-only", "--format=@@@%H|%ct|%s", "--", pathspec],
+    // -z: NUL-terminate the format record AND every --name-only path. Line-delimited parsing
+    // corrupts on a filename containing a newline (git renders such paths verbatim with -z);
+    // %x1f field-separates the header so a subject with `|` or `@@@` can't be misparsed either.
+    out = execFileSync("git", ["-C", cwd, "log", "--no-merges", "-z", "--name-only", "--format=@@@%H%x1f%ct%x1f%s", "--", pathspec],
       { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 * 1024 * 1024 });
   } catch { return null; }
 
+  // Tokenize on NUL. A token starting with `@@@` is a commit header (fields split by \x1f); any
+  // other token is a file path (the first file of each commit carries a leading \n from the format
+  // newline — strip only that). Paths are otherwise opaque, so newlines in them survive intact.
   const commits = [];
-  // split on line-start @@@ (a subject containing @@@ is mid-line, so it's safe)
-  for (const b of out.split(/^@@@/m).map((s) => s.replace(/\s+$/, "")).filter(Boolean)) {
-    const lines = b.split("\n");
-    const head = lines[0];
-    const i1 = head.indexOf("|"), i2 = head.indexOf("|", i1 + 1);
-    const sha = head.slice(0, i1), ct = head.slice(i1 + 1, i2), subject = head.slice(i2 + 1).trim();
-    const files = lines.slice(1).map((s) => s.trim()).filter(Boolean).filter((f) => { const base = f.split("/").pop(); return !exclude.some((x) => base === x || f === x); }); // exact match, not substring
-    if (files.length) commits.push({ sha, ct: +ct, subject, files });
+  let cur = null;
+  for (const tokRaw of out.split("\0")) {
+    if (!tokRaw) continue;
+    if (tokRaw.startsWith("@@@")) {
+      if (cur && cur.files.length) commits.push(cur);
+      const [sha, ct, ...rest] = tokRaw.slice(3).split("\x1f");
+      cur = { sha, ct: +ct, subject: (rest.join("\x1f") || "").trim(), files: [] };
+    } else if (cur) {
+      const f = tokRaw.replace(/^\n/, "");
+      if (!f) continue;
+      const base = f.split("/").pop();
+      if (!exclude.some((x) => base === x || f === x)) cur.files.push(f); // exact match, not substring
+    }
   }
+  if (cur && cur.files.length) commits.push(cur);
   if (!commits.length) return null;
   commits.sort((a, b) => (a.ct !== b.ct ? a.ct - b.ct : a.sha < b.sha ? -1 : 1)); // total order
 
@@ -45,12 +57,12 @@ export function deriveGit({ cwd, pathspec = "docs", exclude = DEFAULT_EXCLUDE, n
     const fs = [...new Set(c.files)].sort();
     const w = 1 / fs.length;
     for (let i = 0; i < fs.length; i++) for (let j = i + 1; j < fs.length; j++) {
-      const k = fs[i] + "\n" + fs[j];
+      const k = fs[i] + "\0" + fs[j]; // NUL is the one byte a path cannot contain (a newline can)
       pair[k] = (pair[k] || 0) + w;
     }
   }
   const coupling = Object.entries(pair)
-    .map(([k, score]) => { const [a, b] = k.split("\n"); return { a, b, score: Math.round(score * 1000) / 1000 }; })
+    .map(([k, score]) => { const [a, b] = k.split("\0"); return { a, b, score: Math.round(score * 1000) / 1000 }; })
     .filter((p) => p.score > 0.5)
     .sort((x, y) => y.score - x.score || (x.a < y.a ? -1 : 1))
     .slice(0, 10);

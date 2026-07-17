@@ -33,16 +33,27 @@ export function deriveLayout(model) {
   // a uniform region box (max) keeps the region grid rectangular & stable
   const regionBox = Math.max(...groups.map(regionSpan), CELL + PAD * 2);
 
+  // slot = hash % side² is a node's PREFERRED cell, but two ids can hash to the same slot and
+  // would then render on top of each other — one node silently hiding another. Resolve collisions
+  // with deterministic linear probing: process each group's members in a stable order and, when a
+  // preferred slot is taken, step to the next free one. (side² ≥ members, so a free slot always
+  // exists.) This preserves determinism; the reflow-free-on-insert property is bounded, as the
+  // module header already notes — correctness, a node never vanishing under another, wins here.
   const nodes = {};
-  for (const id of ids) {
-    const g = model.nodes[id].group;
+  for (const g of groups) {
     const side = sideOf[g];
-    const slot = hash32(id) % (side * side);
-    const sx = slot % side, sy = Math.floor(slot / side);
+    const taken = new Set();
+    const members = (membersByGroup[g] || []).slice().sort((a, b) => (hash32(a) - hash32(b)) || (a < b ? -1 : a > b ? 1 : 0));
     const r = regionOf[g];
-    const x = quantize(r.col * (regionBox + GAP) + PAD + sx * CELL);
-    const y = quantize(r.row * (regionBox + GAP) + PAD + sy * CELL);
-    nodes[id] = { x, y, group: g };
+    for (const id of members) {
+      let slot = hash32(id) % (side * side);
+      while (taken.has(slot)) slot = (slot + 1) % (side * side); // deterministic probe to the next free cell
+      taken.add(slot);
+      const sx = slot % side, sy = Math.floor(slot / side);
+      const x = quantize(r.col * (regionBox + GAP) + PAD + sx * CELL);
+      const y = quantize(r.row * (regionBox + GAP) + PAD + sy * CELL);
+      nodes[id] = { x, y, group: g };
+    }
   }
 
   const gRows = Math.ceil(groups.length / gCols);

@@ -6,7 +6,7 @@
 export function canonicalize(value) {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value && typeof value === "object") {
-    const out = {};
+    const out = Object.create(null); // null-proto: an own "__proto__" key is data to copy, not a prototype write
     for (const k of Object.keys(value).sort()) out[k] = canonicalize(value[k]);
     return out;
   }

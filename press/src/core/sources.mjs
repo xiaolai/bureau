@@ -30,7 +30,10 @@ export function discover({ docsDir, dataDir }) {
   const typesDir = join(docsDir, "_types");
   const ddir = dataDir || join(docsDir, "_data"); // data now lives under the content dir
   const isFile = (dir) => (f) => { try { return lstatSync(join(dir, f)).isFile(); } catch { return false; } }; // lstat: skip symlinked entries
-  const lsTop = (dir, pred) => (existsSync(dir) ? readdirSync(dir).filter((f) => pred(f) && isFile(dir)(f)).sort() : []);
+  // child entries are lstat-filtered, but a symlinked ROOT (_types/_data itself) would still be
+  // walked — read from outside the tree. Treat a symlinked directory root as absent.
+  const realDir = (dir) => { try { return existsSync(dir) && !lstatSync(dir).isSymbolicLink(); } catch { return false; } };
+  const lsTop = (dir, pred) => (realDir(dir) ? readdirSync(dir).filter((f) => pred(f) && isFile(dir)(f)).sort() : []);
   return {
     docsDir,
     typesDir,

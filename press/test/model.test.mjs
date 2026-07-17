@@ -15,7 +15,18 @@ test("canonicalJSON is key-order independent", () => {
 });
 
 test("canonicalize sorts nested keys, preserves array order", () => {
-  assert.deepEqual(canonicalize({ b: 1, a: [3, 1, 2] }), { a: [3, 1, 2], b: 1 });
+  // the contract is deterministic JSON (canonicalize's output is always JSON.stringify'd), so
+  // assert the serialized form — the copy is a null-proto object (own "__proto__" is data, not a
+  // prototype write), which strict deepEqual would otherwise reject on prototype alone.
+  assert.equal(canonicalJSON({ b: 1, a: [3, 1, 2] }, 0), '{"a":[3,1,2],"b":1}');
+});
+
+test("canonicalize returns null-proto copies — an own __proto__ key is data, not pollution", () => {
+  const out = canonicalize({ b: 1, a: [3, 1, 2] });
+  assert.equal(Object.getPrototypeOf(out), null);
+  const poison = canonicalize(JSON.parse('{"__proto__":{"x":1},"k":2}'));
+  assert.equal(Object.getPrototypeOf(poison), null, "must not mutate the prototype");
+  assert.equal(canonicalJSON({}), "{}", "and a plain object stays clean");
 });
 
 test("parser: typed [[link]] in frontmatter is NOT treated as inline list", () => {

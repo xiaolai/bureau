@@ -9,9 +9,11 @@ export function deriveTimeline(dataDir) {
   const docs = Object.create(null); // generated ids derive from data — null proto, same as the board
   let count = 0;
   const coldPath = join(dataDir, "cold-events.md");
-  // skip a symlinked cold-events.md (sources.mjs skips symlinks for discovery; this direct
-  // read must honor the same policy so timeline data can't be pulled from outside the tree).
-  if (existsSync(coldPath) && !lstatSync(coldPath).isSymbolicLink()) {
+  // require a REGULAR file: a symlink could read outside the tree (as sources.mjs guards), and a
+  // directory/FIFO/device named cold-events.md would crash or block the build in readFileSync.
+  // isFile() is false for all of those AND for a symlink (lstat doesn't follow), so it's the one check.
+  let st = null; try { st = lstatSync(coldPath); } catch { st = null; }
+  if (st && st.isFile()) {
     const events = parseCold(readFileSync(coldPath, "utf8"));
     if (events.length) { Object.assign(docs, coldEventDocs(events)); count = events.length; }
   }
