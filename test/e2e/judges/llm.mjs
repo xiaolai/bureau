@@ -4,8 +4,42 @@
 // Needs the `claude` CLI authenticated; used ONLY in the live E2E layer (it costs tokens).
 import { execFileSync } from "node:child_process";
 
+// The harness drives AUTHENTICATED `claude -p` calls. A bare `claude --version` passes even when the
+// CLI is installed but NOT logged in — which would let the whole harness run and fail every step with
+// an auth error, producing a misleading batch verdict. So probe with a real, minimal `-p` call and
+// require a usable result: an unauthenticated CLI exits non-zero here (→ caught → false), and a
+// zero-exit error envelope (`is_error`) is treated as unavailable too. Costs one tiny call by design —
+// this only runs for the opt-in `--e2e` layer, which already spends tokens.
 export function claudeAvailable() {
-  try { execFileSync("claude", ["--version"], { stdio: "ignore" }); return true; } catch { return false; }
+  try {
+    const raw = execFileSync("claude", ["-p", "--output-format", "json", "Reply with exactly: ok"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 60000 });
+    try {
+      const o = JSON.parse(raw);
+      if (o && o.is_error === true) return false;                 // CLI reported an error (e.g. auth) at exit 0
+      const text = o && (o.result ?? o.text);
+      return typeof text === "string" && text.trim().length > 0;
+    } catch { return raw.trim().length > 0; }                     // unwrapped but non-empty output → it ran
+  } catch { return false; }                                       // non-zero exit: not installed OR not authenticated
+}
+
+// Extract the judge's verdict object from its output. The judge is instructed to emit ONLY a one-line
+// JSON object `{"pass": …, "rationale": …}`. Parse it robustly: try the whole string as strict JSON
+// first, then fall back to the OUTERMOST `{…}` slice (first `{` to the LAST `}`, not the first `}`, so
+// a brace inside the rationale string can't truncate the parse — the bug in the old non-greedy regex).
+// A verdict is only accepted if it validates: an object with a boolean `pass`. Anything else → null
+// (the caller records a failed verdict), so a garbled/half-JSON answer never silently reads as pass.
+function parseVerdict(text) {
+  const s = String(text == null ? "" : text).trim();
+  if (!s) return null;
+  const candidates = [s];
+  const a = s.indexOf("{"), b = s.lastIndexOf("}");
+  if (a >= 0 && b > a) candidates.push(s.slice(a, b + 1));
+  for (const c of candidates) {
+    let v; try { v = JSON.parse(c); } catch { continue; }
+    if (v && typeof v === "object" && typeof v.pass === "boolean") return v;
+  }
+  return null;
 }
 
 // rubric: a precise yes/no criterion. transcript: the assistant's output from the step under test.
@@ -32,9 +66,8 @@ export function llmJudge({ rubric, transcript, model }) {
     // `claude -p --output-format json` wraps the run; the final text is in `.result`.
     let text = raw;
     try { const o = JSON.parse(raw); text = o.result ?? o.text ?? raw; } catch { /* not wrapped */ }
-    const m = String(text).match(/\{[\s\S]*?"pass"[\s\S]*?\}/);
-    if (!m) return { name: "llm-judge", pass: false, detail: "judge returned no parseable verdict" };
-    const v = JSON.parse(m[0]);
+    const v = parseVerdict(text);
+    if (!v) return { name: "llm-judge", pass: false, detail: "judge returned no parseable verdict" };
     return { name: "llm-judge", pass: v.pass === true, detail: v.rationale || "" };
   } catch (e) {
     return { name: "llm-judge", pass: false, detail: "llm judge unavailable: " + (e.message || e) };

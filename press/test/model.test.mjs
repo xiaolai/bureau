@@ -4,7 +4,7 @@ import { GOLDEN_DOCS } from "./helpers.mjs";
 import { buildModel } from "../src/core/model.mjs";
 import { canonicalJSON, canonicalize } from "../src/services/determinism.mjs";
 import { extractLinks, splitFrontmatter } from "../src/core/parse.mjs";
-import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
@@ -54,8 +54,9 @@ test("buildModel is deterministic (double build → byte-identical)", () => {
   assert.equal(a, b);
 });
 
-test("model: nav section comes from the top-level folder (data-group overrides)", () => {
+test("model: nav section comes from the top-level folder (data-group overrides)", (t) => {
   const root = mkdtempSync(join(tmpdir(), "wb-folder-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
   const w = join(root, "gazette");
   mkdirSync(join(w, "10-characters"), { recursive: true });
   mkdirSync(join(w, "places"), { recursive: true });

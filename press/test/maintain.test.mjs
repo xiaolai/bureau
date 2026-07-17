@@ -1,7 +1,7 @@
 // SSOT maintainer (the write lane): rename propagation + doctor repair plan/apply.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { buildModel } from "../src/core/model.mjs";
@@ -11,8 +11,9 @@ import { planRename, applyRename } from "../src/maintain/rename.mjs";
 import { buildRepairPlan, applySafe } from "../src/maintain/doctor.mjs";
 import { doc } from "./helpers.mjs";
 
-function corpus(docs, config = { meta: { home: "" }, groups: [{ id: "g", label: "G" }] }) {
+function corpus(t, docs, config = { meta: { home: "" }, groups: [{ id: "g", label: "G" }] }) {
   const root = mkdtempSync(join(tmpdir(), "wb-maint-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
   const docsDir = join(root, "docs");
   mkdirSync(docsDir, { recursive: true });
   writeFileSync(join(docsDir, "_config.json"), JSON.stringify(config));
@@ -21,8 +22,8 @@ function corpus(docs, config = { meta: { home: "" }, groups: [{ id: "g", label: 
 }
 const read = (d, f) => readFileSync(join(d, f), "utf8");
 
-test("rename: propagates the title + every reference (body [[..]] + typed data-* relation)", () => {
-  const d = corpus({
+test("rename: propagates the title + every reference (body [[..]] + typed data-* relation)", (t) => {
+  const d = corpus(t, {
     "a.html": doc({ title: "A", group: "g", allies: "[[B]]" }, "<p>see [[B]] and [[B|the foil]]</p>"),
     "b.html": doc({ title: "B", group: "g" }, "<p>x</p>"),
   });
@@ -33,8 +34,8 @@ test("rename: propagates the title + every reference (body [[..]] + typed data-*
   assert.doesNotMatch(read(d, "a.html"), /\[\[B\]\]/);
 });
 
-test("rename: does NOT rewrite references inside <pre>/<code> (matches model link semantics)", () => {
-  const d = corpus({
+test("rename: does NOT rewrite references inside <pre>/<code> (matches model link semantics)", (t) => {
+  const d = corpus(t, {
     "a.html": doc({ title: "A", group: "g" }, "<p>prose [[B]]</p><pre>code [[B]]</pre><p>inline <code>[[B]]</code></p>"),
     "b.html": doc({ title: "B", group: "g" }, "<p>x</p>"),
   });
@@ -45,14 +46,14 @@ test("rename: does NOT rewrite references inside <pre>/<code> (matches model lin
   assert.match(a, /<code>\[\[B\]\]<\/code>/, "inline-code link preserved");
 });
 
-test("rename: refuses a collision and a missing source", () => {
-  const d = corpus({ "a.html": doc({ title: "A", group: "g" }, "<p>x</p>"), "b.html": doc({ title: "B", group: "g" }, "<p>x</p>") });
+test("rename: refuses a collision and a missing source", (t) => {
+  const d = corpus(t, { "a.html": doc({ title: "A", group: "g" }, "<p>x</p>"), "b.html": doc({ title: "B", group: "g" }, "<p>x</p>") });
   assert.throws(() => planRename({ docsDir: d, from: "A", to: "B" }), /already exists/);
   assert.throws(() => planRename({ docsDir: d, from: "Ghost", to: "X" }), /no document titled/);
 });
 
-test("doctor: dangling typo gets a fuzzy auto-suggestion; orphan is advisory only", () => {
-  const d = corpus({
+test("doctor: dangling typo gets a fuzzy, distance-1 auto-suggestion", (t) => {
+  const d = corpus(t, {
     "a.html": doc({ title: "Alpha", group: "g" }, "<p>link to [[Alphaa]]</p>"), // typo of a nonexistent target
     "b.html": doc({ title: "Beta", group: "g" }, "<p>link [[Alpha]]</p>"),
   });
@@ -65,8 +66,28 @@ test("doctor: dangling typo gets a fuzzy auto-suggestion; orphan is advisory onl
   assert.equal(dangling.auto, true); // dist 1
 });
 
-test("doctor: applySafe fixes drift + auto-dangling and leaves the corpus clean", () => {
-  const d = corpus(
+test("doctor: an orphan is advisory only — surfaced but never auto-repaired, and applySafe leaves it untouched", (t) => {
+  const d = corpus(t, {
+    "a.html": doc({ title: "Alpha", group: "g" }, "<p>links to [[Beta]]</p>"),
+    "b.html": doc({ title: "Beta", group: "g" }, "<p>x</p>"),          // has an inbound link → not an orphan
+    "lonely.html": doc({ title: "Lonely", group: "g" }, "<p>no links at all</p>"), // no in, no out → orphan
+  });
+  const m = buildModel({ docsDir: d });
+  const h = deriveHealth(m, deriveBacklinks(m), { now: "2026-06-09" });
+  const fixes = buildRepairPlan(m, h);
+  const orphan = fixes.find((f) => f.kind === "orphan");
+  assert.ok(orphan, "the orphan lane must reach the repair plan");
+  assert.equal(orphan.node, "Lonely");
+  assert.equal(orphan.auto, false, "an orphan is a judgment call — never auto-repaired");
+  // exercise the repair APPLY path and prove it does nothing for the orphan
+  const before = read(d, "lonely.html");
+  const applied = applySafe(d, fixes, m);
+  assert.ok(!applied.some((a) => a.includes("Lonely")), "applySafe must not act on an orphan finding");
+  assert.equal(read(d, "lonely.html"), before, "the orphan page must be byte-identical after applySafe");
+});
+
+test("doctor: applySafe fixes drift + auto-dangling and leaves the corpus clean", (t) => {
+  const d = corpus(t,
     {
       "a.html": doc({ title: "Alpha", group: "g" }, "<p>[[Alphaa]]</p>"),
       "b.html": doc({ title: "Beta", group: "g", updated: "2026-06-08" }, "<p>[[Alpha]] [[Alphaa]]</p>"),
@@ -85,13 +106,13 @@ test("doctor: applySafe fixes drift + auto-dangling and leaves the corpus clean"
   assert.equal(h.counts.drift, 0);
 });
 
-test("rename: refuses a new title with wiki-breaking chars", () => {
-  const d = corpus({ "a.html": doc({ title: "A", group: "g" }, "<p>x</p>") });
+test("rename: refuses a new title with wiki-breaking chars", (t) => {
+  const d = corpus(t, { "a.html": doc({ title: "A", group: "g" }, "<p>x</p>") });
   assert.throws(() => planRename({ docsDir: d, from: "A", to: "B|C" }), /invalid new title/);
 });
 
-test("doctor: an ambiguous (tied) dangling typo is suggested but NOT auto-applied", () => {
-  const d = corpus({
+test("doctor: an ambiguous (tied) dangling typo is suggested but NOT auto-applied", (t) => {
+  const d = corpus(t, {
     "a.html": doc({ title: "Alpha", group: "g" }, "<p>x</p>"),
     "b.html": doc({ title: "Alphab", group: "g" }, "<p>x</p>"),
     "c.html": doc({ title: "C", group: "g" }, "<p>link [[Alphaa]]</p>"),
@@ -129,8 +150,9 @@ test("doctor: unsourced advice names the CONFIGURED source drawer, not a hardcod
   assert.doesNotMatch(f.advice, /logbook/i);
 });
 
-test("doctor: applySafe never writes anything for an unsourced finding", () => {
+test("doctor: applySafe never writes anything for an unsourced finding", (t) => {
   const dir = mkdtempSync(join(tmpdir(), "doc-unsourced-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
   mkdirSync(join(dir, "decisions"), { recursive: true });
   const p = join(dir, "decisions", "a.md");
   const before = "---\ntitle: A\nstatus: proposed\n---\n\n# A\n\nno sources\n";

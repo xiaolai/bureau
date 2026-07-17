@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync, readdirSync, cpSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, cpSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -16,8 +16,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 // scaffold a workspace the way `bureau:init` would: copy template, substitute, write ./BUREAU.md
 // and make ./CLAUDE.md @import it.
-function scaffold() {
+function scaffold(t) {
   const repo = mkdtempSync(join(tmpdir(), "bureau-e2e-"));
+  if (t) t.after(() => rmSync(repo, { recursive: true, force: true })); // don't leak the scaffold fixture
   cpSync(join(PLUGIN, "templates", "workspace"), join(repo, "canon"), { recursive: true });
   const sub = (p, k, v) => writeFileSync(p, readFileSync(p, "utf8").replaceAll(k, v));
   const walk = (d) => { for (const e of readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.(md|json)$/.test(e.name)) sub(p, "{{DATE}}", today()); } };
@@ -32,54 +33,56 @@ const writePage = (repo, name, status) => writeFileSync(join(ws(repo), "decision
 // flexible cabinet page: control title, tier, and full body (for cabinetPageAbout fixtures).
 const writeCabinetPage = (repo, name, status, title, body) => writeFileSync(join(ws(repo), "decisions", name), `---\ntitle: ${title}\nupdated: ${today()}\nstatus: ${status}\n---\n${body}\n`);
 
-test("judge logbookEntryExists: passes with an entry, fails without", () => {
-  const good = scaffold(); captureSession(good, "feed1234");
+test("judge logbookEntryExists: passes with an entry, fails without", (t) => {
+  const good = scaffold(t); captureSession(good, "feed1234");
   assert.equal(logbookEntryExists(ws(good)).pass, true);
-  assert.equal(logbookEntryExists(ws(scaffold())).pass, false); // fresh scaffold, no session captured
+  assert.equal(logbookEntryExists(ws(scaffold(t))).pass, false); // fresh scaffold, no session captured
 });
 
-test("judge noLeftoverTokens: passes clean, fails on an unsubstituted token", () => {
-  const good = scaffold();
+test("judge noLeftoverTokens: passes clean, fails on an unsubstituted token", (t) => {
+  const good = scaffold(t);
   assert.equal(noLeftoverTokens(good).pass, true);
-  const bad = scaffold(); writeFileSync(join(ws(bad), "decisions", "x.md"), "leftover {{DATE}} here");
+  const bad = scaffold(t); writeFileSync(join(ws(bad), "decisions", "x.md"), "leftover {{DATE}} here");
   assert.equal(noLeftoverTokens(bad).pass, false);
 });
 
-test("judge recallRuleInstalled: needs BOTH BUREAU.md substituted AND the CLAUDE.md @import", () => {
-  assert.equal(recallRuleInstalled(scaffold()).pass, true);                       // both present
-  assert.equal(recallRuleInstalled(mkdtempSync(join(tmpdir(), "bureau-e2e-"))).pass, false); // neither
+test("judge recallRuleInstalled: needs BOTH BUREAU.md substituted AND the CLAUDE.md @import", (t) => {
+  assert.equal(recallRuleInstalled(scaffold(t)).pass, true);                       // both present
+  const empty = mkdtempSync(join(tmpdir(), "bureau-e2e-"));
+  t.after(() => rmSync(empty, { recursive: true, force: true }));
+  assert.equal(recallRuleInstalled(empty).pass, false);                            // neither
   // BUREAU.md present but CLAUDE.md does NOT import it → must FAIL (the import is what loads it).
-  const noImport = scaffold(); writeFileSync(join(noImport, "CLAUDE.md"), "# just my notes, no bureau import\n");
+  const noImport = scaffold(t); writeFileSync(join(noImport, "CLAUDE.md"), "# just my notes, no bureau import\n");
   assert.equal(recallRuleInstalled(noImport).pass, false);
 });
 
-test("judge compileProducedProposed: passes proposed page, FAILS if compile leaked canonical", () => {
-  const good = scaffold(); writePage(good, "ttl.md", "proposed");
+test("judge compileProducedProposed: passes proposed page, FAILS if compile leaked canonical", (t) => {
+  const good = scaffold(t); writePage(good, "ttl.md", "proposed");
   assert.equal(compileProducedProposed(ws(good), "ttl").pass, true);
-  const bad = scaffold(); writePage(bad, "ttl.md", "canonical"); // the bug we must catch
+  const bad = scaffold(t); writePage(bad, "ttl.md", "canonical"); // the bug we must catch
   assert.equal(compileProducedProposed(ws(bad), "ttl").pass, false);
 });
 
-test("judge reviewPromotedToCanonical: fails at proposed, passes once approved", () => {
-  const repo = scaffold(); writePage(repo, "ttl.md", "proposed");
+test("judge reviewPromotedToCanonical: fails at proposed, passes once approved", (t) => {
+  const repo = scaffold(t); writePage(repo, "ttl.md", "proposed");
   assert.equal(reviewPromotedToCanonical(ws(repo), "ttl").pass, false);
   writePage(repo, "ttl.md", "canonical");
   assert.equal(reviewPromotedToCanonical(ws(repo), "ttl").pass, true);
 });
 
-test("judge boardBuildsHealthy: passes a clean scaffold, fails on a dangling link", () => {
-  const good = scaffold(); captureSession(good, "feed1234"); writeFileSync(join(good, ".gitignore"), "/board/\n");
+test("judge boardBuildsHealthy: passes a clean scaffold, fails on a dangling link", (t) => {
+  const good = scaffold(t); captureSession(good, "feed1234"); writeFileSync(join(good, ".gitignore"), "/board/\n");
   assert.equal(boardBuildsHealthy(good, "canon").pass, true);
-  const bad = scaffold(); writePage(bad, "dangle.md", "proposed");
+  const bad = scaffold(t); writePage(bad, "dangle.md", "proposed");
   writeFileSync(join(ws(bad), "decisions", "dangle.md"), `---\ntitle: Dangle\nstatus: proposed\n---\n# Dangle\nSee [[Nonexistent Page]].\n`);
   assert.equal(boardBuildsHealthy(bad, "canon").pass, false); // the [[Nonexistent Page]] dangles
 });
 
-test("judge boardBuildsHealthy: also fails on an ORPHAN page (no links in or out)", () => {
+test("judge boardBuildsHealthy: also fails on an ORPHAN page (no links in or out)", (t) => {
   // Distinct from the dangling case: gazette's orphan = a node with zero non-self edges in AND
   // out. This page has NO wiki links at all → orphans>0 while dangling stays 0. Proves the orphan
   // branch of the health parse actually fails (a broken orphan regex couldn't self-test green).
-  const bad = scaffold(); writeFileSync(join(bad, ".gitignore"), "/board/\n");
+  const bad = scaffold(t); writeFileSync(join(bad, ".gitignore"), "/board/\n");
   writeCabinetPage(bad, "lonely.md", "proposed", "Lonely Orphan", "# Lonely Orphan\nA standalone claim with no links in or out.");
   const v = boardBuildsHealthy(bad, "canon");
   assert.equal(v.pass, false, v.detail);
@@ -87,28 +90,35 @@ test("judge boardBuildsHealthy: also fails on an ORPHAN page (no links in or out
 });
 
 // cabinetPageAbout is the judge the LIVE harness leans on for compile/review tier checks — it MUST
-// be self-proven. A qualifying page is a SOURCED claim (keyword in body + a [[provenance]] link).
-test("judge cabinetPageAbout: passes a sourced proposed claim mentioning the keyword", () => {
-  const repo = scaffold();
+// be self-proven. A qualifying page is a SOURCED claim (keyword in body + a Sources provenance link).
+test("judge cabinetPageAbout: passes a sourced proposed claim mentioning the keyword", (t) => {
+  const repo = scaffold(t);
   writeCabinetPage(repo, "auth.md", "proposed", "Auth design", "# Auth design\nWe use JWT for sessions. **Sources.** [[Logbook]]");
   assert.equal(cabinetPageAbout(ws(repo), "JWT").pass, true);
 });
 
-test("judge cabinetPageAbout: fails when the keyword sits at a FORBIDDEN tier", () => {
-  const repo = scaffold();
+test("judge cabinetPageAbout: fails when the keyword sits at a FORBIDDEN tier", (t) => {
+  const repo = scaffold(t);
   writeCabinetPage(repo, "auth.md", "canonical", "Auth design", "# Auth design\nWe use JWT for sessions. **Sources.** [[Logbook]]");
   assert.equal(cabinetPageAbout(ws(repo), "JWT", { allow: ["proposed", "verified"], forbid: ["canonical"] }).pass, false);
 });
 
-test("judge cabinetPageAbout: fails when NO page mentions the keyword", () => {
-  const repo = scaffold();
+test("judge cabinetPageAbout: fails when NO page mentions the keyword", (t) => {
+  const repo = scaffold(t);
   writeCabinetPage(repo, "auth.md", "proposed", "Auth design", "# Auth design\nWe use sessions. **Sources.** [[Logbook]]");
   assert.equal(cabinetPageAbout(ws(repo), "kerberos").pass, false);
 });
 
-test("judge cabinetPageAbout: a bare substring with NO provenance link does NOT qualify", () => {
+test("judge cabinetPageAbout: a bare substring with NO provenance link does NOT qualify", (t) => {
   // proves it's a structured-claim check, not a naive `includes()` — the keyword alone isn't enough.
-  const repo = scaffold();
+  const repo = scaffold(t);
   writeCabinetPage(repo, "auth.md", "proposed", "Auth design", "# Auth design\nWe use JWT for sessions. (no source link)");
+  assert.equal(cabinetPageAbout(ws(repo), "JWT").pass, false);
+});
+
+test("judge cabinetPageAbout: a keyword plus an UNRELATED wiki-link (no Sources) does NOT qualify", (t) => {
+  // guards the tightened rule: any-link-anywhere is not provenance — only a Sources-tied link counts.
+  const repo = scaffold(t);
+  writeCabinetPage(repo, "auth.md", "proposed", "Auth design", "# Auth design\nWe use JWT. See also [[Some Other Page]] for context.");
   assert.equal(cabinetPageAbout(ws(repo), "JWT").pass, false);
 });

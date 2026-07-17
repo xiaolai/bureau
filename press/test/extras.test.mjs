@@ -2,7 +2,7 @@
 // disk-vs-declared drift (positive), assets bundle-budget, model.data discovery.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, mkdirSync } from "fs";
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { buildModel } from "../src/core/model.mjs";
@@ -12,8 +12,9 @@ import { bundleReport } from "../src/services/assets.mjs";
 import { buildSite } from "../src/build.mjs";
 import { doc } from "./helpers.mjs";
 
-function corpus({ config, docs = {}, data = {}, canvas = {} }) {
+function corpus({ config, docs = {}, data = {}, canvas = {} }, t) {
   const root = mkdtempSync(join(tmpdir(), "wb-extra-"));
+  if (t) t.after(() => rmSync(root, { recursive: true, force: true }));
   const docsDir = join(root, "docs");
   mkdirSync(docsDir, { recursive: true });
   writeFileSync(join(docsDir, "_config.json"), JSON.stringify(config));
@@ -26,25 +27,25 @@ function corpus({ config, docs = {}, data = {}, canvas = {} }) {
   return { root, docsDir, dataDir: join(docsDir, "_data") };
 }
 
-test("health: disk-vs-declared drift fires when meta.expectedDocs ≠ actual", () => {
+test("health: disk-vs-declared drift fires when meta.expectedDocs ≠ actual", (t) => {
   const { docsDir } = corpus({
     config: { meta: { home: "", expectedDocs: 5 }, groups: [{ id: "g", label: "G" }] },
     docs: { "a.html": doc({ title: "A", group: "g" }), "b.html": doc({ title: "B", group: "g" }) },
-  });
+  }, t);
   const m = buildModel({ docsDir });
   const h = deriveHealth(m, deriveBacklinks(m), { now: "2026-06-09" });
   assert.equal(h.counts.drift, 1);
   assert.deepEqual(h.drift, [{ declared: 5, actual: 2 }]);
 });
 
-test("model: data + *.canvas files are discovered into model.data", () => {
+test("model: data + *.canvas files are discovered into model.data", (t) => {
   const { docsDir } = corpus({
     config: { meta: { home: "" }, groups: [{ id: "g", label: "G" }] },
     docs: { "a.html": doc({ title: "A", group: "g" }) },
     data: { "cold-events.md": "# x" },
     canvas: { "map.canvas": "{}" },
-  });
-  const m = buildModel({ docsDir }); // dataDir derives from docsDir/../data
+  }, t);
+  const m = buildModel({ docsDir }); // dataDir derives from docsDir/_data
   assert.ok(m.data.files.includes("cold-events.md"));
   assert.ok(m.data.canvas.includes("map.canvas"));
 });
@@ -62,11 +63,11 @@ test("backlinks: a dangling wiki-link to an inherited key ([[constructor]]) does
   assert.equal(bl.inbound.constructor, undefined); // no prototype leakage
 });
 
-test("assets: bundleReport sums bytes and stays under budget for a small board", () => {
+test("assets: bundleReport sums bytes and stays under budget for a small board", (t) => {
   const { root, docsDir } = corpus({
     config: { meta: { home: "A" }, groups: [{ id: "g", label: "G" }] },
     docs: { "a.html": doc({ title: "A", group: "g" }) },
-  });
+  }, t);
   buildSite({ root, docsDir, outDir: join(root, "dist"), now: "2026-06-09" });
   const r = bundleReport(join(root, "dist"));
   assert.ok(r.totalBytes > 0);

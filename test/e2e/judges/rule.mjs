@@ -3,7 +3,7 @@
 // the plugin actually DID (files, status tiers, the board). Reused by the live harness AND by
 // judges.test.mjs (which proves the judges themselves are correct, with no LLM).
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, relative, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -32,11 +32,27 @@ const frontmatter = (file) => {
   }
   return o;
 };
-const cabinetPages = (ws) => walk(ws, (n) => n.endsWith(".md")).filter((p) => !/\/(logbook|lint|board)\//.test(p) && !/\/_/.test(p) && !/\/00-overview\.md$|\/00-logbook\.md$/.test(p));
+// Cabinet pages = reviewed-canon docs. Exclude the non-cabinet drawers (logbook/lint/board), any
+// `_`-prefixed segment (_types/_state/…), and the index pages — matched on PATH SEGMENTS relative to
+// the workspace (via path.relative), not slash regexes, so the filter is correct on Windows paths too
+// and can't be fooled by a `/logbook/` substring living OUTSIDE the workspace root.
+const cabinetPages = (ws) => walk(ws, (n) => n.endsWith(".md")).filter((p) => {
+  const segs = relative(ws, p).split(sep);
+  const base = segs[segs.length - 1];
+  if (segs.some((s) => s === "logbook" || s === "lint" || s === "board")) return false;
+  if (segs.some((s) => s.startsWith("_"))) return false;
+  if (base === "00-overview.md" || base === "00-logbook.md") return false;
+  return true;
+});
 
 // ── judges ────────────────────────────────────────────────────────────────────
 export function logbookEntryExists(ws) {
-  const entries = walk(join(ws, "logbook"), (n) => n.endsWith(".md")).filter((p) => /\/\d{4}\/\d{2}\//.test(p));
+  const lb = join(ws, "logbook");
+  // a logbook entry lives at logbook/YYYY/MM/<id>.md — match on relative segments, not a slash regex.
+  const entries = walk(lb, (n) => n.endsWith(".md")).filter((p) => {
+    const segs = relative(lb, p).split(sep);
+    return segs.length >= 3 && /^\d{4}$/.test(segs[0]) && /^\d{2}$/.test(segs[1]);
+  });
   if (!entries.length) return { name: "logbook-entry-exists", pass: false, detail: "no logbook/YYYY/MM/*.md entry was written" };
   // Well-formed = status:logbook + a "session <id>" title + a non-empty session field. Checked
   // across ALL entries (not just the first) so an empty/malformed file can't pass on a sibling.
@@ -46,9 +62,23 @@ export function logbookEntryExists(ws) {
   return { name: "logbook-entry-exists", pass: ok, detail: ok ? `${wellFormed.length}/${entries.length} well-formed` : `entries present but none well-formed (e.g. ${JSON.stringify(frontmatter(entries[0]))})` };
 }
 
-export function noLeftoverTokens(repoRoot) {
-  const hits = walk(repoRoot, (n) => /\.(md|json)$/.test(n)).filter((p) => !/\.git\//.test(p) && /\{\{[A-Z]+\}\}/.test(readFileSync(p, "utf8")));
-  return { name: "no-leftover-tokens", pass: hits.length === 0, detail: hits.length ? "unsubstituted tokens in: " + hits.join(", ") : "clean" };
+// Scan ONLY the files `bureau:init` writes and substitutes: the workspace tree (cabinets + logbook)
+// plus the top-level instruction files (BUREAU.md, CLAUDE.md). Deliberately NOT the whole repo — the
+// installed plugin (under .claude/…), its own templates (which legitimately carry {{WORKSPACE}} /
+// {{DATE}} / {{NAME}} tokens by design), node_modules, .git, and generated board/gazette output would
+// all yield FALSE POSITIVES and waste I/O. A leftover token in init's own output is the real defect.
+export function noLeftoverTokens(repoRoot, wsName = "canon") {
+  const SKIP = new Set([".git", "node_modules", ".claude", "gazette", "board"]);
+  const targets = [];
+  const wsDir = join(repoRoot, wsName);
+  if (existsSync(wsDir)) targets.push(...walk(wsDir, (n) => /\.(md|json)$/.test(n)));
+  for (const f of ["BUREAU.md", "CLAUDE.md"]) { const p = join(repoRoot, f); if (existsSync(p)) targets.push(p); }
+  const hits = targets.filter((p) => {
+    const segs = relative(repoRoot, p).split(sep);
+    if (segs.some((s) => SKIP.has(s) || s.startsWith("."))) return false; // belt-and-suspenders skip
+    return /\{\{[A-Z]+\}\}/.test(readFileSync(p, "utf8"));
+  });
+  return { name: "no-leftover-tokens", pass: hits.length === 0, detail: hits.length ? "unsubstituted tokens in: " + hits.map((p) => relative(repoRoot, p)).join(", ") : "clean" };
 }
 
 // init writes ./BUREAU.md (substituted) AND makes CLAUDE.md @import it — the import is what binds
@@ -106,19 +136,34 @@ export function boardBuildsHealthy(repoRoot, wsName, boardName = "board") {
   return { name: "board-builds-healthy", pass: ok, detail: `dangling=${dangling} orphans=${orphans}` };
 }
 
+// A page carries PROVENANCE iff it has a Sources/Source line tying a [[wiki-link]] to the claim (the
+// convention `bureau:compile` writes: `**Sources.** [[session … ]]`), or a frontmatter `sources:` key
+// whose value is a [[wiki-link]]. A bare [[link]] sitting anywhere else in prose is NOT provenance
+// (BUREAU.md: cite the MINUTE that introduced the claim) — accepting any-link-anywhere is exactly the
+// false positive this guards against. (Whether the linked target is a real minute vs. `[[Logbook]]`
+// is the gazette health lane's job; here we require the Sources STRUCTURE, not just some link.)
+function hasProvenanceLink(raw, body) {
+  // body: a "Source(s)" marker followed on the SAME line by a wiki-link (compile's shape).
+  if (/\bsources?\b[^\n]*\[\[[^\]]+\]\]/i.test(body)) return true;
+  // frontmatter: a `sources:` key AND a wiki-link within the leading frontmatter block.
+  const fmBlock = (raw.match(/^---\n([\s\S]*?)\n---/) || [])[1] || "";
+  if (/^\s*sources?\s*:/im.test(fmBlock) && /\[\[[^\]]+\]\]/.test(fmBlock)) return true;
+  return false;
+}
+
 // Content-robust variant for the LIVE harness: the LLM picks the page title, so assert on tier +
 // claim shape, not an exact title. A qualifying page is a STRUCTURED, SOURCED claim — not a bare
-// substring: the keyword must appear in the BODY (below frontmatter), and the page must carry a
-// provenance link (`[[…]]`). That rejects a page that merely names the keyword in its frontmatter
-// or in unrelated prose without sourcing a claim. Passes only if such a page sits at an allowed
-// tier and none sits at a forbidden one.
+// substring: the keyword must appear in the BODY (below frontmatter), AND the page must carry a real
+// provenance link (a Sources line, or a frontmatter `sources:` wiki-link) — see hasProvenanceLink.
+// That rejects a page that merely names the keyword and happens to contain some unrelated wiki-link.
+// Passes only if such a page sits at an allowed tier and none sits at a forbidden one.
 export function cabinetPageAbout(ws, keyword, { allow = ["proposed", "verified"], forbid = [] } = {}) {
   const kw = keyword.toLowerCase();
   const pages = cabinetPages(ws).map((p) => {
     const raw = readFileSync(p, "utf8");
     const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, ""); // strip leading frontmatter
-    return { fm: frontmatter(p), body };
-  }).filter((x) => x.body.toLowerCase().includes(kw) && /\[\[[^\]]+\]\]/.test(x.body));
+    return { fm: frontmatter(p), body, raw };
+  }).filter((x) => x.body.toLowerCase().includes(kw) && hasProvenanceLink(x.raw, x.body));
   if (!pages.length) return { name: "cabinet-page-about", pass: false, detail: `no cabinet page makes a sourced claim about "${keyword}"` };
   const bad = pages.find((x) => forbid.includes(x.fm.status));
   if (bad) return { name: "cabinet-page-about", pass: false, detail: `page about "${keyword}" is at forbidden tier ${bad.fm.status}` };

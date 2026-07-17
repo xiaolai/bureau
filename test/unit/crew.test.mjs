@@ -5,18 +5,19 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, appendFileSync, rmSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, basename } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const CREW = join(PLUGIN, "scripts", "crew.mjs");
 
-function repo() { // a bureau repo: a workspace with a marker + a BUREAU.md for the crew block
+function repo(t) { // a bureau repo: a workspace with a marker + a BUREAU.md for the crew block
   const r = mkdtempSync(join(tmpdir(), "bureau-crew-"));
   mkdirSync(join(r, "canon"), { recursive: true });
   writeFileSync(join(r, "canon", "bureau.json"), JSON.stringify({ workspace: "canon" }));
   writeFileSync(join(r, "BUREAU.md"), "# bureau\n\nrepo instructions.\n");
+  if (t) t.after(() => rmSync(r, { recursive: true, force: true })); // don't leak the temp repo
   return r;
 }
 function crew(r, ...args) {
@@ -24,8 +25,8 @@ function crew(r, ...args) {
   catch (e) { return { stdout: (e.stdout || "") + (e.stderr || ""), status: e.status == null ? 1 : e.status }; }
 }
 
-test("crew enable: copies a substituted source, materializes the agent, wires the brief import", () => {
-  const r = repo();
+test("crew enable: copies a substituted source, materializes the agent, wires the brief import", (t) => {
+  const r = repo(t);
   assert.equal(crew(r, "enable", "auditor").status, 0);
   // source landed under bureau/crew, workspace substituted, no tokens left
   const src = join(r, "bureau", "crew", "auditor", "agent.md");
@@ -40,8 +41,8 @@ test("crew enable: copies a substituted source, materializes the agent, wires th
   assert.match(readFileSync(join(r, "BUREAU.md"), "utf8"), /<!-- bureau:crew -->[\s\S]*@bureau\/crew\/auditor\/brief\.md[\s\S]*<!-- \/bureau:crew -->/);
 });
 
-test("crew check: catches drift in the SOURCE *and* a hand-edit to the MATERIALIZED file", () => {
-  const r = repo(); crew(r, "enable", "auditor");
+test("crew check: catches drift in the SOURCE *and* a hand-edit to the MATERIALIZED file", (t) => {
+  const r = repo(t); crew(r, "enable", "auditor");
   assert.equal(crew(r, "check").status, 0);
   // (a) the source drifts → check fails
   appendFileSync(join(r, "bureau", "crew", "auditor", "agent.md"), "\n<!-- edited -->\n");
@@ -57,8 +58,8 @@ test("crew check: catches drift in the SOURCE *and* a hand-edit to the MATERIALI
   assert.equal(crew(r, "check").status, 0, "sync heals it");
 });
 
-test("crew new: scaffolds a local member from the template and materializes it", () => {
-  const r = repo();
+test("crew new: scaffolds a local member from the template and materializes it", (t) => {
+  const r = repo(t);
   assert.equal(crew(r, "new", "scribe-helper", "--role", "drafts logbook minutes").status, 0);
   const src = readFileSync(join(r, "bureau", "crew", "scribe-helper", "agent.md"), "utf8");
   assert.match(src, /^---\nname: scribe-helper/, "{{NAME}} substituted");
@@ -67,8 +68,8 @@ test("crew new: scaffolds a local member from the template and materializes it",
   assert.equal(crew(r, "check").status, 0);
 });
 
-test("crew disable: de-materializes but keeps the source; --purge removes the source", () => {
-  const r = repo(); crew(r, "enable", "auditor");
+test("crew disable: de-materializes but keeps the source; --purge removes the source", (t) => {
+  const r = repo(t); crew(r, "enable", "auditor");
   assert.equal(crew(r, "disable", "auditor").status, 0);
   assert.ok(!existsSync(join(r, ".claude", "agents", "auditor.md")), "materialized agent removed");
   assert.ok(existsSync(join(r, "bureau", "crew", "auditor", "agent.md")), "editable source kept");
@@ -79,8 +80,8 @@ test("crew disable: de-materializes but keeps the source; --purge removes the so
   assert.ok(!existsSync(join(r, "bureau", "crew", "auditor")), "--purge removed the source too");
 });
 
-test("crew sync: a HYPHENATED member's skill materializes, survives re-sync, and removed skills are cleaned", () => {
-  const r = repo();
+test("crew sync: a HYPHENATED member's skill materializes, survives re-sync, and removed skills are cleaned", (t) => {
+  const r = repo(t);
   const m = join(r, "bureau", "crew", "scribe-helper"); // hyphenated — the old split('-') owner bug
   mkdirSync(join(m, "skills", "scan"), { recursive: true });
   writeFileSync(join(m, "crew.json"), JSON.stringify({ name: "scribe-helper", role: "t", enabled: true }));
@@ -101,10 +102,16 @@ test("crew sync: a HYPHENATED member's skill materializes, survives re-sync, and
   assert.equal(crew(r, "check").status, 0);
 });
 
-test("crew: unsafe names refused at every entry point; a bad pre-existing dir fails check", () => {
-  const r = repo();
-  assert.equal(crew(r, "new", "../escape").status, 1, "unsafe new rejected");
-  assert.ok(!existsSync(join(r, "..", "escape")), "nothing written outside the repo");
+test("crew: unsafe names refused at every entry point; a bad pre-existing dir fails check", (t) => {
+  const r = repo(t);
+  // Derive the traversal target from THIS repo's unique temp name, so a stray `escape` dir left in
+  // tmpdir by another run (or a parallel test) can't make the "nothing written" check lie.
+  const esc = basename(r) + "-escaped";
+  assert.equal(crew(r, "new", "../" + esc).status, 1, "unsafe new rejected");
+  // `../<esc>` from the repo root resolves to tmpdir()/<esc>; from the crew source dir it resolves to
+  // r/bureau/<esc>. Nothing must land at either — the name is rejected before any path is joined.
+  assert.ok(!existsSync(join(r, "..", esc)), "nothing written beside the repo");
+  assert.ok(!existsSync(join(r, "bureau", esc)), "nothing written inside bureau/ via traversal");
   assert.equal(crew(r, "disable", "../x").status, 1, "unsafe disable rejected");
   // a pre-existing member dir with an unsafe name must be reported by check, never silently processed
   mkdirSync(join(r, "bureau", "crew", "BadName"), { recursive: true });

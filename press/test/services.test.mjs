@@ -36,6 +36,19 @@ test("theme: emits sorted :root CSS vars (camelCase → kebab)", () => {
   assert.ok(css.indexOf("--accent-deep") < css.indexOf("--paper"));
 });
 
+test("theme: a CSS-injection theme.json value fails the build (emitCssVars throws)", () => {
+  // theme.json is author/AI-controlled. A value that closes the declaration and rule
+  // (`red; }`) would break out of :root and inject arbitrary CSS into every view — the
+  // emitter must reject it, not escape-and-hope. Assert the throw on the value AND on a
+  // crafted key; a benign palette must still emit cleanly.
+  assert.throws(() => emitCssVars({ accent: "red; } body{display:none" }), /invalid theme token value/);
+  assert.throws(() => emitCssVars({ accent: "blue /* x */" }), /invalid theme token value/);
+  assert.throws(() => emitCssVars({ "accent}x": "#fff" }), /invalid theme token name/);
+  // benign values are unaffected — the guard blocks injection, not ordinary colors/fonts
+  assert.match(emitCssVars({ accent: "#abc123" }), /--accent: #abc123;/);
+  assert.match(emitCssVars({ fontFamily: "ui-serif, serif" }), /--font-family: ui-serif, serif;/);
+});
+
 test("sanitize: escapes HTML and emits a CSP", () => {
   assert.equal(escapeHtml('<a href="x">&'), "&lt;a href=&quot;x&quot;&gt;&amp;");
   assert.match(cspMeta(), /Content-Security-Policy/);

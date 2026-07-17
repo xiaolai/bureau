@@ -19,9 +19,24 @@ step("L1 · hook-script units", () => run("node", ["--test", "test/unit/scripts.
 step("L1 · crew engine units", () => run("node", ["--test", "test/unit/crew.test.mjs"]));
 step("L1 · chamber server units", () => run("node", ["--test", "test/unit/serve.test.mjs"]));
 step("L1 · press renderer", () => {
-  if (!existsSync(join(ROOT, "press", "node_modules")))
-    run("npm", ["install", "--no-audit", "--no-fund"], { cwd: join(ROOT, "press") });
-  run("node", ["--test"], { cwd: join(ROOT, "press") });
+  const pressDir = join(ROOT, "press");
+  if (!existsSync(join(pressDir, "node_modules"))) {
+    // The press unit tests need their dev deps, but a test run must NOT silently hit the network
+    // and mutate dependency state every time. Install them once as an explicit setup step. Opt in
+    // to an automatic install with BUREAU_ALLOW_NPM_INSTALL=1 (prefers `npm ci` — clean, pinned to
+    // the lockfile — falling back to `npm install` when no lockfile is present).
+    if (process.env.BUREAU_ALLOW_NPM_INSTALL === "1") {
+      const ciable = existsSync(join(pressDir, "package-lock.json"));
+      run("npm", [ciable ? "ci" : "install", "--no-audit", "--no-fund"], { cwd: pressDir });
+    } else {
+      console.error(
+        "  press/node_modules is missing — the press unit tests need their dev deps.\n" +
+        "  Run `npm ci` (or `npm install`) in press/ once, or set BUREAU_ALLOW_NPM_INSTALL=1 to\n" +
+        "  auto-install. Refusing to hit the network mid-suite.");
+      throw new Error("press dev deps not installed");
+    }
+  }
+  run("node", ["--test"], { cwd: pressDir });
 });
 step("L3 · judge self-test (deterministic)", () => run("node", ["--test", "test/e2e/judges.test.mjs"]));
 step("L1 · self-canon fixture (dogfood)", () => run("node", ["--test", "test/canon.test.mjs"]));

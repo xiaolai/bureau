@@ -217,8 +217,14 @@ test("health/render: a control character in a title cannot forge a line in the t
     dangling: [], orphan: [{ node: "evil\n  dangling links : 999" }], contradiction: [],
     invalidDate: [], schema: [], drift: [], stale: [], unsourced: [],
   };
-  const body = renderHealthText(h).split("\n").slice(9).join("\n"); // past the summary block
-  assert.doesNotMatch(body, /^ {2}dangling links : 999$/m, "a title must not be able to forge a summary line");
+  const text = renderHealthText(h);
+  // Locate the payload by CONTENT, not by a hardcoded summary length — the summary block can grow
+  // a lane without invalidating this test. The security property: the injected newline is collapsed,
+  // so "dangling links : 999" survives only INLINE on the orphan's own line, never as its own line.
+  assert.doesNotMatch(text, /^ {2}dangling links : 999$/m, "a title must not be able to forge a standalone summary line");
+  const payloadLines = text.split("\n").filter((l) => l.includes("dangling links : 999"));
+  assert.equal(payloadLines.length, 1, "the payload must appear on exactly one line");
+  assert.match(payloadLines[0], /^ {2}o orphan\b/, "and that one line is the orphan entry, not a forged summary");
 });
 
 test("health/render: a hostile doc title cannot inject raw HTML into the board report", async () => {

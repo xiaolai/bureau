@@ -33,7 +33,10 @@ test("renderViz: a markdown-table chart/table input (the 4th input format)", () 
   const md = "| chapter | words |\n|---|---|\n| 1 | 3200 |\n| 2 | 4100 |";
   const t = renderViz({ type: "table", format: "markdown", text: md }, P);
   assert.equal(t.mode, "html");
-  assert.match(t.html, /Lin|chapter/);
+  assert.match(t.html, /chapter/);        // header rendered
+  // assert the actual data cells, not just the header — dropping the rows must fail the test
+  assert.match(t.html, /<td[^>]*>3200<\/td>/);
+  assert.match(t.html, /<td[^>]*>4100<\/td>/);
   const c = renderViz({ type: "chart", kind: "bar", format: "auto", text: md }, P); // auto-detect markdown
   assert.equal(c.mode, "echarts");
   assert.deepEqual(c.option.series[0].data, [3200, 4100]);

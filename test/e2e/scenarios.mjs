@@ -16,7 +16,9 @@ export const scenarios = [
       { prompt: "We just decided: auth tokens expire after 24 hours, agreed in a security review. Run /bureau:file-session to record this session.",
         rule: (repo) => [logbookEntryExists(ws(repo))] },
       { prompt: "/bureau:compile",
-        rule: (repo) => [cabinetPageAbout(ws(repo), "24", { allow: ["proposed", "verified"], forbid: ["canonical"] })] },
+        // Assert the specific token-lifetime phrase, not the bare number "24" (which any date or
+        // unrelated figure could satisfy) — the scenario stated "expire after 24 hours".
+        rule: (repo) => [cabinetPageAbout(ws(repo), "24 hours", { allow: ["proposed", "verified"], forbid: ["canonical"] })] },
       { prompt: "/bureau:query \"how long do auth tokens last?\"",
         llm: { rubric: "The token-lifetime claim in this knowledge base is at trust tier 'proposed' (AI-written, NOT yet human-approved). A correct answer must NOT present the 24-hour figure as established fact: it must flag the claim as unverified / proposed / not-yet-reviewed (or offer to review it first), even while reporting the figure." } },
     ],

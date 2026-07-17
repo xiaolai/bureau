@@ -2,13 +2,24 @@
 // and [[Note#heading]] / [[#heading]] anchor links.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+import vm from "node:vm";
 import { markdownToHtml, addHeadingIds, resolveImageEmbeds } from "../src/core/parse.mjs";
 import { makeResolve } from "../src/runtime/pure.mjs";
 import { slugify } from "../src/shared/slug.mjs";
 import { buildSite } from "../src/build.mjs";
+
+// Load the generated STORY object the way the browser does — evaluate content.js in a
+// sandbox with a `window` global — instead of regex-scraping its serialized JS, which
+// fails with an opaque TypeError if the payload shape changes. Returns window.STORY.
+function loadStory(distDir) {
+  const src = readFileSync(join(distDir, "lib", "content.js"), "utf8");
+  const sandbox = { window: {} };
+  vm.runInNewContext(src, sandbox);
+  return sandbox.window.STORY;
+}
 
 test("callout: > [!warning] → div.callout-warning with title + body", () => {
   const h = markdownToHtml("> [!warning] Spoiler\n> Lin betrays the court.\n");
@@ -54,16 +65,16 @@ test("slugify: kebab; unicode preserved", () => {
   assert.equal(slugify("Café Notes"), "café-notes");
 });
 
-test("build: ![[Note#Heading]] transcludes the section; missing → marker; no leftover markers", () => {
+test("build: ![[Note#Heading]] transcludes the section; missing → marker; no leftover markers", (t) => {
   const root = mkdtempSync(join(tmpdir(), "wb-embed-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
   const w = join(root, "gazette");
   mkdirSync(join(w, "people"), { recursive: true });
   writeFileSync(join(w, "_config.json"), JSON.stringify({ meta: { home: "Lin" } }));
   writeFileSync(join(w, "people", "wei.md"), "# Wei\n## Bio\nWei is the foil.\n");
   writeFileSync(join(w, "people", "lin.md"), "# Lin\n\n![[Wei#Bio]]\n\n![[Ghost]]\n");
   buildSite({ root, outDir: join(root, "dist"), now: "2026-06-10" });
-  const c = readFileSync(join(root, "dist", "lib", "content.js"), "utf8");
-  const h = JSON.parse(c.match(/"Lin":\s*\{[\s\S]*?"html":\s*("(?:[^"\\]|\\.)*")/)[1]);
+  const h = loadStory(join(root, "dist")).docs["Lin"].html; // structured read, not a regex scrape
   assert.match(h, /<figure class="wb-embed">[\s\S]*?Bio[\s\S]*?Wei is the foil/);
   assert.match(h, /wb-embed-missing">⛔ missing embed: Ghost/);
   assert.doesNotMatch(h, /!\[\[/);

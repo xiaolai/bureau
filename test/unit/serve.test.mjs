@@ -5,7 +5,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative, isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
 import { start, makeWatcher } from "../../scripts/serve.mjs";
 
@@ -26,7 +26,11 @@ before(async () => {
   srv = await start({ cwd, port: 0 });
   base = "http://" + srv.host + ":" + srv.port;
 });
-after(() => { if (srv) srv.server.close(); if (cwd) rmSync(cwd, { recursive: true, force: true }); });
+// await close so teardown doesn't leave an open handle or race the temp-dir cleanup.
+after(async () => {
+  if (srv) await new Promise((res) => srv.server.close(res));
+  if (cwd) rmSync(cwd, { recursive: true, force: true });
+});
 
 const logbook = () => join(cwd, "canon", "logbook");
 function minuteFiles() {
@@ -34,6 +38,19 @@ function minuteFiles() {
   const walk = (d) => { if (!existsSync(d)) return; for (const e of readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name); e.isDirectory() ? walk(p) : out.push(p); } };
   walk(logbook());
   return out;
+}
+// every file anywhere under the temp workspace root (canon/) — used to prove a write never escapes.
+function allWorkspaceFiles() {
+  const out = [];
+  const root = join(cwd, "canon");
+  const walk = (d) => { if (!existsSync(d)) return; for (const e of readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name); e.isDirectory() ? walk(p) : out.push(p); } };
+  walk(root);
+  return out;
+}
+// true iff `file` is strictly contained under `dir` (path.relative doesn't climb out or go absolute).
+function containedUnder(file, dir) {
+  const rel = relative(dir, file);
+  return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
 }
 
 test("serve: binds localhost only", () => {
@@ -81,6 +98,7 @@ test("serve: intake without a subject is rejected", async () => {
 });
 
 test("serve: a path-bearing drawer is sanitized to a safe slug (no traversal)", async () => {
+  const before = new Set(allWorkspaceFiles());
   const r = await fetch(base + "/intake", {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ subject: "x", body: "y", drawer: "../../etc/passwd" }),
@@ -89,8 +107,16 @@ test("serve: a path-bearing drawer is sanitized to a safe slug (no traversal)", 
   const j = await r.json();
   const text = readFileSync(join(cwd, "canon", j.path), "utf8");
   assert.doesNotMatch(text, /\.\.\//, "drawer slug carries no path separators");
-  // every minute lives strictly inside the workspace logbook
-  for (const f of minuteFiles()) assert.ok(f.startsWith(logbook()), "minute contained in logbook: " + f);
+  // Scan the WHOLE workspace for files this intake newly created, and prove every one is contained
+  // under logbook/ via path.relative (not a tautological startsWith on files already walked FROM
+  // logbook). A traversal that escaped the logbook — or the workspace — would surface here as a new
+  // file whose relative path climbs out.
+  const created = allWorkspaceFiles().filter((f) => !before.has(f));
+  assert.ok(created.length >= 1, "the traversal-drawer intake wrote at least one minute");
+  for (const f of created) {
+    assert.ok(containedUnder(f, logbook()), "created minute escaped logbook/: " + f);
+    assert.ok(containedUnder(f, join(cwd, "canon")), "created minute escaped the workspace: " + f);
+  }
 });
 
 test("serve: gazette static files serve read-only; traversal is blocked", async () => {
@@ -197,4 +223,51 @@ test("serve: a cross-site Origin is refused on the write endpoints (CSRF)", asyn
     body: JSON.stringify({ subject: "loopback ok", body: "y" }),
   });
   assert.equal(ok.status, 200, "same loopback origin allowed");
+});
+
+test("serve: the write endpoints require an application/json content-type (blocks form-CSRF)", async () => {
+  // A cross-origin HTML <form> can only send urlencoded/multipart/text-plain — never
+  // application/json (that needs a preflighted fetch, blocked cross-origin without CORS). So a
+  // missing/non-JSON content-type is refused with 403 even from a loopback origin. This is the
+  // layer that stops a form auto-submitted from another loopback PORT, which sails past the
+  // hostname-only Origin check.
+  const ttl = join(cwd, "canon", "decisions", "0002-ttl.md");
+  const dossierBefore = readFileSync(ttl, "utf8");
+
+  // fetch() defaults a string body to text/plain — a realistic simple-request content-type → 403.
+  const textPlain = await fetch(base + "/intake", { method: "POST", body: JSON.stringify({ subject: "x", body: "y" }) });
+  assert.equal(textPlain.status, 403, "intake with a non-JSON (text/plain) content-type is refused");
+  const formCt = await fetch(base + "/intake", {
+    method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "subject=x&body=y",
+  });
+  assert.equal(formCt.status, 403, "intake with a form content-type is refused");
+  const decisionCt = await fetch(base + "/review/decision", {
+    method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", "x-bureau-review": srv.reviewToken },
+    body: "path=decisions/0002-ttl.md&decision=approve",
+  });
+  assert.equal(decisionCt.status, 403, "decision with a form content-type is refused before the token check");
+  assert.equal(readFileSync(ttl, "utf8"), dossierBefore, "the refused requests left the dossier untouched");
+});
+
+test("serve: a hostile loopback origin on another port cannot form-POST the write endpoints", async () => {
+  // csrfOK only checks the Origin's HOSTNAME, so http://127.0.0.1:<other-port> passes it — a page
+  // served on a different loopback port would clear the Origin gate. The JSON content-type
+  // requirement is what actually blocks the form it could auto-submit (a form can't set
+  // application/json cross-origin), so a urlencoded/text-plain body from that origin is 403.
+  const ttl = join(cwd, "canon", "decisions", "0002-ttl.md");
+  const dossierBefore = readFileSync(ttl, "utf8");
+  const otherPort = srv.port === 20000 ? 20001 : 20000; // any loopback port that isn't the server's
+  const evilOrigin = "http://127.0.0.1:" + otherPort;
+
+  const intake = await fetch(base + "/intake", {
+    method: "POST", headers: { origin: evilOrigin, "content-type": "application/x-www-form-urlencoded" },
+    body: "subject=x&body=y",
+  });
+  assert.equal(intake.status, 403, "cross-loopback-port form intake blocked");
+  const decision = await fetch(base + "/review/decision", {
+    method: "POST", headers: { origin: evilOrigin, "content-type": "text/plain", "x-bureau-review": srv.reviewToken },
+    body: JSON.stringify({ path: "decisions/0002-ttl.md", decision: "approve" }),
+  });
+  assert.equal(decision.status, 403, "cross-loopback-port decision blocked before the token check");
+  assert.equal(readFileSync(ttl, "utf8"), dossierBefore, "the cross-loopback-port attempts left the dossier untouched");
 });

@@ -9,6 +9,7 @@ import { readFileSync } from "fs";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { JSDOM } from "jsdom";
+import { sanitizeBody } from "../src/services/sanitize.mjs";
 
 const LIB = resolve(dirname(fileURLToPath(import.meta.url)), "..", "template", "lib");
 
@@ -21,7 +22,9 @@ function mount(html, { extraDocs = {}, backlinks = {} } = {}) {
     { runScripts: "outside-only", url: "http://localhost/" }
   );
   const { window } = dom;
-  window.atob = atob; window.btoa = btoa; window.unescape = unescape; window.escape = escape;
+  // backfill base64 helpers jsdom may not expose; the runtime uses no global escape/unescape
+  // (those are deprecated), so we deliberately do NOT polyfill them.
+  window.atob = atob; window.btoa = btoa;
   window.mermaid = { initialize() {}, render: () => Promise.resolve({ svg: "<svg></svg>" }) };
   // record echarts wiring without the heavy lib
   const charts = [];
@@ -40,11 +43,18 @@ function mount(html, { extraDocs = {}, backlinks = {} } = {}) {
   return { window, charts };
 }
 
-test("runtime: pre-sanitized html mounts; a stray <script> in it does not execute", () => {
-  const { window } = mount("<h1>Title</h1><p>plain</p><script>window.PWNED=1</" + "script>");
+test("runtime: the real build-time sanitizer strips <script> so no script node ever reaches the DOM", () => {
+  // The runtime mounts doc bodies with `innerHTML` and does NOT re-sanitize — the security
+  // boundary is the build-time sanitizeBody, which runs FIRST (the content model ships
+  // pre-sanitized html). Asserting only `window.PWNED === undefined` on raw innerHTML is false
+  // confidence: innerHTML never executes a <script> even when the node survives. So run the real
+  // pipeline (sanitize → mount) and assert the dangerous node is ABSENT, not merely inert.
+  const html = sanitizeBody("<h1>Title</h1><p>plain</p><script>window.PWNED=1</" + "script>");
+  const { window } = mount(html);
   const canvas = window.document.getElementById("canvas");
-  assert.equal(window.PWNED, undefined, "innerHTML-inserted script never runs");
-  assert.match(canvas.textContent, /Title/, "doc rendered");
+  assert.equal(canvas.querySelector("script"), null, "no script node reaches the mounted DOM");
+  assert.equal(window.PWNED, undefined, "and nothing executed");
+  assert.match(canvas.textContent, /Title/, "benign content still rendered");
 });
 
 test("runtime: a malicious nav title does not break out of attributes", () => {

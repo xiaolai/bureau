@@ -63,6 +63,19 @@ test("sanitizeBody: data: dropped on <a>, kept on <img>", () => {
   assert.match(sanitizeBody('<img src="data:image/png;base64,iVBOR">'), /data:image\/png/);
 });
 
+test("sanitizeBody: javascript: and protocol-relative hrefs are stripped from <a> (case-insensitive)", () => {
+  // allowedSchemes is http/https/mailto only, and allowProtocolRelative is false — so a
+  // scripted or scheme-relative href must never survive on an anchor. Scheme matching is
+  // case-insensitive, so the mixed-case `JavaScript:` spelling is caught too.
+  assert.doesNotMatch(sanitizeBody('<a href="javascript:window.PWNED=1">x</a>'), /javascript:/i);
+  assert.doesNotMatch(sanitizeBody('<a href="JavaScript:window.PWNED=1">x</a>'), /javascript:/i);
+  assert.doesNotMatch(sanitizeBody('<a href="vbscript:msgbox(1)">x</a>'), /vbscript:/i);
+  // protocol-relative //host smuggles an external origin (and can inherit https:) — dropped
+  assert.doesNotMatch(sanitizeBody('<a href="//evil.example/x">x</a>'), /\/\/evil\.example/);
+  // a legitimate https href is untouched — the guard blocks danger, not all links
+  assert.match(sanitizeBody('<a href="https://ok.example/x">x</a>'), /href="https:\/\/ok\.example\/x"/);
+});
+
 test("resolveLinks: unquoted data-wiki resolves; numeric-entity target decodes once", () => {
   const resolve = makeResolve({ Wei: {}, "A&B": {} });
   assert.match(resolveLinks("<a data-wiki=Wei>w</a>", resolve), /class="wikilink" href="#\/Wei"/);

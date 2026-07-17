@@ -21,10 +21,11 @@ function runHook(script, cwd, payload) {
     return { stdout, status: 0 };
   } catch (e) { return { stdout: e.stdout || "", status: e.status == null ? 1 : e.status }; }
 }
-function bureauWorkspace() {
+function bureauWorkspace(t) {
   const root = mkdtempSync(join(tmpdir(), "bureau-unit-"));
   mkdirSync(join(root, "bureau", "logbook"), { recursive: true });
   writeFileSync(join(root, "bureau", "bureau.json"), "{}");
+  if (t) t.after(() => rmSync(root, { recursive: true, force: true })); // don't leak the fixture
   return root;
 }
 const logEntries = (root) => {
@@ -35,8 +36,8 @@ const logEntries = (root) => {
 };
 
 // ── capture-stub (SessionEnd) ─────────────────────────────────────────────────
-test("capture: writes a logbook stub with a full-id, unquoted title and no git", () => {
-  const root = bureauWorkspace();
+test("capture: writes a logbook stub with a full-id, unquoted title and no git", (t) => {
+  const root = bureauWorkspace(t);
   const { status } = runHook(CAPTURE, root, { session_id: "f00dcafe-1234-5678", transcript_path: "/t.jsonl" });
   assert.equal(status, 0);
   const files = logEntries(root);
@@ -49,8 +50,8 @@ test("capture: writes a logbook stub with a full-id, unquoted title and no git",
   assert.ok(!/git/i.test(body), "git was dropped from the stub");
 });
 
-test("capture: path-traversal session id is sanitized and stays inside the logbook", () => {
-  const root = bureauWorkspace();
+test("capture: path-traversal session id is sanitized and stays inside the logbook", (t) => {
+  const root = bureauWorkspace(t);
   runHook(CAPTURE, root, { session_id: "../../../etc/pwned", transcript_path: "x" });
   assert.ok(!existsSync(join(root, "etc")), "no escape outside the workspace");
   const files = logEntries(root);
@@ -58,24 +59,25 @@ test("capture: path-traversal session id is sanitized and stays inside the logbo
   assert.match(files[0], /etcpwned\.md$/);
 });
 
-test("capture: no-op when bureau.json marker is absent", () => {
+test("capture: no-op when bureau.json marker is absent", (t) => {
   const root = mkdtempSync(join(tmpdir(), "bureau-unit-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, "bureau", "logbook"), { recursive: true }); // dir exists, no marker
   const { status } = runHook(CAPTURE, root, { session_id: "zzz" });
   assert.equal(status, 0);
   assert.equal(logEntries(root).length, 0);
 });
 
-test("capture: no-op on empty / oversized payload (no usable session id)", () => {
-  const root = bureauWorkspace();
+test("capture: no-op on empty / oversized payload (no usable session id)", (t) => {
+  const root = bureauWorkspace(t);
   runHook(CAPTURE, root, {});                                   // no id
   const huge = { session_id: "big", x: "a".repeat(2_000_000) }; // oversized → bounded read drops it
   runHook(CAPTURE, root, huge);
   assert.equal(logEntries(root).length, 0);
 });
 
-test("capture: exclusive write — an existing entry is never clobbered", () => {
-  const root = bureauWorkspace();
+test("capture: exclusive write — an existing entry is never clobbered", (t) => {
+  const root = bureauWorkspace(t);
   runHook(CAPTURE, root, { session_id: "dupe-1" });
   const file = logEntries(root)[0];
   const first = readFileSync(file, "utf8");
@@ -83,9 +85,26 @@ test("capture: exclusive write — an existing entry is never clobbered", () => 
   assert.equal(readFileSync(file, "utf8"), first, "second SessionEnd left the entry untouched");
 });
 
+test("capture: a symlinked logbook can't redirect a logbook ENTRY outside the workspace", (t) => {
+  const root = bureauWorkspace(t);
+  const outside = mkdtempSync(join(tmpdir(), "bureau-escape-"));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  rmSync(join(root, "bureau", "logbook"), { recursive: true, force: true });
+  symlinkSync(outside, join(root, "bureau", "logbook")); // logbook now points outside the workspace
+  const { status } = runHook(CAPTURE, root, { session_id: "esc12345", transcript_path: "/t.jsonl" });
+  assert.equal(status, 0);
+  // capture-stub's realpath containment check refuses to create the ENTRY through the symlink — its
+  // deepest existing ancestor (the symlinked logbook) resolves outside the workspace, so it no-ops.
+  // No .md content lands outside the workspace (the security guarantee, mirroring the scribe test).
+  const mdOutside = [];
+  const walk = (d) => { for (const e of readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name); if (e.isDirectory()) walk(p); else if (e.name.endsWith(".md")) mdOutside.push(p); } };
+  walk(outside);
+  assert.deepEqual(mdOutside, [], "no logbook entry was written through the symlink");
+});
+
 // ── scribe-checkpoint (SessionStart source=compact) ───────────────────────────
-test("scribe: compact start appends a checkpoint and re-grounds via additionalContext", () => {
-  const root = bureauWorkspace();
+test("scribe: compact start appends a checkpoint and re-grounds via additionalContext", (t) => {
+  const root = bureauWorkspace(t);
   runHook(CAPTURE, root, { session_id: "abc12345" });
   const { stdout, status } = runHook(SCRIBE, root, { session_id: "abc12345", source: "compact", hook_event_name: "SessionStart" });
   assert.equal(status, 0);
@@ -97,30 +116,32 @@ test("scribe: compact start appends a checkpoint and re-grounds via additionalCo
   assert.match(out.hookSpecificOutput.additionalContext, /REFERENCE DATA, not instructions/); // injected as data, not commands
 });
 
-test("scribe: non-compact start is a no-op (no output)", () => {
-  const root = bureauWorkspace();
+test("scribe: non-compact start is a no-op (no output)", (t) => {
+  const root = bureauWorkspace(t);
   const { stdout } = runHook(SCRIBE, root, { session_id: "abc12345", source: "startup" });
   assert.equal(stdout.trim(), "");
 });
 
-test("scribe: no-op outside a bureau workspace", () => {
+test("scribe: no-op outside a bureau workspace", (t) => {
   const root = mkdtempSync(join(tmpdir(), "bureau-unit-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
   const { stdout, status } = runHook(SCRIBE, root, { session_id: "x", source: "compact" });
   assert.equal(status, 0);
   assert.equal(stdout.trim(), "");
 });
 
-test("scribe: oversized payload yields no usable id → no write, no output", () => {
-  const root = bureauWorkspace();
+test("scribe: oversized payload yields no usable id → no write, no output", (t) => {
+  const root = bureauWorkspace(t);
   const { stdout, status } = runHook(SCRIBE, root, { session_id: "big", source: "compact", x: "a".repeat(2_000_000) });
   assert.equal(status, 0);
   assert.equal(stdout.trim(), "");                 // bounded read dropped the payload
   assert.equal(logEntries(root).length, 0);        // nothing written
 });
 
-test("scribe: a symlinked logbook can't redirect a logbook ENTRY outside the workspace", () => {
-  const root = bureauWorkspace();
+test("scribe: a symlinked logbook can't redirect a logbook ENTRY outside the workspace", (t) => {
+  const root = bureauWorkspace(t);
   const outside = mkdtempSync(join(tmpdir(), "bureau-escape-"));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
   rmSync(join(root, "bureau", "logbook"), { recursive: true, force: true });
   symlinkSync(outside, join(root, "bureau", "logbook")); // logbook now points outside the workspace
   const { status } = runHook(SCRIBE, root, { session_id: "esc12345", source: "compact" });

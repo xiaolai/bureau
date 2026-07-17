@@ -17,6 +17,14 @@ test("escape: the one shared escaper handles all five chars", () => {
   assert.equal(escapeHtml('<a href="x">&\''), "&lt;a href=&quot;x&quot;&gt;&amp;&#39;");
 });
 
+test("nfc: decomposed input is folded to composed NFC form; null passes through", () => {
+  // "A" + combining ring above (U+030A) must compose to the single code point Å (U+00C5),
+  // so two byte-different spellings of the same name share one identity key.
+  assert.equal(nfc("A\u030A"), "\u00C5"); // decomposed → composed
+  assert.equal(nfc("A\u030A").length, 1);        // two code points fold to one
+  assert.equal(nfc(null), null); // null-safe: identity is never forced onto a missing value
+});
+
 test("makeResolve: existing target → live wikilink with hash href", () => {
   const resolve = makeResolve({ "Café": {} });
   const html = resolve("Café", "Café");

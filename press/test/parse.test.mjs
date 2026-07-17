@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { splitFrontmatter, parseHtmlDoc, parseMarkdownDoc, extractLinks, relTargets } from "../src/core/parse.mjs";
 
 test("parse: BOM before --- does not defeat frontmatter (M15)", () => {
-  const { frontmatter } = splitFrontmatter("﻿---\ntitle: X\n---\nbody");
+  const { frontmatter } = splitFrontmatter("\uFEFF---\ntitle: X\n---\nbody");
   assert.ok(frontmatter);
   assert.equal(frontmatter.title, "X");
 });
@@ -170,4 +170,28 @@ test("parse: a real [[link]] outside code is still counted", () => {
 test("parse: an <h1> inside raw HTML <pre> does not become the title", () => {
   const d = parseMarkdownDoc("<pre>\n# Fake Title\n</pre>\n\n# Real Title\n");
   assert.equal(d.meta.title, "Real Title");
+});
+
+// ── body links: the model must count only what the renderer draws ─────────────
+test("parse (md): a [[link]] inside an HTML attribute is NOT a body link (phantom edge)", () => {
+  // `<span title="[[X]]">` renders as an attribute, never a link — counting it would forge a
+  // provenance/graph edge the page doesn't have. Only the real in-text link survives.
+  const d = parseMarkdownDoc('---\ntitle: T\n---\n\n# T\n\n<span title="[[Fake]]">visible</span> and [[Real]]\n');
+  assert.deepEqual(d.bodyLinks, ["Real"]);
+});
+
+test("parse (md): a [[link]] inside raw HTML <pre>/<code> is not a body link", () => {
+  const d = parseMarkdownDoc("---\ntitle: T\n---\n\n# T\n\n<pre>[[InPre]]</pre> <code>[[InCode]]</code> [[Real]]\n");
+  assert.deepEqual(d.bodyLinks, ["Real"]);
+});
+
+test("parse (html): an entity-encoded [[A&amp;B]] in text resolves to the real title A&B", () => {
+  const d = parseHtmlDoc('<article data-group="g"><h1>T</h1><p>see [[A&amp;B]]</p></article>');
+  assert.deepEqual(d.bodyLinks, ["A&B"]);
+});
+
+test("parse: a frontmatter multi-line sources list of wiki-links yields edge targets", () => {
+  const d = parseMarkdownDoc('---\ntitle: T\nsources:\n  - "[[session a · 2026-06-10]]"\n  - "[[session b · 2026-06-11]]"\n---\n\n# T\n');
+  const srcEdges = d.edges.filter((e) => e.edgeType === "sources").map((e) => e.target).sort();
+  assert.deepEqual(srcEdges, ["session a · 2026-06-10", "session b · 2026-06-11"]);
 });

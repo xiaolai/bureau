@@ -2,7 +2,7 @@
 // Each test pins one finding from the Codex audit so the fix can't silently regress.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, existsSync } from "fs";
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, readFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import {
@@ -13,7 +13,12 @@ import { slugify } from "../src/shared/slug.mjs";
 import { makeResolve } from "../src/runtime/pure.mjs";
 import { buildSite } from "../src/build.mjs";
 
-const tmp = () => mkdtempSync(join(tmpdir(), "wb-auditfix-"));
+// `t` (the test context) registers cleanup so the temp corpus doesn't leak filesystem state.
+const tmp = (t) => {
+  const d = mkdtempSync(join(tmpdir(), "wb-auditfix-"));
+  t.after(() => rmSync(d, { recursive: true, force: true }));
+  return d;
+};
 
 // ── parse.mjs:130/250 — body-link extraction normalizes anchors + drops image embeds ──
 test("extractBodyLinks: [[Doc#Heading]] yields target Doc (anchor stripped)", () => {
@@ -85,8 +90,8 @@ test("slugify: NFC-equal strings (composed vs decomposed) slug identically", () 
 });
 
 // ── build.mjs:181 — guardOutDir rejects --out overlapping the content dir ──
-test("buildSite: --out inside the content dir is refused", () => {
-  const root = tmp();
+test("buildSite: --out inside the content dir is refused", (t) => {
+  const root = tmp(t);
   const docs = join(root, "gazette");
   mkdirSync(docs, { recursive: true });
   writeFileSync(join(docs, "a.html"), '<article data-title="A"><p>x</p></article>');
@@ -96,8 +101,8 @@ test("buildSite: --out inside the content dir is refused", () => {
   );
 });
 
-test("buildSite: --out at the filesystem root / is refused (ancestor guard)", () => {
-  const root = tmp();
+test("buildSite: --out at the filesystem root / is refused (ancestor guard)", (t) => {
+  const root = tmp(t);
   const docs = join(root, "gazette");
   mkdirSync(docs, { recursive: true });
   writeFileSync(join(docs, "a.html"), '<article data-title="A"><p>x</p></article>');
@@ -108,17 +113,18 @@ test("buildSite: --out at the filesystem root / is refused (ancestor guard)", ()
 });
 
 // ── sources.mjs:17 — discovery skips symlinked files (no external reads) ──
-test("buildSite: a symlinked doc inside the content dir is not discovered", () => {
-  const root = tmp();
+test("buildSite: a symlinked doc inside the content dir is not discovered", (t) => {
+  const root = tmp(t);
   const docs = join(root, "gazette");
   mkdirSync(docs, { recursive: true });
   writeFileSync(join(docs, "real.html"), '<article data-title="Real"><p>hi</p></article>');
   const outside = join(root, "secret.html");
   writeFileSync(outside, '<article data-title="Secret"><p>leak</p></article>');
+  // don't let a symlink-creation failure masquerade as a pass — that would silently drop the
+  // security coverage. Skip explicitly (proving symlinks are unavailable) instead of returning green.
   try { symlinkSync(outside, join(docs, "link.html")); }
-  catch { return; } // some filesystems disallow symlinks — skip rather than fail
+  catch (e) { t.skip("symlinks unsupported on this filesystem: " + e.message); return; }
   const r = buildSite({ root, docsDir: docs, outDir: join(root, "dist") });
-  const content = existsSync(join(root, "dist", "content.js")) ? "" : "";
   assert.equal(r.totalDocs != null, true);
   // the symlinked doc must not appear in the model
   const corpusTitles = JSON.stringify(r);
@@ -126,14 +132,16 @@ test("buildSite: a symlinked doc inside the content dir is not discovered", () =
 });
 
 // ── build.mjs:114 — embed markers inside <pre>/<code> stay literal ──
-test("buildSite: ![[Note]] inside a code block is not transcluded", () => {
-  const root = tmp();
+test("buildSite: ![[Note]] inside a code block is not transcluded", (t) => {
+  const root = tmp(t);
   const docs = join(root, "gazette");
   mkdirSync(docs, { recursive: true });
   writeFileSync(join(docs, "note.html"), '<article data-title="Note"><p>secret body</p></article>');
   writeFileSync(join(docs, "host.md"), "---\ntitle: Host\n---\n```\n![[Note]]\n```\n");
   buildSite({ root, docsDir: docs, outDir: join(root, "dist") });
-  const out = readFileSyncSafe(join(root, "dist", "lib", "content.js"));
+  // read the artifact DIRECTLY — a missing/unreadable output must fail the test loudly, not be
+  // swallowed into an empty string that then produces a misleading assertion failure.
+  const out = readFileSync(join(root, "dist", "lib", "content.js"), "utf8");
   assert.ok(out.includes("![[Note]]"));      // literal marker survives in the code block
   // the only wb-embed in the output (if any) must not come from the fenced Host doc —
   // assert the code block stayed a <pre><code> with the literal marker, untranscluded
@@ -143,8 +151,8 @@ test("buildSite: ![[Note]] inside a code block is not transcluded", () => {
 // ════════ Round 3 (deeper audit) regressions ════════
 
 // ── model.mjs — a doc titled __proto__ is rejected loudly (can't be a literal key) ──
-test("buildSite: a doc titled __proto__ is rejected, and Object.prototype is untouched", () => {
-  const root = tmp();
+test("buildSite: a doc titled __proto__ is rejected, and Object.prototype is untouched", (t) => {
+  const root = tmp(t);
   const docs = join(root, "gazette");
   mkdirSync(docs, { recursive: true });
   writeFileSync(join(docs, "a.html"), '<article data-title="__proto__"><p>x [[Real]]</p></article>');
@@ -164,8 +172,8 @@ test("makeResolve: target 'constructor' resolves as missing (no inherited-prop m
 });
 
 // ── build.mjs guardOutDir — the .tmp/.bak siblings are guarded too ──
-test("buildSite: --out whose .tmp sibling is the content dir is refused", () => {
-  const root = tmp();
+test("buildSite: --out whose .tmp sibling is the content dir is refused", (t) => {
+  const root = tmp(t);
   const docs = join(root, "dist.tmp"); // == outDir + ".tmp" when outDir=<root>/dist
   mkdirSync(docs, { recursive: true });
   writeFileSync(join(docs, "a.html"), '<article data-title="A"><p>x</p></article>');
@@ -250,6 +258,3 @@ test("parseMarkdownDoc: an unclosed fence consumes to EOF (no fake title/link le
   assert.equal(d.meta.title, "Real");
   assert.deepEqual(d.bodyLinks, ["Link"]);
 });
-
-import { readFileSync as _rfs } from "fs";
-function readFileSyncSafe(p) { try { return _rfs(p, "utf8"); } catch { return ""; } }

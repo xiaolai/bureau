@@ -14,18 +14,58 @@ const fail = (m) => fails.push(m);
 const read = (p) => readFileSync(join(ROOT, p), "utf8");
 const ls = (p) => (existsSync(join(ROOT, p)) ? readdirSync(join(ROOT, p)) : []);
 
-// Extract the LEADING YAML frontmatter block as a key→value map, or null if the file does not
-// open with a properly-delimited `---\n … \n---` block. Anchored at char 0 so a `---` rule that
-// appears later in the body can never be mistaken for frontmatter.
+// Parse the LEADING YAML frontmatter block into top-level keys. Returns { fm, error }:
+//   - no leading `---\n … \n---` block          → { fm: null, error: null }
+//   - a structurally broken block               → { fm: null, error: "<why>" }  (a hard fail)
+//   - a well-formed block                       → { fm: {key: value}, error: null }
+// Anchored at char 0 so a `---` rule later in the body can't be mistaken for frontmatter.
+//
+// SCOPE: these are Claude Code artifacts (command / skill / agent frontmatter), whose frontmatter is
+// FULL YAML — block scalars (`description: |`), multi-line lists, and nested values are all valid and
+// used in the repo (e.g. crew/auditor/agent.md). So this is NOT press/src/core/parse.mjs's
+// `splitFrontmatter` (that enforces bureau canon's *restricted* flat grammar and would reject a block
+// scalar), and it deliberately does NOT import it — parse.mjs pulls in node-html-parser + markdown-it,
+// which live only in press/node_modules (git-ignored, absent on a fresh clone), and this L0 gate must
+// stay dependency-free and run before the press install. A true YAML validate would need js-yaml (also
+// a press-only dep). LIMITATION: this is a structural key-extractor, not a full YAML validator — it
+// consumes block scalars / indented blocks / lists as opaque values and asserts the block is
+// well-formed enough to yield the required top-level keys. What it now REJECTS (the finding: malformed
+// frontmatter must not silently pass just because a required key appears): a top-level line that is
+// neither `key: value`, a comment, nor a blank; a non-identifier key; a duplicate key; and a dangling
+// indented/list line owned by no key.
+const FM_KEY = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
+const FM_BLOCK_SCALAR = /^[|>][+-]?[0-9]*[+-]?\s*(#.*)?$/; // `key: |` / `key: >` block-scalar header
 function leadingFrontmatter(s) {
   const m = /^---\n([\s\S]*?)\n---(\n|$)/.exec(s);
-  if (!m) return null;
-  const o = {};
-  for (const line of m[1].split("\n")) {
+  if (!m) return { fm: null, error: null };
+  const o = Object.create(null); // null-proto: a `__proto__:` key is data, not a prototype mutation
+  const bad = (why, line) => ({ fm: null, error: `${why}: "${String(line).trim()}"` });
+  const lines = m[1].split("\n");
+  const indentedOrBlank = (l) => l != null && (l.trim() === "" || /^\s/.test(l) || /^-[ \t]/.test(l));
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    if (!line.trim()) continue;           // blank
+    if (/^\s*#/.test(line)) continue;     // comment
+    // A top-level indented or bare-list line here is owned by no key — the previous key's value block
+    // was already consumed, so this is a structurally broken block, not a value.
+    if (/^\s/.test(line) || /^-\s/.test(line)) return bad("dangling indented/list line (no owning key)", line);
     const i = line.indexOf(":");
-    if (i > 0 && /^\s*[A-Za-z0-9_-]+\s*$/.test(line.slice(0, i))) o[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+    if (i < 0) return bad("frontmatter line is not `key: value`", line);
+    const key = line.slice(0, i).trim();
+    if (!FM_KEY.test(key)) return bad("unsupported frontmatter key", line);
+    if (Object.prototype.hasOwnProperty.call(o, key)) return { fm: null, error: `duplicate frontmatter key "${key}"` };
+    const inline = line.slice(i + 1).trim();
+    if (FM_BLOCK_SCALAR.test(inline) || inline === "") {
+      // `key: |` / `key: >` block scalar, or a bare `key:` opening a multi-line list / nested block:
+      // consume the following indented/blank/list lines as an opaque value.
+      const block = [];
+      while (indentedOrBlank(lines[li + 1])) block.push(lines[++li]);
+      o[key] = block.join("\n").trim() || (inline ? inline : "");
+    } else {
+      o[key] = inline; // a plain scalar value (quotes/commas kept verbatim)
+    }
   }
-  return o;
+  return { fm: o, error: null };
 }
 
 // 1. every JSON file parses.
@@ -38,8 +78,9 @@ for (const j of jsons.map((s) => s.replace(/^\\\./, "."))) {
 
 // 2. commands: a LEADING frontmatter block carrying a non-empty description.
 for (const f of ls("commands").filter((f) => f.endsWith(".md"))) {
-  const fm = leadingFrontmatter(read(`commands/${f}`));
-  if (!fm) fail(`commands/${f}: no leading frontmatter block`);
+  const { fm, error } = leadingFrontmatter(read(`commands/${f}`));
+  if (error) fail(`commands/${f}: malformed frontmatter — ${error}`);
+  else if (!fm) fail(`commands/${f}: no leading frontmatter block`);
   else if (!fm.description) fail(`commands/${f}: no description in frontmatter`);
 }
 
@@ -49,7 +90,8 @@ for (const d of ls("skills").filter((d) => statSync(join(ROOT, "skills", d)).isD
   const p = `skills/${d}/SKILL.md`;
   if (!existsSync(join(ROOT, p))) { fail(`skills/${d}: no SKILL.md`); continue; }
   const s = read(p);
-  const fm = leadingFrontmatter(s);
+  const { fm, error } = leadingFrontmatter(s);
+  if (error) { fail(`${p}: malformed frontmatter — ${error}`); continue; }
   if (!fm) { fail(`${p}: no leading frontmatter block`); continue; }
   if (fm.name !== d) fail(`${p}: name "${fm.name}" != dir "${d}"`);
   if (!fm.description) fail(`${p}: no description in frontmatter`);
@@ -104,7 +146,7 @@ for (const d of ls("crew").filter((d) => d !== "_template" && statSync(join(ROOT
   let m; try { m = JSON.parse(read(meta)); } catch (e) { fail(`${meta}: invalid JSON: ${e.message}`); m = {}; }
   if (m.name !== d) fail(`${meta}: name "${m.name}" != dir "${d}"`);
   if (!existsSync(join(ROOT, agent))) fail(`crew/${d}: no agent.md`);
-  else { const fm = leadingFrontmatter(read(agent)); if (!fm) fail(`${agent}: no leading frontmatter`); else { if (fm.name !== d) fail(`${agent}: frontmatter name "${fm.name}" != dir "${d}"`); if (!fm.description) fail(`${agent}: no description`); } }
+  else { const { fm, error } = leadingFrontmatter(read(agent)); if (error) fail(`${agent}: malformed frontmatter — ${error}`); else if (!fm) fail(`${agent}: no leading frontmatter`); else { if (fm.name !== d) fail(`${agent}: frontmatter name "${fm.name}" != dir "${d}"`); if (!fm.description) fail(`${agent}: no description`); } }
   if (!existsSync(join(ROOT, brief))) fail(`crew/${d}: no brief.md`);
 }
 // 9. the author template carries its substitution tokens (crew:new substitutes them).
@@ -131,8 +173,9 @@ if (!existsSync(join(ROOT, guidePath))) {
   const body = guide.replace(/^---\n[\s\S]*?\n---(\n|$)/, "");
   const commands = ls("commands").filter((f) => f.endsWith(".md")).map((f) => f.slice(0, -3));
   const cmdSet = new Set(commands);
+  const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // a metachar in a command filename must be literal
   for (const c of commands) {
-    if (!new RegExp(`bureau:${c}\\b`).test(body)) fail(`${guidePath}: does not document command bureau:${c} (guide drifted behind the command surface)`);
+    if (!new RegExp(`bureau:${reEsc(c)}\\b`).test(body)) fail(`${guidePath}: does not document command bureau:${c} (guide drifted behind the command surface)`);
   }
   for (const m of body.matchAll(/bureau:([a-z][a-z0-9-]*)\b/g)) {
     if (!cmdSet.has(m[1])) fail(`${guidePath}: references bureau:${m[1]}, which is not a command (guide drifted ahead of the command surface)`);
