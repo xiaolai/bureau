@@ -79,11 +79,14 @@ You spend a session deciding your auth token lifetime.
 | You have a few minutes to vet memory | `bureau:review` | promote vetted claims to `canonical` |
 | Before a milestone / periodically | `bureau:lint` | catch contradictions, gaps, drift across the canon |
 | You need to recall something | `bureau:query "…"` | tier-aware answer with citations |
-| "What needs my attention?" | `bureau:status` | uncompiled / pending-review / stale / contested counts |
+| "What needs my attention?" | `bureau:status` | uncompiled · pending-review · **needs-review/stale (the gate)** · contested |
+| Bring the whole canon up to date | `bureau:cycle` | one pass: compile → scan → lint → review → inspect |
 | Read it as a human | `bureau:inspect` | build + open the offline gazette |
+| Watch freshness update as you edit | `bureau:serve` | the live board — dependents light up on change |
+| Pin / diff / view a past version | `bureau:snapshot` | git-backed snapshots, diffs, and historical boards |
 
 Capture is cheap and frequent; review is the deliberate, valuable step. You can let proposed
-claims pile up and review them in a batch.
+claims pile up and review them in a batch. `bureau:cycle` runs the whole loop for you.
 
 ---
 
@@ -103,6 +106,37 @@ never pass as fact:
 `bureau:query` enforces this for you. And because `init` wrote `BUREAU.md` and made `CLAUDE.md`
 import it, *any* AI session in the repo is told to honor these tiers when it reads the cabinets as
 memory and to route new claims through capture → compile → review — never straight to canon.
+
+---
+
+## Keeping the canon fresh — dependency tracking
+
+Trust is one axis; **freshness** is a second, independent one. A dossier can *declare* that its claim
+**rests on** another dossier's claim, and bureau's recursion engine keeps that honest: when the
+upstream claim changes, the downstream dossier drops out of `current` and is flagged **needs-review**
+— even if a human had already approved it (`canonical`). A page that sits on a changed upstream is
+not current fact until re-reviewed.
+
+You opt a dossier into this by anchoring the claim it depends on and declaring the edge:
+
+```yaml
+---
+id: 01J9ZB…                         # opaque, immutable — a rename never breaks the link
+title: Query design
+rests_on:
+  - { page: "[[SSOT model]]", span: "^ssot-claim", because: "the query layer assumes the wiki is authoritative" }
+---
+# Query design
+Answers come only from the compiled canon, never a raw file. ^query-claim
+```
+
+Then the loop is: edit a claim → `gazette scan` records the change → the gate flags whatever rested on
+it → `bureau:review` (or `bureau:cycle`) surfaces it → you confirm it still holds (or fix it). A
+**cosmetic** edit outside a cited claim propagates to nobody. `bureau:status` and the live board
+(`bureau:serve`) show the current needs-review/stale set at a glance.
+
+This is the flagship feature — the full model, the four-field state, and the honest limits are in
+**[The recursion engine](recursion-engine.md)**.
 
 ---
 

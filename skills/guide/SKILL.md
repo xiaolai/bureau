@@ -25,10 +25,16 @@ comes from it:
   board you open in a browser.
 - **crew** — specialized agents (each one a **desk**) that work the canon; e.g. an `auditor` desk.
 - **provenance** — every dossier claim traces back to the `[[session …]]` minute it came from.
+- **recursion engine** — a deterministic dependency gate. A dossier can *declare* that its claim
+  **rests on** another dossier's claim (`rests_on:` + an author-anchored `^span`); when that upstream
+  claim changes, the engine flags the downstream dossier **needs-review**. Tracked in an append-only
+  **decision log** (`_log.jsonl`, the source of truth); surfaced by `bureau:status` and the live
+  board. It flags; a human judges. (See `docs/recursion-engine.md`.)
 
 A claim's life: it is **captured** into a minute (low authority) → **compiled** into a dossier
 (machine-checked) → **reviewed** by a human (promoted to fact). Knowledge only earns authority by
-moving through that pipeline. Nothing skips it.
+moving through that pipeline. Nothing skips it. Once filed, its **freshness** is kept honest by the
+engine: if an upstream claim it rests on changes, it drops out of `current` until re-reviewed.
 
 ## The trust tiers — read every dossier's `status:`
 
@@ -45,6 +51,12 @@ Every dossier carries a `status:`. When you use one as memory, **honor the tier 
 Never present a non-`canonical` claim as settled. The tier travels with the claim — if you cite a
 dossier, cite its tier too. `bureau:query` enforces this for you, which is why you should query the
 canon rather than reading dossier files raw.
+
+**Freshness is a second, orthogonal axis.** Trust is *who vouches*; freshness is *does it still
+hold*. A dossier can be `canonical` **and** `needs-review`/`stale` at once — approved by a human, but
+now sitting on a changed upstream claim (the recursion engine flags this). A `needs-review` or
+`stale` page is not current fact even if its trust is `canonical` — surface the freshness too, and
+route it back through `bureau:review`.
 
 ## The invariants — do not break these
 
@@ -69,10 +81,12 @@ canon rather than reading dossier files raw.
 | File the whole current session as a minute | `bureau:file-session` | `capture` |
 | Distil minutes into dossiers | `bureau:compile` | `compile` |
 | Find contradictions / stale / unsupported claims | `bureau:lint` | `lint` |
-| Promote vetted claims to `canonical` (human gate) | `bureau:review` | `review` |
-| See uncompiled sessions + pages by tier | `bureau:status` | — |
+| Promote vetted claims to `canonical`; confirm dependencies; resolve conflicts (human gate) | `bureau:review` | `review` |
+| Run the whole lifecycle in one pass (compile → scan → lint → review → inspect) | `bureau:cycle` | orchestrates `compile`/`lint`/`review` |
+| See uncompiled sessions + pages by tier **and freshness (needs-review/stale)** | `bureau:status` | — |
 | Build and open the gazette | `bureau:inspect` | — |
-| Open the interactive chamber (serve + intake) | `bureau:serve` | — |
+| Open the interactive chamber + the live freshness board | `bureau:serve` | — |
+| Version the canon — pin a snapshot, diff two versions, view a past board | `bureau:snapshot` | — |
 | List / enable / author crew desks | `bureau:crew` | — |
 
 The right-hand skills hold the operational detail (steps, rules, edge cases) — this guide does not

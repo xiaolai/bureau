@@ -39,6 +39,11 @@ plugin (`${CLAUDE_PLUGIN_ROOT}/press/`), so there is nothing else to install.
 ## Notes
 
 - This command only RENDERS. It never edits cabinets or logbook.
+- **`bureau:inspect` builds a one-shot snapshot.** For a **live** board that hot-reloads and paints
+  dependency freshness (needs-review/stale badges) as you edit, use **`bureau:serve`**. To render a
+  **past** board, diff two versions, or pin a snapshot, use **`bureau:snapshot`**.
+- The rendered board also carries the recursion engine's live **Drift** section on its Health page
+  (dependency-aware freshness) alongside the structural checks below.
 - Health findings here are STRUCTURAL (the press, deterministic). Semantic findings come from
   `bureau:lint`.
 - The press is vendored into this plugin by `scripts/build-gazette.mjs` (regenerated from the

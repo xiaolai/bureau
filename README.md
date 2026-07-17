@@ -1,74 +1,95 @@
 # bureau
 
-Turn AI sessions into a maintained, inspectable canon.
+Turn AI sessions into a maintained, human-reviewed, **dependency-aware** canon.
 
-Every AI session is an unrecorded meeting; natural-language docs drift, go stale, and
-contradict each other. **bureau** turns sessions into memory you can trust:
+Every AI session is an unrecorded meeting; natural-language docs drift, go stale, and contradict
+each other. **bureau** turns sessions into memory you can trust:
 
 - **Write, gated.** **Capture** each session to an append-only **logbook** → **compile** into
-  consistency-checked **cabinet** pages (the SSOT, with provenance) → **review**, the human gate
-  that promotes a claim to `canonical`. AI-written claims are never fact until you approve them —
-  memory works like version control, not a notepad the AI scribbles in.
-- **Read, tier-aware.** **`query`** answers from the canon, citing each claim's trust tier and
-  refusing to state an unverified one as fact. And **`BUREAU.md`** — the instructions `init` writes
-  at your repo root and imports from `CLAUDE.md` — makes *every* AI session honor those tiers, so
-  the gate governs all work, not just bureau commands.
-- **Inspect.** A navigable offline **gazette** (the board), built by the bundled **press**
-  inside this plugin (nothing else to install).
+  consistency-checked **cabinet** pages (the SSOT, with provenance) → **review**, the human gate that
+  promotes a claim to `canonical`. AI-written claims are never fact until you approve them — memory
+  works like version control, not a notepad the AI scribbles in.
+- **Track, mechanically.** Declare which claim *rests on* which (`rests_on` + author-anchored
+  `^spans`), and a deterministic **recursion engine** flags every downstream page when an upstream
+  claim changes — a hash gate decides *cheaply* whether it actually changed, a human decides whether
+  it matters, and the verdict is memoized. No more silent staleness.
+- **Read, tier- and freshness-aware.** **`query`** answers from the canon, citing each claim's trust
+  tier *and* its freshness, refusing to state an unverified or stale one as fact. **`BUREAU.md`** —
+  written by `init` at your repo root and imported from `CLAUDE.md` — makes *every* AI session honor
+  those rules, so the gate governs all work, not just bureau commands.
+- **Inspect, live & versioned.** A navigable offline **gazette** (the board), built by the bundled
+  **press** — with a **live** freshness view (`serve`) that lights up dependents as you edit, and
+  **git-backed versioning** to render any past board, diff two versions, and pin named snapshots.
 
 This is the [Karpathy LLM-wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
-(LLM as compiler, not retriever) plus session provenance, a review gate, and an always-on
-`BUREAU.md` instruction — so the canon is current, *traceable*, and *trusted*.
+(LLM as compiler, not retriever) plus session provenance, a review gate, an always-on `BUREAU.md`
+instruction, and a deterministic dependency gate — so the canon is current, *traceable*, *trusted*,
+and *self-maintaining*.
 
-**New here?** Start with the **[User Guide](docs/user-guide.md)** — a 60-second quickstart and a
-worked example.
+**New here?** Start with the **[docs](docs/README.md)** — a [User Guide](docs/user-guide.md) with a
+60-second quickstart, and a guide to the [recursion engine](docs/recursion-engine.md).
 
-## Trust tiers — why memory here is safe
+## Trust tiers + freshness — why memory here is safe
 
-The cabinets double as repo memory, and **no AI claim is recalled as fact until a human
-approves it.** Every page carries a `status:` the AI must honor on recall:
+The cabinets double as repo memory, and **no AI claim is recalled as fact until a human approves
+it.** State is two independent axes:
 
-| `status:` | trust | who writes it |
-|-----------|-------|---------------|
+**Trust** (who vouches) — the AI writes only `proposed`/`verified`; `canonical` is a projection of a
+logged human approval, never the frontmatter alone:
+
+| trust | means | who writes it |
+|-------|-------|---------------|
 | `proposed` | AI claim, unchecked | capture / compile |
 | `verified` | checked against the repo | compile (automatic) |
 | `canonical` | **a human approved it** | `bureau:review` only |
-| `stale` | a verified source changed | staleness re-check |
-| `contested` | two claims disagree | lint |
 
-AI writes only `proposed`/`verified`; the `proposed → review → canonical` gate is the
-double-check. Facts-about-artifacts auto-verify; judgments route to the human.
+**Freshness** (does it still hold) — derived by the gate, orthogonal to trust. A page can be
+`canonical` *and* `stale` at once:
+
+| freshness | means |
+|-----------|-------|
+| `current` | every upstream claim it rests on is unchanged since last confirmed |
+| `needs-review` | it sits on an upstream claim that changed |
+| `stale` | a dependency is broken (target/span gone) |
+
+(Plus `contested`/`resolved` for conflicts, and a `freeze` change-priority hint.) The tier + freshness
+travel with every recalled claim, so an unverified or stale claim can never masquerade as fact.
 
 ## One self-contained plugin
 
 | | role |
 |---|---|
-| **bureau** (this plugin) | the engine: capture · compile · review · lint |
-| **press** (`press/`, bundled inside bureau) | builds the gazette + runs the structural checks (deterministic) |
-| `bureau/` (in your repo) | your data: cabinet drawers + the `logbook/` drawer |
+| **bureau** (this plugin) | the engine: capture · compile · review · lint, plus the recursion engine (scan · gate · fsck) and the versioned board |
+| **press** (`press/`, bundled inside bureau) | builds the gazette + runs the structural checks + the recursion engine (deterministic, no LLM) |
+| `canon/` (in your repo) | **your data:** cabinet drawers + the `logbook/` drawer + the decision log |
+| `bureau/` (in your repo) | bureau's **control dir** (the crew) — reserved, never rendered |
 
-the press is a self-contained Node bundle vendored into the plugin (`press/bin/gazette.mjs`,
-no `node_modules`). `bureau:inspect` runs it directly — there is **no separate install**. The
-bundle is regenerated from the upstream renderer source by `scripts/build-gazette.mjs`.
+the press is a self-contained Node bundle vendored into the plugin (`press/bin/gazette.mjs`, no
+`node_modules`). bureau runs it directly — there is **no separate install**. The bundle is
+regenerated from the renderer source by `scripts/build-gazette.mjs`.
 
 ## Workspace layout
 
 ```
-canon/             ← the content dir (default name); top-level folders are nav sections
+canon/             ← the content dir (default; auto-detected). Top-level folders are nav sections.
   decisions/       ← a cabinet drawer (ADRs)
   architecture/    ← cabinet drawer (software profile)
-  characters/      ← cabinet drawer (story profile)
   logbook/         ← append-only history — RENDERS as its own section
-  _config.json     ← gazette meta
+  _config.json     ← gazette meta (title, home, provenance lane, sidebar order)
   bureau.json      ← profiles, board dir, autoCompile
+  _log.jsonl       ← the decision log — SOURCE OF TRUTH for the recursion engine (committed)
 bureau/crew/       ← bureau's control dir (the crew) — reserved, never rendered
 gazette/           ← the rendered gazette (derived, gitignored, outside the workspace)
+.bureau-cache/     ← the engine's derived gate cache (derived, gitignored, regenerable by fsck)
 ```
 
-The canonical drawers (collectively, "cabinets") are the **SSOT**; `logbook/` is the
-append-only history. Every cabinet claim links back to the minute that introduced it.
+The workspace holds only **source + committed decisions**; every derived artifact (the board, the
+gate cache, historical builds) lives *outside* it. The sidebar section order is configurable — list
+section ids in `_config.json`'s `groups[]`.
 
 ## Commands
+
+**The gated pipeline** (`bureau:*` — capture → compile → review → read):
 
 | Command | Does |
 |---------|------|
@@ -76,33 +97,38 @@ append-only history. Every cabinet claim links back to the minute that introduce
 | `bureau:note` | take a live note into the running minute (run at decision points) |
 | `bureau:file-session` | file the rich minute for the current session |
 | `bureau:compile` | distil minutes into dossiers (with provenance) |
-| `bureau:review` | the human gate — promote vetted claims to `canonical`, reject the rest |
+| `bureau:review` | the human gate — promote vetted claims to `canonical`, confirm dependencies, resolve conflicts |
 | `bureau:lint` | semantic consistency sweep across the cabinets |
-| `bureau:query` | answer a question from the canon — cited, tier-aware, never stating an unverified claim as fact |
-| `bureau:status` | what's uncompiled / pending review / stale / contested |
-| `bureau:inspect` | build + open the gazette (gazette) |
+| `bureau:query` | answer from the canon — cited, tier- and freshness-aware, never stating an unverified/stale claim as fact |
+| `bureau:status` | uncompiled sessions · pages by tier · **needs-review / stale (the gate)** |
+| `bureau:inspect` | build + open the gazette |
+| `bureau:serve` | the interactive chamber + the **live freshness board** |
+| `bureau:snapshot` | render any past board · diff two versions · pin named snapshots |
+| `bureau:cycle` | the full lifecycle in one command: capture → compile → scan → lint → review → inspect |
 | `bureau:crew` | enable or author specialized agents (a "crew") that work the canon |
 
-**Write** (gated): `note`/`file-session` → `compile` → `review`. **Read** (tier-aware):
-`query`, plus **`BUREAU.md`** — written by `init` and imported from `CLAUDE.md` — which makes
-*every* AI session honor the trust tiers, so the gate governs all work, not just bureau commands.
+**The engine, underneath** (deterministic; run for you by the commands above, or directly): `gazette
+scan · gate · fsck · report · approve · confirm · resolve · ledger · build --at · diff · snapshot` —
+see the [CLI reference](docs/cli-reference.md).
 
-Two hooks run automatically: `SessionEnd` writes a mechanical logbook **stub** (no session is
-ever lost); `SessionStart`-after-compaction re-grounds the agent from the logbook so decisions
-survive a context compaction.
+Two hooks run automatically: `SessionEnd` writes a mechanical logbook **stub** (no session is ever
+lost); `SessionStart`-after-compaction re-grounds the agent from the logbook.
 
-## Status
+## Documentation
 
-The full loop is implemented: capture (`note`/`file-session` + hooks) → compile → review →
-lint, read via `query`/`status` under the `BUREAU.md` gate, built by the bundled press. See
-`dev-docs/plan.md`.
+- **[User Guide](docs/user-guide.md)** — quickstart, worked example, what to run when.
+- **[The recursion engine](docs/recursion-engine.md)** — dependency-aware freshness, end to end.
+- **[Live & versioned board](docs/live-and-versioned-board.md)** — `serve`, `build --at`, `diff`, `snapshot`.
+- **[CLI reference](docs/cli-reference.md)** — every `gazette` verb + the artifact map.
+- **[ADR-0001](docs/adr-0001-engine-data-model.md)** — the frozen engine data model.
 
 ## Requirements
 
-- **Node.js ≥ 18** on `PATH` — the `SessionEnd` capture hook and the bundled press
-  both run `node`. If Node is absent the hook simply no-ops (it never blocks session end); you
-  can still capture with `bureau:file-session`.
-- Nothing else — the press is bundled (`press/`), so there is no separate renderer to install.
+- **Node.js ≥ 18** on `PATH` — the `SessionEnd` capture hook and the bundled press both run `node`.
+  If Node is absent the hook no-ops (it never blocks session end); you can still capture with
+  `bureau:file-session`.
+- The versioned board (`build --at` / `diff` / `snapshot`) uses **git**; the rest does not.
+- Nothing else — the press is bundled, so there is no separate renderer to install.
 
 ## Install
 
