@@ -1,4 +1,5 @@
 ---
+id: pg-min-0001
 title: session init · 2026-06-12
 updated: 2026-06-12
 status: logbook

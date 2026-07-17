@@ -43,7 +43,9 @@ test("buildModel: golden corpus shape", () => {
   // typed contradicts edge extracted from frontmatter
   const contra = m.edges.filter((e) => e.edgeType === "contradicts");
   assert.equal(contra.length, 1);
-  assert.deepEqual(contra[0], { source: "Hero", target: "Villain", edgeType: "contradicts" });
+  // edge shape carries the engine fields (ADR-0001): sourceUid + span/because/tracked (null for a
+  // plain typed edge — only rests_on object edges populate them).
+  assert.deepEqual(contra[0], { source: "Hero", sourceUid: "t:Hero", target: "Villain", edgeType: "contradicts", span: null, because: null, tracked: false });
   // body link to a missing node is present as an untyped edge
   assert.ok(m.edges.some((e) => e.source === "Hero" && e.target === "OldName" && e.edgeType === null));
 });

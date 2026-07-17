@@ -1,0 +1,4 @@
+{"hash":"9f988ea8b30dd3baddeba029290ce945e96fed941f512d1d63e7f3aaf888f992","ic":"afbf097b417c4391c9f34cc2d5c6cbc33a838f36fc3f41791dd06ad5e3c93d1c","id":"pg-adr-0001","seq":1,"span":"^decision","type":"introduce"}
+{"hash":"e1dd0d11fedc8f388a6b7deb6f37d50b083e986181643f7ec78b0188abecd405","ic":"dfdd9b8c75b9853f5c0bf4eba33f5eb350af8d95ed437dac76910265cf926445","id":"pg-glossary","seq":2,"span":"^lexicon","type":"introduce"}
+{"by":"xiaolai","ic":"4c28071a883a8ab1904e7b39388138dae22e080edc073a207b8993a8730da0ae","id":"pg-adr-0001","seq":3,"to_trust":"canonical","type":"approve"}
+{"by":"xiaolai","edge":"1bed20484516d4f11cc96c879e1e37112ec5901e219a0ace2c4496e4145bbf7b","ic":"1b81631ea06367cd163969f47bb57f4e1b42bf0d56a81fef32f59c9300fd6c66","seq":4,"type":"confirm-edge","verdict_key":"c2f55d0cbd5ee6fff36bc8482813a7801408d578d2461ea6fb9863caddf963c0"}

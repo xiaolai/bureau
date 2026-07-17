@@ -61,7 +61,34 @@ show. The convention `bureau:compile` writes is a **body** line:
 
 Frontmatter grammar: flat `key: value` lines, inline lists (`tags: [a, b]`), and multi-line lists
 of scalars. Values are always strings — no YAML type coercion. Nested maps and block scalars
-(`|`, `>`) are rejected outright.
+(`|`, `>`) are rejected outright. The **one** nested exception is a `rests_on` object edge, written
+as a bounded single-line inline map — `{ page: "[[Target]]", span: "^anchor", because: "…" }`.
+
+## The recursion engine — declare dependencies, don't memorize (ADR-0001)
+
+A cabinet claim that rests on another page's claim should **declare it**, so a change upstream
+mechanically flags the downstream for review instead of rotting silently. This is the deterministic
+dependency gate (`docs/adr-0001-engine-data-model.md`):
+
+- **Identity is an opaque `id:`** (frontmatter), not the title. Titles/paths are mutable aliases; a
+  rename never changes identity. Do **not** reuse or hand-change a page's `id:`.
+- **Anchor the cited claim with a `^anchor`** at the end of its line (an author-anchored *span*).
+  A downstream page cites it: `rests_on: - { page: "[[Upstream]]", span: "^anchor", because: "…" }`.
+  An edge with a `span` is **tracked** (gated); a bare `rests_on: "[[X]]"` string is **untracked**
+  (conservatively `needs-review`, outside the sound-gate guarantee).
+- **State is four orthogonal fields**, projected/derived — never one overloaded `status:`:
+  `trust` (proposed/verified/canonical), `freshness` (current/needs-review/stale, derived by the
+  gate), `conflict` (none/contested/resolved), `freeze` (a change-priority hint). The legacy
+  `status:` still works — the loader reads it as `trust` when `trust:` is absent.
+- **The decision log is the source of truth.** `canonical` is a **projection** of a logged
+  `approve` event, not the frontmatter alone — `gazette fsck` flags any authored `canonical` no
+  approval backs. Never hand-edit `canon/_log.jsonl`; it is append-only and tamper-evident.
+- **Mechanical, code-owned** (never hand-write) — run the bundled press,
+  `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" <verb> --dir canon`:
+  `scan` (record span-revision events after edits), `gate` (the eager dirty index — a page's real
+  freshness), `fsck` (rebuild derived state to a byte-fixpoint; a CI gate), `report` (auditable
+  metrics), `approve`/`confirm "<title>"` (the human side of the log), and
+  `ledger …` (the `_verify.json` / `_compile-state.json` trust ledgers).
 
 <!-- bureau:crew -->
 @bureau/crew/auditor/brief.md

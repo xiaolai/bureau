@@ -16,6 +16,16 @@ import { planRename, applyRename } from "../src/maintain/rename.mjs";
 import { buildRepairPlan, applySafe, renderRepairText } from "../src/maintain/doctor.mjs";
 import { escapeHtml } from "../src/shared/escape.mjs";
 import { prettify } from "../src/shared/prettify.mjs";
+// recursion engine (ADR-0001): scan → gate → fsck → report + ledgers
+import { scan as engineScan } from "../src/engine/scan.mjs";
+import { computeGate } from "../src/engine/gate.mjs";
+import { fsck as engineFsck } from "../src/engine/fsck.mjs";
+import { report as engineReport, renderMetricsText } from "../src/engine/metrics.mjs";
+import { recordVerification, recheckVerification, markCompiled, uncompiled } from "../src/engine/ledgers.mjs";
+import { loadCorpus, buildModel } from "../src/core/model.mjs";
+import { logPath, readLog, appendEvent } from "../src/engine/log.mjs";
+import { conflictKey } from "../src/engine/state.mjs";
+import { nfc } from "../src/services/i18n.mjs";
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -313,6 +323,158 @@ function runServe() {
   for (const f of ["theme.json", "theme.css"]) { const p = join(root, f); if (existsSync(p)) watch(p, trigger); }
 }
 
+// ── recursion engine (ADR-0001) ────────────────────────────────────────────────
+function engineDir() { return resolve(process.cwd(), dirArg() || "gazette"); }
+
+// scan: reconcile the decision log with the current corpus (the mechanical event producer).
+function runScan() {
+  try {
+    const docsDir = engineDir();
+    const r = engineScan({ docsDir, apply: !argv.includes("--dry") });
+    const s = r.summary;
+    const verb = argv.includes("--dry") ? "would append" : "appended";
+    console.log("✓ scan: " + verb + " " + r.planned.length + " event(s) — " + s.introduced + " introduce, " + s.edited + " edit, " + s.deleted + " delete");
+  } catch (e) { die(e.message); }
+}
+
+// gate: print the eager dirty index + cutoff ratio BESIDE edge count (never alone).
+function runGate() {
+  try {
+    const docsDir = engineDir();
+    const model = buildModel({ corpus: loadCorpus({ docsDir }) });
+    const g = computeGate({ model, events: readLog(logPath(docsDir)) });
+    const c = g.counts;
+    console.log("gate: " + c.tracked + " tracked edges · " + g.dirty.length + " dirty pages · cutoff ratio " +
+      (g.cutoffRatio == null ? "n/a" : (g.cutoffRatio * 100).toFixed(1) + "%") + " · " + c.untracked + " untracked · " + c.broken + " broken");
+    for (const d of g.dirty) console.log("  " + (d.freshness === "stale" ? "✗ stale       " : "· needs-review") + " " + d.uid);
+    process.exit(0); // the gate is informational; broken/dirty is expected mid-work
+  } catch (e) { die(e.message); }
+}
+
+// fsck: rebuild the mechanical-derived tier to a byte-fixpoint. Non-zero on a broken fixpoint OR any
+// BLOCKING finding (unbacked-canonical, orphan-confirm, ledger-malformed); pending-scan is advisory.
+function runFsck() {
+  try {
+    const docsDir = engineDir();
+    const r = engineFsck({ docsDir, write: !argv.includes("--check") });
+    console.log("fsck: " + r.nodeCount + " pages · fixpoint " + (r.fixpointStable ? "stable ✅" : "UNSTABLE ✗") + " · digest " + r.digest.slice(0, 12) + " · " + r.findings.length + " finding(s)");
+    for (const f of r.findings) console.log("  " + (r.blockingFindings.includes(f) ? "✗" : "·") + " " + f.kind + (f.uid ? " " + f.uid : "") + (f.detail ? " — " + f.detail : "") + (f.count ? " ×" + f.count : ""));
+    process.exit(r.ok ? 0 : 1); // r.ok = fixpoint stable AND no blocking findings
+  } catch (e) { die(e.message); } // a tampered log throws here → non-zero
+}
+
+// report: the deterministic, auditable metrics block. Exit tracks r.ok (fixpoint + broken edges +
+// mutation survivors + blocking findings) — a "needs attention" report never returns success.
+function runReport() {
+  try {
+    const r = engineReport({ docsDir: engineDir() });
+    console.log(renderMetricsText(r));
+    process.exit(r.ok ? 0 : 1);
+  } catch (e) { die(e.message); }
+}
+
+// resolve a page TITLE to its opaque uid + node (the decision-event verbs address pages by title).
+function resolvePage(docsDir, title) {
+  const model = buildModel({ corpus: loadCorpus({ docsDir }) });
+  const node = model.nodes[nfc(String(title))];
+  if (!node) die('no page titled [' + title + ']');
+  return { model, node };
+}
+
+// decision-event API (ADR-0001, Schema 1) — the human/review side of the log. In 0.8 the review
+// skill drives these; in 0.7 they are the CLI surface that gives the gate a real event stream.
+function runApprove() {
+  try {
+    const title = argv[1] && !argv[1].startsWith("--") ? argv[1] : opt("page");
+    if (!title) die('usage: gazette approve "<page title>"');
+    const docsDir = engineDir();
+    const { node } = resolvePage(docsDir, title);
+    const ev = appendEvent(logPath(docsDir), { type: "approve", id: node.uid, to_trust: "canonical", by: opt("by", "human") });
+    console.log("✓ approved [" + node.title + "] → trust: canonical (backed by log seq " + ev.seq + ")");
+  } catch (e) { die(e.message); }
+}
+function runReject() {
+  try {
+    const title = argv[1] && !argv[1].startsWith("--") ? argv[1] : opt("page");
+    if (!title) die('usage: gazette reject "<page title>" [--reason "…"]');
+    const docsDir = engineDir();
+    const { node } = resolvePage(docsDir, title);
+    appendEvent(logPath(docsDir), { type: "reject", id: node.uid, reason: opt("reason", "") });
+    console.log("✓ rejected [" + node.title + "] (logged; the page's authored tier stands, no canonical backing)");
+  } catch (e) { die(e.message); }
+}
+// confirm every currently-open tracked edge OF a dependent page (the human vouches the edge holds).
+function runConfirm() {
+  try {
+    const title = argv[1] && !argv[1].startsWith("--") ? argv[1] : opt("page");
+    if (!title) die('usage: gazette confirm "<dependent page title>"');
+    const docsDir = engineDir();
+    const { node, model } = resolvePage(docsDir, title);
+    const g = computeGate({ model, events: readLog(logPath(docsDir)) });
+    let n = 0, skippedBroken = 0;
+    for (const e of g.edges) {
+      if (!e.tracked || !e.open || e.dep !== node.uid) continue;
+      // never confirm a BROKEN edge (missing target / missing span) — it has no valid verdict key to
+      // vouch for; confirming it would append a bogus/empty confirmation and falsely report success.
+      if (e.broken || !e.edgeId || !e.verdictKey) { skippedBroken++; continue; }
+      appendEvent(logPath(docsDir), { type: "confirm-edge", edge: e.edgeId, verdict_key: e.verdictKey, by: opt("by", "human") });
+      n++;
+    }
+    const note = skippedBroken ? " (skipped " + skippedBroken + " broken edge(s) — fix the target/span first)" : "";
+    console.log((n ? "✓ confirmed " + n + " edge(s) for [" + node.title + "]" : "no confirmable open edges for [" + node.title + "]") + note);
+  } catch (e) { die(e.message); }
+}
+// resolve a `contradicts` conflict: record which page wins. The resolution is a log event; the
+// projection turns `conflict: contested` into `resolved` with a resolution_id (ADR-0001, §4.18 seed).
+function runResolve() {
+  try {
+    const a = argv[1], b = argv[2];
+    if (!a || !b || a.startsWith("--") || b.startsWith("--")) die('usage: gazette resolve "<page A>" "<page B>" --winner "<title>"');
+    const docsDir = engineDir();
+    const model = buildModel({ corpus: loadCorpus({ docsDir }) });
+    const na = model.nodes[nfc(String(a))], nb = model.nodes[nfc(String(b))];
+    if (!na) die("no page titled [" + a + "]");
+    if (!nb) die("no page titled [" + b + "]");
+    const winner = opt("winner");
+    if (!winner) die('resolve needs --winner "<title>"');
+    const wn = model.nodes[nfc(String(winner))];
+    if (!wn || (wn.uid !== na.uid && wn.uid !== nb.uid)) die("--winner must be one of the two named pages");
+    const ev = appendEvent(logPath(docsDir), { type: "resolve", conflict: conflictKey(na.uid, nb.uid), winner: wn.uid });
+    console.log("✓ resolved [" + na.title + "] × [" + nb.title + "] → winner [" + wn.title + "] (resolution_id " + ev.seq + ")");
+  } catch (e) { die(e.message); }
+}
+
+// ledger: the mechanical trust ledgers, callable by the compile/review skills.
+function runLedger() {
+  try {
+    const action = argv[1];
+    const docsDir = engineDir();
+    const root = process.cwd();
+    if (action === "verify") {
+      const page = opt("page"), artifact = opt("artifact"), claim = opt("claim");
+      if (!page || !artifact) die('usage: gazette ledger verify --page "<title>" --artifact <repo-relative-path> [--claim "<c>"]');
+      const hash = recordVerification(docsDir, { root, page, artifact, claim, date: opt("now", today()) });
+      console.log("✓ verified " + artifact + " for [" + page + "] — sha256 " + hash.slice(0, 12));
+    } else if (action === "recheck") {
+      const page = opt("page"); if (!page) die('usage: gazette ledger recheck --page "<title>"');
+      const rows = recheckVerification(docsDir, { root, page });
+      if (!rows.length) { console.log("no recorded fingerprints for [" + page + "]"); return; }
+      for (const c of rows) console.log("  " + (c.ok ? "✅ current " : "✗ DRIFTED ") + c.artifact);
+      process.exit(rows.every((c) => c.ok) ? 0 : 1);
+    } else if (action === "mark-compiled") {
+      const ids = argv.slice(2).filter((a) => !a.startsWith("--"));
+      if (!ids.length) die("usage: gazette ledger mark-compiled <session-id> [<session-id>...]");
+      console.log("✓ marked " + markCompiled(docsDir, ids) + " new session(s) compiled");
+    } else if (action === "uncompiled") {
+      const ids = argv.slice(2).filter((a) => !a.startsWith("--"));
+      const out = uncompiled(docsDir, ids);
+      console.log(out.length ? out.join("\n") : "(all compiled)");
+    } else {
+      die("usage: gazette ledger <verify|recheck|mark-compiled|uncompiled> …");
+    }
+  } catch (e) { die(e.message); }
+}
+
 switch (cmd) {
   case "init": runInit(); break;
   case "new": runNew(); break;
@@ -323,6 +485,15 @@ switch (cmd) {
   case "health": case "audit": runHealth(); break;
   case "doctor": runDoctor(); break;
   case "rename": runRename(); break;
+  case "scan": runScan(); break;
+  case "gate": runGate(); break;
+  case "fsck": runFsck(); break;
+  case "report": runReport(); break;
+  case "ledger": runLedger(); break;
+  case "approve": runApprove(); break;
+  case "reject": runReject(); break;
+  case "confirm": runConfirm(); break;
+  case "resolve": runResolve(); break;
   default:
     console.log([
       "gazette — offline board from a folder of HTML docs (default: gazette/)",
@@ -341,6 +512,16 @@ switch (cmd) {
       "  gazette audit  (alias: health)     deterministic check: dangling/orphan/contradiction/stale/schema/drift/unsourced",
       "  gazette doctor [--apply]           audit → repair plan (--apply fixes the safe subset)",
       '  gazette rename "<old>" "<new>" [--dry]  rename a doc + propagate every reference',
+      "",
+      "  recursion engine (ADR-0001):",
+      "  gazette scan [--dry]               reconcile the decision log with the corpus (span-revision events)",
+      "  gazette gate                       show the eager dirty index (needs-review/stale) + cutoff ratio",
+      "  gazette fsck [--check]             rebuild mechanical-derived state to a byte-fixpoint (CI gate)",
+      "  gazette report                     deterministic auditable metrics (kill rate, fixpoint, cutoff)",
+      '  gazette approve "<title>"          log a human approval → trust: canonical (backs the projection)',
+      '  gazette confirm "<title>"          vouch a dependent page\'s open rests_on edges (gate cutoff)',
+      '  gazette resolve "<A>" "<B>" --winner "<title>"   record a contradicts resolution',
+      "  gazette ledger <verify|recheck|mark-compiled|uncompiled> …   the code-owned trust ledgers",
       "",
       "  common flags: --dir <dir> (content dir, default gazette/)  --data <dir>  --out <dir>  --now YYYY-MM-DD",
     ].join("\n"));

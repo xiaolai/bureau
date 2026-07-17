@@ -40,6 +40,13 @@ step("L1 · press renderer", () => {
 });
 step("L3 · judge self-test (deterministic)", () => run("node", ["--test", "test/e2e/judges.test.mjs"]));
 step("L1 · self-canon fixture (dogfood)", () => run("node", ["--test", "test/canon.test.mjs"]));
+// Recursion engine (ADR-0001) on the REAL canon via the shipped bundle: the derived tier must
+// rebuild to a byte-fixpoint (fsck exits non-zero on drift/tamper) and the wiring kill rate + cutoff
+// must hold (report exits non-zero on a wiring survivor or fixpoint drift). Real data, not fixtures.
+step("L1 · recursion engine on self-canon (fsck + report)", () => {
+  run("node", ["press/bin/gazette.mjs", "fsck", "--dir", "canon", "--check"]);
+  run("node", ["press/bin/gazette.mjs", "report", "--dir", "canon"]);
+});
 
 if (process.argv.includes("--e2e"))
   step("L3 · live behavioral (claude -p)", () => run("node", ["test/e2e/harness.mjs"]));
