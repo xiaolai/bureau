@@ -84,6 +84,7 @@ export function loadCorpus({ docsDir, dataDir = null } = {}) {
 
   const entries = [];
   const byId = new Map();
+  const byUid = new Map(); // opaque engine identity → file (ADR-0001); distinct from the title-key `id`
   const orderedGroups = []; const groupSeen = new Set(); // nav-section order = first appearance (folder-sorted)
   for (const file of files) {
     const isMd = file.endsWith(".md");
@@ -108,16 +109,38 @@ export function loadCorpus({ docsDir, dataDir = null } = {}) {
     const group = dm.group != null ? String(dm.group) : topFolderId(file);
     if (!groupSeen.has(group)) { groupSeen.add(group); orderedGroups.push(group); }
 
+    // opaque engine identity (ADR-0001): authored `id:` if present, else a stable title-shim.
+    // A shim uid changes on rename; a real authored id does not — so rename-stability is only
+    // guaranteed once `id:` is authored (WI-10 stamps them). Distinct from the title-key `id`.
+    const uid = dm.id != null && String(dm.id).trim() ? String(dm.id).trim() : "t:" + id;
+    if (byUid.has(uid)) throw new Error('duplicate engine id "' + uid + '" in both ' + byUid.get(uid) + " and " + file);
+    byUid.set(uid, file);
+
+    // author-anchored spans (ADR-0001): reject duplicate anchors within one doc (ambiguous target)
+    const spans = Array.isArray(parsed.spans) ? parsed.spans : [];
+    const spanSeen = new Set();
+    for (const s of spans) { if (spanSeen.has(s.anchor)) throw new Error('duplicate span anchor "^' + s.anchor + '" in ' + file); spanSeen.add(s.anchor); }
+
     const edges = [];
-    for (const e of parsed.edges) edges.push({ target: nfc(e.target), edgeType: e.edgeType });
-    for (const t of parsed.bodyLinks) edges.push({ target: nfc(t), edgeType: null });
+    // preserve rests_on's span/because/tracked so the engine can key verdicts on them; other edges
+    // carry nulls (harmless). dedupe keys on (source,target,edgeType,span) so two rests_on edges to
+    // different spans of one target both survive.
+    for (const e of parsed.edges) edges.push({ target: nfc(e.target), edgeType: e.edgeType, span: e.span ?? null, because: e.because ?? null, tracked: e.tracked === true });
+    for (const t of parsed.bodyLinks) edges.push({ target: nfc(t), edgeType: null, span: null, because: null, tracked: false });
+
+    // trust falls back to the legacy `status:` until the corpus migrates to `trust:` (WI-10)
+    const trust = dm.trust != null ? String(dm.trust) : (parsed.metaChips.status != null ? String(parsed.metaChips.status) : null);
 
     entries.push({
-      file, id, title, group,
+      file, id, uid, title, group,
       format: isMd ? "md" : "html",
       icon: dm.icon || "file",
       updated: dm.updated || null,
       status: parsed.metaChips.status != null ? String(parsed.metaChips.status) : null,
+      trust, freeze: dm.freeze != null ? String(dm.freeze) : null,
+      kind: dm.kind != null ? String(dm.kind) : null,
+      claim: dm.claim != null ? String(dm.claim) : null,
+      spans,
       type: parsed.metaChips.type != null ? String(parsed.metaChips.type) : null, // schema `required: [type]` checks node.type
       attrs: parsed.attrs, edges,
       body: parsed.body, bodyLinks: parsed.bodyLinks.map(nfc),
@@ -145,10 +168,16 @@ export function loadCorpus({ docsDir, dataDir = null } = {}) {
     throw new Error('meta.home "' + meta.home + '" resolves to no document (would white-screen the home view)');
   }
 
+  // dual index (ADR-0001): title-key ⇄ opaque uid. The renderer resolves links by title-key; the
+  // engine keys everything by uid, so a rename (title-key change) leaves engine identity intact.
+  const uidByKey = new Map(entries.map((e) => [e.id, e.uid]));
+  const keyByUid = new Map(entries.map((e) => [e.uid, e.id]));
+
   return {
     meta, groups, groupIds, entries, types,
     dataFiles: src.dataFiles, canvasFiles: src.canvasFiles,
     ids: new Set(byId.keys()),
+    uidByKey, keyByUid,
   };
 }
 
@@ -156,7 +185,8 @@ function dedupeEdges(edges) {
   const seen = new Set();
   const out = [];
   for (const e of edges) {
-    const k = JSON.stringify([e.source, e.target, e.edgeType || ""]);
+    // include span so two rests_on edges to different spans of one target both survive (ADR-0001)
+    const k = JSON.stringify([e.source, e.target, e.edgeType || "", e.span || ""]);
     if (seen.has(k)) continue;
     seen.add(k);
     out.push(e);
@@ -172,10 +202,13 @@ export function buildModel({ docsDir, corpus } = {}) {
   const edges = [];
   for (const e of c.entries) {
     nodes[e.id] = {
-      id: e.id, title: e.title, group: e.group, icon: e.icon,
-      updated: e.updated, status: e.status ?? null, type: e.type ?? null, file: e.file, attrs: e.attrs,
+      id: e.id, uid: e.uid, title: e.title, group: e.group, icon: e.icon,
+      updated: e.updated, status: e.status ?? null,
+      trust: e.trust ?? null, freeze: e.freeze ?? null, kind: e.kind ?? null, claim: e.claim ?? null,
+      spans: e.spans || [],
+      type: e.type ?? null, file: e.file, attrs: e.attrs,
     };
-    for (const edge of e.edges) edges.push({ source: e.id, target: edge.target, edgeType: edge.edgeType });
+    for (const edge of e.edges) edges.push({ source: e.id, sourceUid: e.uid, target: edge.target, edgeType: edge.edgeType, span: edge.span ?? null, because: edge.because ?? null, tracked: edge.tracked === true });
   }
   return {
     schemaVersion: SCHEMA_VERSION,

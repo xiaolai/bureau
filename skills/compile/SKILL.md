@@ -80,23 +80,29 @@ See [[Logbook model]].
    live repo. **Before reading any path from a claim, resolve it and confirm it stays inside
    the repo/workspace** — reject absolute paths, `..` escapes, and symlinks that point outside;
    read only contained paths. If the claim holds, set `status: verified`, add a body
-   `**Verified.**` line naming the artifact and date, and record an entry in
-   `<workspace>/_verify.json` (schema below). Everything else — judgments, rationale, anything
-   not mechanically checkable — stays `status: proposed`. Never write `canonical` (that is
-   `bureau:review`).
+   `**Verified.**` line naming the artifact and date, and record the fingerprint by running the
+   bundled press:
+   `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" ledger verify --dir <workspace> --page "<title>" --artifact <repo-relative-path> --claim "<what>"`
+   (it writes `<workspace>/_verify.json` in code — **never hand-edit it**; the schema below is for
+   reference). Everything else — judgments, rationale, anything not mechanically checkable —
+   stays `status: proposed`. Never write `canonical` (that is `bureau:review`).
 7. **Apply the conflict policy** (below) whenever a new claim disagrees with a page's current
    claim.
 8. **Structural check.** Run `bureau:inspect` (press build + health). Report the dossier
    count and any dangling links, orphans, or contradictions it surfaces.
 9. **Mark compiled — only on success.** ONLY after the writes and the structural check succeed,
-   append each processed session id to `<workspace>/_compile-state.json`. A failed inspect must
-   leave the session un-compiled so the next run retries it, not skips broken output.
+   record each processed session id by running
+   `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" ledger mark-compiled <session-id> … --dir <workspace>`
+   (it writes `<workspace>/_compile-state.json` in code, idempotently — **do not hand-edit it**). A
+   failed inspect must leave the session un-compiled so the next run retries it, not skips broken output.
 10. **Report.** List pages created, pages updated, pages left `proposed` (awaiting
     `bureau:review`), and any set to `contested`, with the command to inspect them.
 
-### `_verify.json` schema
+### `_verify.json` schema (code-owned)
 
-Keyed by page title, so `bureau:review` can map a fingerprint back to the page and re-check it:
+Written by `gazette ledger verify` (press `engine/ledgers.mjs`), never by hand. Keyed by page
+title, so `bureau:review` can map a fingerprint back to the page and re-check it
+(`gazette ledger recheck --dir <workspace> --page "<title>"`):
 
 ```json
 {
@@ -128,8 +134,9 @@ Resolution is a human act: once the user picks the true claim, the losing claim 
 
 ## Rules
 
-1. **Cabinets only.** Compile writes dossiers, `_compile-state.json`, and `_verify.json`.
-   It never edits minutes — the logbook is append-only history.
+1. **Cabinets only.** Compile writes dossiers and records the ledgers via the bundled press's
+   `gazette ledger` command (the code owns `_compile-state.json` and `_verify.json` — do not
+   hand-write them). It never edits minutes — the logbook is append-only history.
 2. **Provenance is mandatory.** Every claim added to a cabinet traces to a `[[session …]]`
    source in the page body. No orphan claims.
 3. **No silent overwrite.** Disagreement triggers the conflict policy, never a quiet replace.

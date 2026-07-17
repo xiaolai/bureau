@@ -10267,7 +10267,7 @@ var require_util = __commonJS({
         }
         path = url.path;
       }
-      var isAbsolute = exports.isAbsolute(path);
+      var isAbsolute2 = exports.isAbsolute(path);
       var parts = [];
       var start = 0;
       var i = 0;
@@ -10302,7 +10302,7 @@ var require_util = __commonJS({
       }
       path = parts.join("/");
       if (path === "") {
-        path = isAbsolute ? "/" : ".";
+        path = isAbsolute2 ? "/" : ".";
       }
       if (url) {
         url.path = path;
@@ -10311,7 +10311,7 @@ var require_util = __commonJS({
       return path;
     });
     exports.normalize = normalize3;
-    function join10(aRoot, aPath) {
+    function join13(aRoot, aPath) {
       if (aRoot === "") {
         aRoot = ".";
       }
@@ -10343,7 +10343,7 @@ var require_util = __commonJS({
       }
       return joined;
     }
-    exports.join = join10;
+    exports.join = join13;
     exports.isAbsolute = function(aPath) {
       return aPath.charAt(0) === "/" || urlRegexp.test(aPath);
     };
@@ -10557,7 +10557,7 @@ var require_util = __commonJS({
             parsed.path = parsed.path.substring(0, index + 1);
           }
         }
-        sourceURL = join10(urlGenerate(parsed), sourceURL);
+        sourceURL = join13(urlGenerate(parsed), sourceURL);
       }
       return normalize3(sourceURL);
     }
@@ -11997,8 +11997,8 @@ var require_source_map = __commonJS({
 var require_previous_map = __commonJS({
   "node_modules/postcss/lib/previous-map.js"(exports, module) {
     "use strict";
-    var { existsSync: existsSync6, readFileSync: readFileSync9 } = __require("fs");
-    var { dirname: dirname4, join: join10 } = __require("path");
+    var { existsSync: existsSync9, readFileSync: readFileSync12 } = __require("fs");
+    var { dirname: dirname4, join: join13 } = __require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     function fromBase64(str) {
       if (Buffer) {
@@ -12067,9 +12067,9 @@ var require_previous_map = __commonJS({
           }
         }
         this.root = dirname4(path);
-        if (existsSync6(path)) {
+        if (existsSync9(path)) {
           this.mapFile = path;
-          return readFileSync9(path, "utf-8").toString().trim();
+          return readFileSync12(path, "utf-8").toString().trim();
         }
       }
       loadMap(file, prev) {
@@ -12103,7 +12103,7 @@ var require_previous_map = __commonJS({
           return this.decodeInline(this.annotation);
         } else if (this.annotation) {
           let map = this.annotation;
-          if (file) map = join10(dirname4(file), map);
+          if (file) map = join13(dirname4(file), map);
           let unknown = this.loadFile(map, file, false);
           if (unknown) {
             try {
@@ -12133,7 +12133,7 @@ var require_input = __commonJS({
   "node_modules/postcss/lib/input.js"(exports, module) {
     "use strict";
     var { nanoid } = require_non_secure();
-    var { isAbsolute, resolve: resolve3 } = __require("path");
+    var { isAbsolute: isAbsolute2, resolve: resolve4 } = __require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     var { fileURLToPath: fileURLToPath2, pathToFileURL } = __require("url");
     var CssSyntaxError = require_css_syntax_error();
@@ -12141,7 +12141,7 @@ var require_input = __commonJS({
     var terminalHighlight = require_terminal_highlight();
     var lineToIndexCache = Symbol("lineToIndexCache");
     var sourceMapAvailable = Boolean(SourceMapConsumer && SourceMapGenerator);
-    var pathAvailable = Boolean(resolve3 && isAbsolute);
+    var pathAvailable = Boolean(resolve4 && isAbsolute2);
     function getLineToIndex(input) {
       if (input[lineToIndexCache]) return input[lineToIndexCache];
       let lines = input.css.split("\n");
@@ -12172,10 +12172,10 @@ var require_input = __commonJS({
         this.document = this.css;
         if (opts.document) this.document = opts.document.toString();
         if (opts.from) {
-          if (!pathAvailable || /^\w+:\/\//.test(opts.from) || isAbsolute(opts.from)) {
+          if (!pathAvailable || /^\w+:\/\//.test(opts.from) || isAbsolute2(opts.from)) {
             this.file = opts.from;
           } else {
-            this.file = resolve3(opts.from);
+            this.file = resolve4(opts.from);
           }
         }
         if (pathAvailable && sourceMapAvailable) {
@@ -12296,7 +12296,7 @@ var require_input = __commonJS({
         if (/^\w+:\/\//.test(file)) {
           return file;
         }
-        return resolve3(this.map.consumer().sourceRoot || this.map.root || ".", file);
+        return resolve4(this.map.consumer().sourceRoot || this.map.root || ".", file);
       }
       origin(line, column, endLine, endColumn) {
         if (!this.map) return false;
@@ -12308,7 +12308,7 @@ var require_input = __commonJS({
           to = consumer.originalPositionFor({ column: endColumn, line: endLine });
         }
         let fromUrl;
-        if (isAbsolute(from.source)) {
+        if (isAbsolute2(from.source)) {
           fromUrl = pathToFileURL(from.source);
         } else {
           fromUrl = new URL(
@@ -12480,8 +12480,8 @@ var require_rule = __commonJS({
       }
       set selectors(values) {
         let match2 = this.selector ? this.selector.match(/,\s*/) : null;
-        let sep5 = match2 ? match2[0] : "," + this.raw("between", "beforeOpen");
-        this.selector = values.join(sep5);
+        let sep6 = match2 ? match2[0] : "," + this.raw("between", "beforeOpen");
+        this.selector = values.join(sep6);
       }
       constructor(defaults) {
         super(defaults);
@@ -12555,12 +12555,12 @@ var require_fromJSON = __commonJS({
 var require_map_generator = __commonJS({
   "node_modules/postcss/lib/map-generator.js"(exports, module) {
     "use strict";
-    var { dirname: dirname4, relative: relative5, resolve: resolve3, sep: sep5 } = __require("path");
+    var { dirname: dirname4, relative: relative5, resolve: resolve4, sep: sep6 } = __require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     var { pathToFileURL } = __require("url");
     var Input = require_input();
     var sourceMapAvailable = Boolean(SourceMapConsumer && SourceMapGenerator);
-    var pathAvailable = Boolean(dirname4 && resolve3 && relative5 && sep5);
+    var pathAvailable = Boolean(dirname4 && resolve4 && relative5 && sep6);
     var MapGenerator = class {
       constructor(stringify, root, opts, cssString) {
         this.stringify = stringify;
@@ -12789,7 +12789,7 @@ var require_map_generator = __commonJS({
         if (cached) return cached;
         let from = this.opts.to ? dirname4(this.opts.to) : ".";
         if (typeof this.mapOpts.annotation === "string") {
-          from = dirname4(resolve3(from, this.mapOpts.annotation));
+          from = dirname4(resolve4(from, this.mapOpts.annotation));
         }
         let path = relative5(from, file);
         this.memoizedPaths.set(file, path);
@@ -12864,7 +12864,7 @@ var require_map_generator = __commonJS({
       toUrl(path) {
         let cached = this.memoizedURLs.get(path);
         if (cached) return cached;
-        if (sep5 === "\\") {
+        if (sep6 === "\\") {
           path = path.replace(/\\/g, "/");
         }
         let url = encodeURI(path).replace(/[#?]/g, encodeURIComponent);
@@ -15918,8 +15918,8 @@ and ensure you are accounting for this risk.
 });
 
 // bin/cli.mjs
-import { existsSync as existsSync5, mkdirSync as mkdirSync2, writeFileSync as writeFileSync4, appendFileSync, readFileSync as readFileSync8, statSync, lstatSync as lstatSync8, readdirSync as readdirSync5, realpathSync as realpathSync3, watch } from "fs";
-import { join as join9, resolve as resolve2, dirname as dirname3, extname as extname2, sep as sep4, relative as relative4 } from "path";
+import { existsSync as existsSync8, mkdirSync as mkdirSync2, writeFileSync as writeFileSync6, appendFileSync as appendFileSync2, readFileSync as readFileSync11, statSync, lstatSync as lstatSync9, readdirSync as readdirSync5, realpathSync as realpathSync4, watch } from "fs";
+import { join as join12, resolve as resolve3, dirname as dirname3, extname as extname2, sep as sep5, relative as relative4 } from "path";
 import { createServer } from "http";
 import { spawn } from "child_process";
 
@@ -21225,8 +21225,8 @@ function slugify(s) {
 // src/core/parse.mjs
 var WIKI_RE = /\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]/g;
 var WIKI_RE2_LINK = /(?<!!)\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]/g;
-var FM_RESERVED = /* @__PURE__ */ new Set(["title", "group", "icon", "type", "status", "updated", "age", "words", "home", "subtitle"]);
-var DATA_RESERVED = /* @__PURE__ */ new Set(["title", "group", "icon", "updated", "type", "status", "words", "age", "wiki", "kind", "format"]);
+var FM_RESERVED = /* @__PURE__ */ new Set(["title", "group", "icon", "type", "status", "updated", "age", "words", "home", "subtitle", "id", "trust", "freeze", "kind", "claim", "rests_on"]);
+var DATA_RESERVED = /* @__PURE__ */ new Set(["title", "group", "icon", "updated", "type", "status", "words", "age", "wiki", "kind", "format", "id", "trust", "freeze", "claim"]);
 var RAW_TEXT = /* @__PURE__ */ new Set(["PRE", "CODE", "SCRIPT", "STYLE", "TEXTAREA"]);
 var META_CHIP_KEYS = ["type", "status", "words", "age"];
 var IMG_EXT = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i;
@@ -21313,6 +21313,7 @@ function seqItem(raw, line) {
   const v = raw.trim();
   const q = v[0];
   if ((q === '"' || q === "'") && v.length > 1 && v[v.length - 1] === q) return v.slice(1, -1);
+  if (v.startsWith("{") && v.endsWith("}")) return parseInlineMap(v.slice(1, -1), line);
   if (BLOCK_SCALAR.test(v) || ANCHOR.test(v)) throw new Error(unsupportedFm(line));
   if (/^-(\s|$)/.test(v)) throw new Error(unsupportedFm(line));
   if (/:(\s|$)/.test(v)) throw new Error(unsupportedFm(line));
@@ -21336,6 +21337,83 @@ function parseAttrValue(v) {
   if (s.startsWith("[") && s.endsWith("]") && !s.includes("[[")) return s.slice(1, -1).split(",").map((x) => x.trim()).filter(Boolean);
   return v;
 }
+var SPAN_ANCHOR = /(^|[ \t])\^([A-Za-z0-9][A-Za-z0-9_-]*)[ \t]*$/;
+function extractSpans(rawBody) {
+  const lines = String(rawBody == null ? "" : rawBody).split(/\r?\n/);
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(SPAN_ANCHOR);
+    if (!m) continue;
+    let start = i;
+    while (start > 0 && lines[start - 1].trim() !== "") start--;
+    const block2 = lines.slice(start, i + 1).join("\n");
+    const text2 = block2.replace(SPAN_ANCHOR, "").trim();
+    out.push({ anchor: m[2], text: text2 });
+  }
+  return out;
+}
+function splitOutsideQuotes(s, delim) {
+  const out = [];
+  let cur = "", q = null;
+  for (const ch of s) {
+    if (q) {
+      cur += ch;
+      if (ch === q) q = null;
+    } else if (ch === '"' || ch === "'") {
+      q = ch;
+      cur += ch;
+    } else if (ch === delim) {
+      out.push(cur);
+      cur = "";
+    } else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+function firstColonOutsideQuotes(s) {
+  let q = null;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (q) {
+      if (ch === q) q = null;
+    } else if (ch === '"' || ch === "'") q = ch;
+    else if (ch === ":") return i;
+  }
+  return -1;
+}
+function parseInlineMap(body, line) {
+  const obj = /* @__PURE__ */ Object.create(null);
+  for (const part of splitOutsideQuotes(body, ",")) {
+    if (!part.trim()) continue;
+    const ci = firstColonOutsideQuotes(part);
+    if (ci < 0) throw new Error(unsupportedFm(line));
+    const k = part.slice(0, ci).trim();
+    if (!FM_KEY.test(k)) throw new Error(unsupportedFm(line));
+    let v = part.slice(ci + 1).trim();
+    const q = v[0];
+    if ((q === '"' || q === "'") && v.length > 1 && v[v.length - 1] === q) v = v.slice(1, -1);
+    obj[k] = v;
+  }
+  return obj;
+}
+function restsOnEdges(value) {
+  const out = [];
+  for (let raw of Array.isArray(value) ? value : [value]) {
+    let item = raw;
+    if (typeof item === "string") {
+      const s = item.trim();
+      if (s.startsWith("{") && s.endsWith("}")) item = parseInlineMap(s.slice(1, -1), s);
+    }
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      const page = extractLinks(String(item.page == null ? "" : item.page))[0];
+      if (!page) throw new Error('rests_on object edge needs page: "[[Target]]" (got: ' + JSON.stringify(item) + ")");
+      out.push({ target: page, edgeType: "rests_on", span: item.span ? String(item.span) : null, because: item.because ? String(item.because) : null, tracked: !!item.span });
+    } else {
+      for (const t of extractLinks(String(item == null ? "" : item))) out.push({ target: t, edgeType: "rests_on", span: null, because: null, tracked: false });
+    }
+  }
+  return out;
+}
 function isInRawText(node) {
   for (let p = node; p; p = p.parentNode) if (p.tagName && RAW_TEXT.has(p.tagName)) return true;
   return false;
@@ -21352,7 +21430,13 @@ function parseHtmlDoc(raw) {
     title: fmStr("title") ?? dget("title") ?? (h1 ? h1.text.trim() : "") ?? "",
     group: fmStr("group") ?? dget("group") ?? null,
     icon: fmStr("icon") ?? dget("icon") ?? "file",
-    updated: fmStr("updated") ?? dget("updated") ?? null
+    updated: fmStr("updated") ?? dget("updated") ?? null,
+    // recursion-engine authored meta (ADR-0001): opaque id + the four-field state (trust/freeze)
+    id: fmStr("id") ?? dget("id") ?? null,
+    trust: fmStr("trust") ?? dget("trust") ?? null,
+    freeze: fmStr("freeze") ?? dget("freeze") ?? null,
+    kind: fmStr("kind") ?? dget("kind") ?? null,
+    claim: fmStr("claim") ?? dget("claim") ?? null
   };
   const metaChips = {};
   for (const k of META_CHIP_KEYS) {
@@ -21377,6 +21461,7 @@ function parseHtmlDoc(raw) {
     if (DATA_RESERVED.has(key) || Object.prototype.hasOwnProperty.call(attrs, key)) continue;
     addRel(key, metaEl.getAttribute(a));
   }
+  if (fm.rests_on != null) for (const e of restsOnEdges(fm.rests_on)) edges.push(e);
   const seen = [];
   const walk4 = (node) => {
     for (const ch of node.childNodes) {
@@ -21392,7 +21477,7 @@ function parseHtmlDoc(raw) {
       if (t) seen.push(t);
     }
   });
-  return { meta, metaChips, attrs, edges, bodyLinks: seen, body };
+  return { meta, metaChips, attrs, edges, bodyLinks: seen, body, spans: extractSpans(body) };
 }
 var _md = null;
 function mdEngine() {
@@ -21589,7 +21674,17 @@ function parseMarkdownDoc(raw) {
     const h = prose.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/m);
     title = h ? h[1].trim() : "";
   }
-  const meta = { title: title || "", group: fmStr("group") ?? null, icon: fmStr("icon") ?? "file", updated: fmStr("updated") ?? null };
+  const meta = {
+    title: title || "",
+    group: fmStr("group") ?? null,
+    icon: fmStr("icon") ?? "file",
+    updated: fmStr("updated") ?? null,
+    id: fmStr("id") ?? null,
+    trust: fmStr("trust") ?? null,
+    freeze: fmStr("freeze") ?? null,
+    kind: fmStr("kind") ?? null,
+    claim: fmStr("claim") ?? null
+  };
   const metaChips = {};
   for (const k of META_CHIP_KEYS) if (fm[k] != null) metaChips[k] = String(fm[k]);
   const edges = [], attrs = /* @__PURE__ */ Object.create(null);
@@ -21604,7 +21699,8 @@ function parseMarkdownDoc(raw) {
   for (const k of Object.keys(fm)) {
     if (!FM_RESERVED.has(k)) addRel(k, fm[k]);
   }
-  return { meta, metaChips, attrs, edges, bodyLinks: extractBodyLinks(prose), body };
+  if (fm.rests_on != null) for (const e of restsOnEdges(fm.rests_on)) edges.push(e);
+  return { meta, metaChips, attrs, edges, bodyLinks: extractBodyLinks(prose), body, spans: extractSpans(body) };
 }
 var PROTECT = RAW_BLOCK;
 var A_WIKI = /<a\b[^>]*?\bdata-wiki\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s">]+))[^>]*>([\s\S]*?)<\/a>/gi;
@@ -21625,7 +21721,7 @@ function replaceInGaps(html, fn) {
   }
   return out + fn(html.slice(last));
 }
-function resolveLinks(html, resolve3) {
+function resolveLinks(html, resolve4) {
   const slots = [];
   let h = String(html).replace(SENTINEL, "").replace(PROTECT, (m) => {
     slots.push(m);
@@ -21634,9 +21730,9 @@ function resolveLinks(html, resolve3) {
   h = h.replace(A_WIKI, (_, dq, sq, uq, inner) => {
     const target = decodeEntities((dq != null ? dq : sq != null ? sq : uq != null ? uq : "").trim());
     const label = decodeEntities(stripTags(inner)) || target;
-    return resolve3(target, label);
+    return resolve4(target, label);
   });
-  h = replaceInGaps(h, (gap) => gap.replace(WIKI_RE2_LINK, (_, t, l) => resolve3(decodeEntities(t.trim()), decodeEntities((l || t).trim()))));
+  h = replaceInGaps(h, (gap) => gap.replace(WIKI_RE2_LINK, (_, t, l) => resolve4(decodeEntities(t.trim()), decodeEntities((l || t).trim()))));
   return h.replace(/\uE000(\d+)\uE001/g, (_, i) => slots[+i]);
 }
 var escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -21847,6 +21943,7 @@ function loadCorpus({ docsDir, dataDir = null } = {}) {
   const files = src.docFiles;
   const entries = [];
   const byId = /* @__PURE__ */ new Map();
+  const byUid = /* @__PURE__ */ new Map();
   const orderedGroups = [];
   const groupSeen = /* @__PURE__ */ new Set();
   for (const file of files) {
@@ -21871,18 +21968,34 @@ function loadCorpus({ docsDir, dataDir = null } = {}) {
       groupSeen.add(group);
       orderedGroups.push(group);
     }
+    const uid = dm.id != null && String(dm.id).trim() ? String(dm.id).trim() : "t:" + id;
+    if (byUid.has(uid)) throw new Error('duplicate engine id "' + uid + '" in both ' + byUid.get(uid) + " and " + file);
+    byUid.set(uid, file);
+    const spans = Array.isArray(parsed.spans) ? parsed.spans : [];
+    const spanSeen = /* @__PURE__ */ new Set();
+    for (const s of spans) {
+      if (spanSeen.has(s.anchor)) throw new Error('duplicate span anchor "^' + s.anchor + '" in ' + file);
+      spanSeen.add(s.anchor);
+    }
     const edges = [];
-    for (const e of parsed.edges) edges.push({ target: nfc(e.target), edgeType: e.edgeType });
-    for (const t of parsed.bodyLinks) edges.push({ target: nfc(t), edgeType: null });
+    for (const e of parsed.edges) edges.push({ target: nfc(e.target), edgeType: e.edgeType, span: e.span ?? null, because: e.because ?? null, tracked: e.tracked === true });
+    for (const t of parsed.bodyLinks) edges.push({ target: nfc(t), edgeType: null, span: null, because: null, tracked: false });
+    const trust = dm.trust != null ? String(dm.trust) : parsed.metaChips.status != null ? String(parsed.metaChips.status) : null;
     entries.push({
       file,
       id,
+      uid,
       title,
       group,
       format: isMd ? "md" : "html",
       icon: dm.icon || "file",
       updated: dm.updated || null,
       status: parsed.metaChips.status != null ? String(parsed.metaChips.status) : null,
+      trust,
+      freeze: dm.freeze != null ? String(dm.freeze) : null,
+      kind: dm.kind != null ? String(dm.kind) : null,
+      claim: dm.claim != null ? String(dm.claim) : null,
+      spans,
       type: parsed.metaChips.type != null ? String(parsed.metaChips.type) : null,
       // schema `required: [type]` checks node.type
       attrs: parsed.attrs,
@@ -21908,6 +22021,8 @@ function loadCorpus({ docsDir, dataDir = null } = {}) {
   if (meta.home && !byId.has(nfc(String(meta.home)))) {
     throw new Error('meta.home "' + meta.home + '" resolves to no document (would white-screen the home view)');
   }
+  const uidByKey = new Map(entries.map((e) => [e.id, e.uid]));
+  const keyByUid = new Map(entries.map((e) => [e.uid, e.id]));
   return {
     meta,
     groups,
@@ -21916,14 +22031,16 @@ function loadCorpus({ docsDir, dataDir = null } = {}) {
     types,
     dataFiles: src.dataFiles,
     canvasFiles: src.canvasFiles,
-    ids: new Set(byId.keys())
+    ids: new Set(byId.keys()),
+    uidByKey,
+    keyByUid
   };
 }
 function dedupeEdges(edges) {
   const seen = /* @__PURE__ */ new Set();
   const out = [];
   for (const e of edges) {
-    const k = JSON.stringify([e.source, e.target, e.edgeType || ""]);
+    const k = JSON.stringify([e.source, e.target, e.edgeType || "", e.span || ""]);
     if (seen.has(k)) continue;
     seen.add(k);
     out.push(e);
@@ -21937,16 +22054,22 @@ function buildModel({ docsDir, corpus } = {}) {
   for (const e of c.entries) {
     nodes[e.id] = {
       id: e.id,
+      uid: e.uid,
       title: e.title,
       group: e.group,
       icon: e.icon,
       updated: e.updated,
       status: e.status ?? null,
+      trust: e.trust ?? null,
+      freeze: e.freeze ?? null,
+      kind: e.kind ?? null,
+      claim: e.claim ?? null,
+      spans: e.spans || [],
       type: e.type ?? null,
       file: e.file,
       attrs: e.attrs
     };
-    for (const edge of e.edges) edges.push({ source: e.id, target: edge.target, edgeType: edge.edgeType });
+    for (const edge of e.edges) edges.push({ source: e.id, sourceUid: e.uid, target: edge.target, edgeType: edge.edgeType, span: edge.span ?? null, because: edge.because ?? null, tracked: edge.tracked === true });
   }
   return {
     schemaVersion: SCHEMA_VERSION,
@@ -22181,8 +22304,8 @@ function mmText(s) {
 var esc = (s) => escapeHtml2(String(s == null ? "" : s));
 function segDoc(events, lo, hi, name) {
   const seg = events.filter((e) => e.day >= lo && e.day <= hi);
-  const head = '<article data-generated="cold-events"><h1>Cold events \xB7 D' + lo + "\u2013" + hi + " (" + esc(name) + ")</h1>";
-  if (!seg.length) return head + "<blockquote><p>fill in the per-day data in <code>data/cold-events.md</code>.</p></blockquote></article>";
+  const head2 = '<article data-generated="cold-events"><h1>Cold events \xB7 D' + lo + "\u2013" + hi + " (" + esc(name) + ")</h1>";
+  if (!seg.length) return head2 + "<blockquote><p>fill in the per-day data in <code>data/cold-events.md</code>.</p></blockquote></article>";
   const pid = /* @__PURE__ */ new Map();
   const idOf = (orig) => {
     if (!pid.has(orig)) pid.set(orig, "p" + pid.size);
@@ -22204,7 +22327,7 @@ function segDoc(events, lo, hi, name) {
     g += "  end\n";
   });
   const links = [...new Set(seg.flatMap((e) => e.links ? e.links.split(",").map((s) => s.trim()) : []))].filter(Boolean);
-  let body = head + "<blockquote><p>external base independent of character agency (data-driven; edit <code>data/cold-events.md</code> \u2192 build).</p></blockquote>";
+  let body = head2 + "<blockquote><p>external base independent of character agency (data-driven; edit <code>data/cold-events.md</code> \u2192 build).</p></blockquote>";
   body += '<div class="mermaid">' + esc(g) + "</div>";
   if (links.length) body += "<h2>character lines this segment touches</h2><p>" + links.map((l) => "[[" + l + "]]").join(" \xB7 ") + "</p>";
   body += "<blockquote><p>daily detail in [[Daily table \xB7 30 days]].</p></blockquote></article>";
@@ -22607,10 +22730,10 @@ function scanCode({ dir }) {
   edges.sort((a, b) => a.source + a.target < b.source + b.target ? -1 : 1);
   return { files, edges, totalLoc: files.reduce((s, f) => s + f.loc, 0), fileCount: files.length };
 }
-function codeModel(scan) {
+function codeModel(scan2) {
   const nodes = {};
-  for (const f of scan.files) nodes[f.path] = { id: f.path, title: f.path.split(/[\\/]/).pop(), group: f.group };
-  return { nodes, edges: scan.edges.map((e) => ({ source: e.source, target: e.target, edgeType: null })), nodeCount: scan.files.length, meta: {} };
+  for (const f of scan2.files) nodes[f.path] = { id: f.path, title: f.path.split(/[\\/]/).pop(), group: f.group };
+  return { nodes, edges: scan2.edges.map((e) => ({ source: e.source, target: e.target, edgeType: null })), nodeCount: scan2.files.length, meta: {} };
 }
 
 // src/code/treemap.mjs
@@ -22619,12 +22742,12 @@ var H = 480;
 var color = (g) => "hsl(" + hash32(g) % 360 + ", 30%, 62%)";
 var sum = (fs) => fs.reduce((s, f) => s + f.loc, 0);
 var base = (p) => p.split(/[\\/]/).pop();
-function renderTreemapSvg(scan) {
-  const files = scan.files;
+function renderTreemapSvg(scan2) {
+  const files = scan2.files;
   if (!files.length) return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>';
   const byDir = /* @__PURE__ */ Object.create(null);
   for (const f of files) (byDir[f.group] = byDir[f.group] || []).push(f);
-  const total = scan.totalLoc || 1;
+  const total = scan2.totalLoc || 1;
   const dirs = Object.keys(byDir).sort((a, b) => sum(byDir[b]) - sum(byDir[a]) || (a < b ? -1 : 1));
   let s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + " " + H + '" width="' + W + '" font-family="var(--sans)">';
   let x = 0;
@@ -22668,7 +22791,7 @@ function renderHealthHtml(health) {
   b += '<table class="wb-table"><thead><tr><th>Check</th><th class="num">Count</th></tr></thead><tbody>' + rows.map(([k, v]) => "<tr><td>" + k + '</td><td class="num">' + v + "</td></tr>").join("") + "</tbody></table>";
   if (clean) return b + "<blockquote><p>\u2705 No findings. The knowledge base is consistent.</p></blockquote></article>";
   const section = (title, n, note, inner) => "<h2>" + esc3(title) + " \xB7 " + n + "</h2><blockquote><p>" + note + "</p></blockquote>" + inner;
-  const tbl = (head, body) => '<table class="wb-table"><thead><tr>' + head.map((h) => "<th>" + h + "</th>").join("") + "</tr></thead><tbody>" + body + "</tbody></table>";
+  const tbl = (head2, body) => '<table class="wb-table"><thead><tr>' + head2.map((h) => "<th>" + h + "</th>").join("") + "</tr></thead><tbody>" + body + "</tbody></table>";
   if (c.dangling) {
     b += section(
       "Dangling links",
@@ -22891,7 +23014,7 @@ function nfc2(s) {
   return s == null ? s : String(s).normalize("NFC");
 }
 function makeResolve(docs, selfId) {
-  return function resolve3(target, label) {
+  return function resolve4(target, label) {
     const hi = String(target).indexOf("#");
     const sameDoc = hi === 0;
     let docName = hi < 0 ? target : target.slice(0, hi);
@@ -23275,14 +23398,14 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
     docs[nfc(title2)] = { group: "canvas", icon: "globe", meta: { type: "JSON Canvas (read-only)" }, svg: renderCanvasSvg(canvasJson) };
   }
   if (corpus.meta && corpus.meta.code && corpus.meta.code.dir) {
-    const scan = scanCode({ dir: resolve(root, corpus.meta.code.dir) });
-    if (scan) {
+    const scan2 = scanCode({ dir: resolve(root, corpus.meta.code.dir) });
+    if (scan2) {
       if (!groups.some((g) => g.id === "code")) groups.push({ id: "code", label: "Code" });
       const tm = "Code \xB7 Module map", dg = "Code \xB7 Dependencies";
       for (const t of [tm, dg]) if (realTitles.has(nfc(t))) throw new Error('generated-doc title collides with a real document: "' + t + '"');
-      docs[nfc(tm)] = { group: "code", icon: "book", meta: { type: "module LOC", status: scan.fileCount + " files \xB7 " + scan.totalLoc + " lines" }, svg: renderTreemapSvg(scan) };
-      const cm = codeModel(scan);
-      docs[nfc(dg)] = { group: "code", icon: "share", meta: { type: "import deps", status: scan.edges.length + " deps" }, svg: renderGraphSvg(deriveLayout(cm), cm) };
+      docs[nfc(tm)] = { group: "code", icon: "book", meta: { type: "module LOC", status: scan2.fileCount + " files \xB7 " + scan2.totalLoc + " lines" }, svg: renderTreemapSvg(scan2) };
+      const cm = codeModel(scan2);
+      docs[nfc(dg)] = { group: "code", icon: "share", meta: { type: "import deps", status: scan2.edges.length + " deps" }, svg: renderGraphSvg(deriveLayout(cm), cm) };
     }
   }
   let temporal = null;
@@ -23566,6 +23689,427 @@ function renderRepairText(fixes, applied) {
   return lines.join("\n");
 }
 
+// src/engine/log.mjs
+import { existsSync as existsSync5, readFileSync as readFileSync8, appendFileSync } from "fs";
+import { join as join9 } from "path";
+import { createHash as createHash2 } from "crypto";
+var LOG_BASENAME = "_log.jsonl";
+function logPath(workspaceDir) {
+  return join9(workspaceDir, LOG_BASENAME);
+}
+var sha256 = (s) => createHash2("sha256").update(String(s)).digest("hex");
+function linkIc(prevIc, event) {
+  const { ic, ...rest } = event;
+  return sha256(String(prevIc || "") + canonicalJSON(rest, 0));
+}
+function parseRaw(raw) {
+  const events = [];
+  const lines = String(raw).split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    let ev;
+    try {
+      ev = JSON.parse(line);
+    } catch (e) {
+      throw new Error("decision log: line " + (i + 1) + " is not valid JSON: " + e.message);
+    }
+    if (ev === null || typeof ev !== "object" || Array.isArray(ev)) throw new Error("decision log: line " + (i + 1) + " is not a JSON object");
+    events.push(ev);
+  }
+  return events;
+}
+function verifyIntegrity(events) {
+  let prevIc = "";
+  for (let i = 0; i < events.length; i++) {
+    const ev = events[i];
+    const expectSeq = i + 1;
+    if (ev.seq !== expectSeq) return { ok: false, badSeq: ev.seq ?? expectSeq, reason: "seq expected " + expectSeq + " got " + JSON.stringify(ev.seq) };
+    if (typeof ev.ic !== "string") return { ok: false, badSeq: expectSeq, reason: "missing integrity hash" };
+    if (linkIc(prevIc, ev) !== ev.ic) return { ok: false, badSeq: expectSeq, reason: "integrity hash mismatch (line altered)" };
+    prevIc = ev.ic;
+  }
+  return { ok: true };
+}
+function readLog(logFile, { verify = true } = {}) {
+  if (!existsSync5(logFile)) return [];
+  const events = parseRaw(readFileSync8(logFile, "utf8"));
+  if (verify) {
+    const v = verifyIntegrity(events);
+    if (!v.ok) throw new Error("decision log integrity check failed at seq " + v.badSeq + ": " + v.reason + " (" + logFile + ")");
+  }
+  return events;
+}
+function head(logFile) {
+  const events = readLog(logFile, { verify: false });
+  if (!events.length) return { seq: 0, ic: "" };
+  const last = events[events.length - 1];
+  return { seq: last.seq, ic: last.ic };
+}
+var EVENT_TYPES = /* @__PURE__ */ new Set(["introduce", "edit", "rename", "split", "delete", "confirm-edge", "approve", "reject", "resolve"]);
+function validateEvent(event) {
+  if (event === null || typeof event !== "object" || Array.isArray(event)) throw new Error("log event must be an object");
+  if (!EVENT_TYPES.has(event.type)) throw new Error("log event has unknown type: " + JSON.stringify(event.type));
+  if ("seq" in event || "ic" in event) throw new Error("log event must not set `seq`/`ic` (assigned by the log)");
+}
+function appendEvent(logFile, event) {
+  validateEvent(event);
+  const h = head(logFile);
+  const stored = { seq: h.seq + 1, ...event };
+  stored.ic = linkIc(h.ic, stored);
+  appendFileSync(logFile, canonicalJSON(stored, 0) + "\n");
+  return stored;
+}
+
+// src/engine/revisions.mjs
+import { createHash as createHash3 } from "crypto";
+var sha2562 = (s) => createHash3("sha256").update(String(s)).digest("hex");
+var spanKey = (uid, span) => canonicalJSON([String(uid), String(span)], 0);
+var spanHash = (text2) => sha2562(String(text2 == null ? "" : text2));
+var becauseDigest = (s) => sha2562(String(s == null ? "" : s));
+function edgeId({ depUid, depSpan, targetUid, targetSpan }) {
+  return sha2562(canonicalJSON([depUid, depSpan || null, targetUid, targetSpan || null], 0));
+}
+function verdictKey({ targetUid, targetSpan, targetRev, depUid, depSpan, depRev, becauseDig, schemaVersion }) {
+  return sha2562(canonicalJSON([targetUid, targetSpan || null, targetRev, depUid, depSpan || null, depRev, becauseDig || "", schemaVersion], 0));
+}
+function projectRevisions(events) {
+  const spans = /* @__PURE__ */ new Map();
+  for (const ev of events) {
+    if (ev.type === "introduce") spans.set(spanKey(ev.id, ev.span), { uid: ev.id, span: ev.span, revision: 1, hash: ev.hash, alive: true });
+    else if (ev.type === "edit") {
+      const s = spans.get(spanKey(ev.id, ev.span)) || { uid: ev.id, span: ev.span, revision: 0, hash: null, alive: true };
+      spans.set(spanKey(ev.id, ev.span), { uid: ev.id, span: ev.span, revision: s.revision + 1, hash: ev.hash, alive: true });
+    } else if (ev.type === "delete") {
+      const s = spans.get(spanKey(ev.id, ev.span));
+      if (s) s.alive = false;
+    } else if (ev.type === "split") {
+      const s = spans.get(spanKey(ev.id, ev.from));
+      if (s) s.alive = false;
+      for (const a of ev.into || []) if (!spans.has(spanKey(ev.id, a))) spans.set(spanKey(ev.id, a), { uid: ev.id, span: a, revision: 1, hash: null, alive: true });
+    }
+  }
+  return spans;
+}
+function spanRevision(spans, uid, span) {
+  const s = spans.get(spanKey(uid, span));
+  return s && s.alive ? s.revision : 0;
+}
+
+// src/engine/scan.mjs
+function scan({ docsDir, corpus, apply = true } = {}) {
+  const c = corpus || loadCorpus({ docsDir });
+  const lf = logPath(docsDir || c.docsDir);
+  const events = readLog(lf);
+  const state = projectRevisions(events);
+  const planned = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const e of c.entries) {
+    for (const s of e.spans || []) {
+      const k = spanKey(e.uid, "^" + s.anchor);
+      seen.add(k);
+      const h = spanHash(s.text);
+      const prev = state.get(k);
+      if (!prev) planned.push({ type: "introduce", id: e.uid, span: "^" + s.anchor, hash: h });
+      else if (prev.hash !== h || !prev.alive) planned.push({ type: "edit", id: e.uid, span: "^" + s.anchor, hash: h, prev: prev.hash });
+    }
+  }
+  for (const [k, s] of [...state.entries()].sort((a, b) => a[0] < b[0] ? -1 : 1)) {
+    if (!s.alive || seen.has(k)) continue;
+    planned.push({ type: "delete", id: s.uid, span: s.span });
+  }
+  const appended = [];
+  if (apply) for (const ev of planned) appended.push(appendEvent(lf, ev));
+  const summary = { introduced: 0, edited: 0, deleted: 0 };
+  for (const ev of planned) summary[ev.type === "introduce" ? "introduced" : ev.type === "edit" ? "edited" : "deleted"]++;
+  return { planned, appended, summary };
+}
+
+// src/engine/gate.mjs
+var RANK = { current: 0, "needs-review": 1, stale: 2 };
+function lastConfirmations(events) {
+  const m = /* @__PURE__ */ new Map();
+  for (const ev of events) if (ev.type === "confirm-edge") m.set(ev.edge, ev.verdict_key);
+  return m;
+}
+function depSpanOf(node) {
+  return node && node.spans && node.spans[0] ? "^" + node.spans[0].anchor : null;
+}
+function computeGate({ model, events, schemaVersion = 1 }) {
+  const spans = projectRevisions(events);
+  const confirmed = lastConfirmations(events);
+  const byTitle = model.nodes;
+  const freshness = /* @__PURE__ */ new Map();
+  const bump = (uid, level) => {
+    const cur = freshness.get(uid) || "current";
+    if (RANK[level] > RANK[cur]) freshness.set(uid, level);
+  };
+  for (const n of Object.values(byTitle)) freshness.set(n.uid, "current");
+  const edges = [];
+  let tracked = 0, cutoff = 0, open = 0, untracked = 0, broken = 0;
+  for (const e of model.edges) {
+    if (e.edgeType !== "rests_on") continue;
+    const depUid = e.sourceUid;
+    const depNode = byTitle[e.source];
+    const depSpan = depSpanOf(depNode);
+    const depRev = depSpan ? spanRevision(spans, depUid, depSpan) : 0;
+    if (!e.tracked) {
+      untracked++;
+      bump(depUid, "needs-review");
+      edges.push({ dep: depUid, target: e.target, tracked: false, open: true, reason: "untracked" });
+      continue;
+    }
+    tracked++;
+    const targetNode = byTitle[e.target];
+    if (!targetNode) {
+      broken++;
+      bump(depUid, "stale");
+      edges.push({ dep: depUid, target: e.target, span: e.span, tracked: true, open: true, broken: true, reason: "missing-target" });
+      continue;
+    }
+    const targetUid = targetNode.uid, targetSpan = e.span;
+    const targetRev = spanRevision(spans, targetUid, targetSpan);
+    const eid = edgeId({ depUid, depSpan, targetUid, targetSpan });
+    if (targetRev === 0) {
+      broken++;
+      bump(depUid, "stale");
+      edges.push({ edgeId: eid, dep: depUid, target: e.target, span: targetSpan, tracked: true, open: true, broken: true, reason: "target-span-missing" });
+      continue;
+    }
+    const vk = verdictKey({ targetUid, targetSpan, targetRev, depUid, depSpan, depRev, becauseDig: becauseDigest(e.because), schemaVersion });
+    const last = confirmed.get(eid) || null;
+    const isOpen = last == null || last !== vk;
+    if (isOpen) {
+      open++;
+      bump(depUid, "needs-review");
+    } else cutoff++;
+    edges.push({ edgeId: eid, dep: depUid, target: e.target, span: targetSpan, targetRev, depRev, verdictKey: vk, confirmed: last, tracked: true, open: isOpen });
+  }
+  const dirty = [...freshness.entries()].filter(([, v]) => v !== "current").map(([uid, v]) => ({ uid, freshness: v })).sort((a, b) => a.uid < b.uid ? -1 : 1);
+  const cutoffRatio = tracked ? cutoff / tracked : null;
+  return { freshness, edges, dirty, counts: { tracked, untracked, cutoff, open, broken }, cutoffRatio };
+}
+
+// src/engine/fsck.mjs
+import { existsSync as existsSync6, readFileSync as readFileSync9, writeFileSync as writeFileSync4 } from "fs";
+import { join as join10 } from "path";
+import { createHash as createHash4 } from "crypto";
+
+// src/engine/state.mjs
+function projectDecisions(events) {
+  const approved = /* @__PURE__ */ new Map();
+  const resolved = /* @__PURE__ */ new Map();
+  for (const ev of events) {
+    if (ev.type === "approve") approved.set(ev.id, ev.to_trust || "canonical");
+    else if (ev.type === "reject") approved.delete(ev.id);
+    else if (ev.type === "resolve") resolved.set(ev.conflict, ev.resolution_id != null ? ev.resolution_id : ev.seq);
+  }
+  return { approved, resolved };
+}
+
+// src/engine/fsck.mjs
+var GATE_BASENAME = "_gate.json";
+var sha2563 = (s) => createHash4("sha256").update(String(s)).digest("hex");
+function buildDerived({ model, events, schemaVersion = 1 }) {
+  const spans = projectRevisions(events);
+  const gate = computeGate({ model, events, schemaVersion });
+  const revisions = [...spans.values()].filter((s) => s.alive).map((s) => ({ uid: s.uid, span: s.span, revision: s.revision })).sort((a, b) => canonicalJSON([a.uid, a.span]) < canonicalJSON([b.uid, b.span]) ? -1 : 1);
+  const edges = gate.edges.filter((e) => e.tracked && e.edgeId).map((e) => ({ edgeId: e.edgeId, dep: e.dep, target: e.target, span: e.span, verdictKey: e.verdictKey, open: e.open })).sort((a, b) => a.edgeId < b.edgeId ? -1 : 1);
+  return {
+    schemaVersion,
+    freshness: [...gate.freshness.entries()].map(([uid, level]) => ({ uid, level })).sort((a, b) => a.uid < b.uid ? -1 : 1),
+    dirty: gate.dirty,
+    counts: gate.counts,
+    revisions,
+    edges
+  };
+}
+var derivedDigest = (derived) => sha2563(canonicalJSON(derived, 0));
+function fsck({ docsDir, schemaVersion = 1, write = true } = {}) {
+  const corpus = loadCorpus({ docsDir });
+  const model = buildModel({ corpus });
+  const events = readLog(logPath(docsDir));
+  const d1 = buildDerived({ model, events, schemaVersion });
+  const d2 = buildDerived({ model, events, schemaVersion });
+  const digest1 = derivedDigest(d1), digest2 = derivedDigest(d2);
+  const fixpointStable = digest1 === digest2;
+  const findings = [];
+  const planned = scan({ docsDir, corpus, apply: false }).planned;
+  if (planned.length) findings.push({ kind: "pending-scan", count: planned.length, detail: "run `gazette scan` - the log does not yet reflect the corpus" });
+  const liveEdgeIds = new Set(d1.edges.map((e) => e.edgeId));
+  const confirmedIds = /* @__PURE__ */ new Set();
+  for (const ev of events) if (ev.type === "confirm-edge") confirmedIds.add(ev.edge);
+  for (const eid of confirmedIds) if (!liveEdgeIds.has(eid)) findings.push({ kind: "orphan-confirm", edge: eid });
+  const { approved } = projectDecisions(events);
+  for (const n of Object.values(model.nodes)) {
+    if ((n.trust || n.status) === "canonical" && !approved.has(n.uid)) findings.push({ kind: "unbacked-canonical", uid: n.uid, title: n.title });
+  }
+  findings.sort((a, b) => canonicalJSON(a) < canonicalJSON(b) ? -1 : 1);
+  const gateFile = join10(docsDir, GATE_BASENAME);
+  const priorRaw = existsSync6(gateFile) ? readFileSync9(gateFile, "utf8") : null;
+  const nextRaw = canonicalJSON(d1, 2) + "\n";
+  const cacheDrift = priorRaw != null && priorRaw !== nextRaw;
+  if (write) writeFileSync4(gateFile, nextRaw);
+  return { ok: fixpointStable && findings.length === 0, fixpointStable, digest: digest1, cacheDrift, findings, derived: d1, nodeCount: model.nodeCount };
+}
+
+// src/engine/mutation.mjs
+var MUTATION_NOTE = "measures gate WIRING adequacy only, NOT edge completeness (roadmap \xA74.13a)";
+function mutationGate({ docsDir, corpus } = {}) {
+  const c = corpus || loadCorpus({ docsDir });
+  const model = buildModel({ corpus: c });
+  const uidByTitle = new Map(Object.values(model.nodes).map((n) => [n.id, n.uid]));
+  let events = readLog(logPath(docsDir), { verify: false });
+  for (const p of scan({ docsDir, corpus: c, apply: false }).planned) events.push(p);
+  const base0 = computeGate({ model, events });
+  for (const e of base0.edges) if (e.tracked && e.open && e.edgeId) events.push({ type: "confirm-edge", edge: e.edgeId, verdict_key: e.verdictKey });
+  const base2 = computeGate({ model, events });
+  let gateable = 0, killed = 0, untracked = 0;
+  const survivors = [];
+  for (const e of base2.edges) {
+    if (!e.tracked) {
+      untracked++;
+      survivors.push({ dep: e.dep, target: e.target, reason: "untracked-not-gated" });
+      continue;
+    }
+    if (e.broken) {
+      survivors.push({ dep: e.dep, target: e.target, span: e.span, reason: "target-span-missing" });
+      continue;
+    }
+    if (base2.freshness.get(e.dep) !== "current") {
+      survivors.push({ dep: e.dep, target: e.target, span: e.span, reason: "dep-not-current-at-baseline" });
+      continue;
+    }
+    gateable++;
+    const targetUid = uidByTitle.get(e.target);
+    const mutant = events.concat([{ type: "edit", id: targetUid, span: e.span, hash: "MUTANT:" + e.edgeId }]);
+    const gm = computeGate({ model, events: mutant });
+    if (gm.freshness.get(e.dep) === "needs-review") killed++;
+    else survivors.push({ dep: e.dep, target: e.target, span: e.span, reason: "survived-mutation" });
+  }
+  survivors.sort((a, b) => JSON.stringify(a) < JSON.stringify(b) ? -1 : 1);
+  return { gateable, killed, killRate: gateable ? killed / gateable : null, untracked, survivors, note: MUTATION_NOTE };
+}
+
+// src/engine/metrics.mjs
+function report({ docsDir, schemaVersion = 1 } = {}) {
+  const corpus = loadCorpus({ docsDir });
+  const model = buildModel({ corpus });
+  const events = readLog(logPath(docsDir));
+  const gate = computeGate({ model, events, schemaVersion });
+  const f = fsck({ docsDir, schemaVersion, write: false });
+  const m = mutationGate({ docsDir, corpus });
+  return {
+    nodeCount: model.nodeCount,
+    fixpoint: { stable: f.fixpointStable, digest: f.digest },
+    gate: {
+      trackedEdges: gate.counts.tracked,
+      untrackedEdges: gate.counts.untracked,
+      openEdges: gate.counts.open,
+      cutoffEdges: gate.counts.cutoff,
+      brokenEdges: gate.counts.broken,
+      cutoffRatio: gate.cutoffRatio,
+      // reported beside trackedEdges + dirty - never in isolation
+      dirtyPages: gate.dirty.length
+    },
+    wiring: { gateable: m.gateable, killed: m.killed, killRate: m.killRate, survivors: m.survivors.length, note: MUTATION_NOTE },
+    findings: f.findings,
+    ok: f.ok && (m.killRate === null || m.killRate === 1)
+  };
+}
+var pct = (r) => r == null ? "n/a" : (r * 100).toFixed(1) + "%";
+function renderMetricsText(r) {
+  const L = [];
+  L.push("bureau engine metrics");
+  L.push("  pages: " + r.nodeCount);
+  L.push("  fixpoint: " + (r.fixpoint.stable ? "stable \u2705" : "UNSTABLE \u2717") + "  digest " + r.fixpoint.digest.slice(0, 12));
+  L.push("  gate: " + r.gate.trackedEdges + " tracked edges \xB7 " + r.gate.dirtyPages + " dirty pages \xB7 cutoff ratio " + pct(r.gate.cutoffRatio) + " (beside edge-count, never alone) \xB7 " + r.gate.untrackedEdges + " untracked \xB7 " + r.gate.brokenEdges + " broken");
+  L.push("  wiring kill rate: " + pct(r.wiring.killRate) + " (" + r.wiring.killed + "/" + r.wiring.gateable + ") \u2014 " + r.wiring.note);
+  if (r.findings.length) {
+    L.push("  findings:");
+    for (const f of r.findings) L.push("    \xB7 " + f.kind + (f.uid ? " " + f.uid : "") + (f.count ? " \xD7" + f.count : ""));
+  }
+  L.push(r.ok ? "  status: OK \u2705" : "  status: needs attention \u26A0");
+  return L.join("\n");
+}
+
+// src/engine/ledgers.mjs
+import { existsSync as existsSync7, readFileSync as readFileSync10, writeFileSync as writeFileSync5, realpathSync as realpathSync3, lstatSync as lstatSync8 } from "fs";
+import { join as join11, resolve as resolve2, sep as sep4, isAbsolute } from "path";
+import { createHash as createHash5 } from "crypto";
+var VERIFY_BASENAME = "_verify.json";
+var COMPILE_BASENAME = "_compile-state.json";
+var sha256File = (abs) => createHash5("sha256").update(readFileSync10(abs)).digest("hex");
+function readJson(file, fallback) {
+  if (!existsSync7(file)) return fallback;
+  try {
+    const v = JSON.parse(readFileSync10(file, "utf8"));
+    return v && typeof v === "object" ? v : fallback;
+  } catch (e) {
+    throw new Error(file + " is not valid JSON: " + e.message);
+  }
+}
+var writeJson = (file, obj) => writeFileSync5(file, canonicalJSON(obj, 2) + "\n");
+function jailPath(root, rel) {
+  if (isAbsolute(rel) || rel.split(/[\\/]/).includes("..")) throw new Error("artifact path must be repo-relative with no `..`: " + rel);
+  const rootReal = realpathSync3(root);
+  const abs = resolve2(rootReal, rel);
+  if (!existsSync7(abs)) throw new Error("artifact not found: " + rel);
+  const real = realpathSync3(abs);
+  if (real !== rootReal && !real.startsWith(rootReal + sep4)) throw new Error("artifact path escapes the repo (symlink?): " + rel);
+  if (!lstatSync8(real).isFile()) throw new Error("artifact is not a regular file: " + rel);
+  return real;
+}
+function readVerify(workspaceDir) {
+  return readJson(join11(workspaceDir, VERIFY_BASENAME), {});
+}
+function recordVerification(workspaceDir, { root, page, artifact, claim, date }) {
+  const abs = jailPath(root, artifact);
+  const hash = sha256File(abs);
+  const db = readVerify(workspaceDir);
+  const entry = db[page] && typeof db[page] === "object" ? db[page] : { verifiedAt: date || null, checks: [] };
+  entry.verifiedAt = date || entry.verifiedAt || null;
+  entry.checks = (entry.checks || []).filter((c) => c.artifact !== artifact);
+  entry.checks.push({ artifact, hash, claim: claim || null });
+  entry.checks.sort((a, b) => a.artifact < b.artifact ? -1 : 1);
+  db[page] = entry;
+  writeJson(join11(workspaceDir, VERIFY_BASENAME), db);
+  return hash;
+}
+function recheckVerification(workspaceDir, { root, page }) {
+  const db = readVerify(workspaceDir);
+  const entry = db[page];
+  if (!entry || !Array.isArray(entry.checks)) return [];
+  return entry.checks.map((c) => {
+    let now = null, ok = false;
+    try {
+      now = sha256File(jailPath(root, c.artifact));
+      ok = now === c.hash;
+    } catch {
+      ok = false;
+    }
+    return { artifact: c.artifact, was: c.hash, now, ok };
+  });
+}
+function readCompiled(workspaceDir) {
+  const db = readJson(join11(workspaceDir, COMPILE_BASENAME), { compiled: [] });
+  return new Set(Array.isArray(db.compiled) ? db.compiled.map(String) : []);
+}
+function markCompiled(workspaceDir, ids) {
+  const set2 = readCompiled(workspaceDir);
+  let added = 0;
+  for (const id of Array.isArray(ids) ? ids : [ids]) if (!set2.has(String(id))) {
+    set2.add(String(id));
+    added++;
+  }
+  writeJson(join11(workspaceDir, COMPILE_BASENAME), { compiled: [...set2].sort() });
+  return added;
+}
+function uncompiled(workspaceDir, allSessionIds) {
+  const set2 = readCompiled(workspaceDir);
+  return [...allSessionIds].map(String).filter((id) => !set2.has(id));
+}
+
 // bin/cli.mjs
 var argv = process.argv.slice(2);
 var cmd = argv[0];
@@ -23630,7 +24174,7 @@ function watchTree(dir, cb) {
     for (const ent of entries) {
       if (!ent.isDirectory() || ent.isSymbolicLink()) continue;
       if (ent.name.startsWith("_") || ent.name.startsWith(".") || ent.name === "dist" || ent.name === "node_modules") continue;
-      walk4(join9(d, ent.name));
+      walk4(join12(d, ent.name));
     }
   };
   walk4(dir);
@@ -23638,8 +24182,8 @@ function watchTree(dir, cb) {
 }
 function runWatch() {
   const root = process.cwd();
-  const docsDir = resolve2(root, dirArg() || "gazette");
-  const dataDir = dataArg() ? resolve2(root, dataArg()) : void 0;
+  const docsDir = resolve3(root, dirArg() || "gazette");
+  const dataDir = dataArg() ? resolve3(root, dataArg()) : void 0;
   const build = () => {
     try {
       const r = buildSite({ root, docsDir, dataDir, outDir: opt("out"), now: nowArg(), force: true });
@@ -23654,10 +24198,10 @@ function runWatch() {
     clearTimeout(timer);
     timer = setTimeout(build, 150);
   };
-  if (existsSync5(docsDir)) watchTree(docsDir, trigger);
+  if (existsSync8(docsDir)) watchTree(docsDir, trigger);
   for (const f of ["theme.json", "theme.css"]) {
-    const p = join9(root, f);
-    if (existsSync5(p)) watch(p, trigger);
+    const p = join12(root, f);
+    if (existsSync8(p)) watch(p, trigger);
   }
   console.log("\u{1F440} watching " + relative4(root, docsDir) + " + theme (Ctrl-C to stop)");
 }
@@ -23665,7 +24209,7 @@ function runRename() {
   const from = argv[1], to = argv[2];
   if (!from || !to || from.startsWith("--") || to.startsWith("--")) die('usage: gazette rename "<old title>" "<new title>" [--dry]');
   try {
-    const docsDir = resolve2(process.cwd(), dirArg() || "gazette");
+    const docsDir = resolve3(process.cwd(), dirArg() || "gazette");
     const plan = planRename({ docsDir, from, to });
     if (!plan.edits.length) {
       console.log("no changes.");
@@ -23685,8 +24229,8 @@ function runRename() {
 function runDoctor() {
   try {
     const root = process.cwd();
-    const docsDir = resolve2(root, dirArg() || "gazette");
-    const { model, health } = computeHealth({ docsDir, dataDir: dataArg() ? resolve2(root, dataArg()) : void 0, now: nowArg() });
+    const docsDir = resolve3(root, dirArg() || "gazette");
+    const { model, health } = computeHealth({ docsDir, dataDir: dataArg() ? resolve3(root, dataArg()) : void 0, now: nowArg() });
     const fixes = buildRepairPlan(model, health);
     const applied = argv.includes("--apply") ? applySafe(docsDir, fixes, model) : [];
     console.log(renderRepairText(fixes, applied));
@@ -23699,8 +24243,8 @@ function runHealth() {
   try {
     const root = process.cwd();
     const { health } = computeHealth({
-      docsDir: resolve2(root, dirArg() || "gazette"),
-      dataDir: dataArg() ? resolve2(root, dataArg()) : void 0,
+      docsDir: resolve3(root, dirArg() || "gazette"),
+      dataDir: dataArg() ? resolve3(root, dataArg()) : void 0,
       now: nowArg()
     });
     console.log(renderHealthText(health));
@@ -23712,20 +24256,20 @@ function runHealth() {
 function runInit() {
   const root = process.cwd();
   const base2 = dirArg() || "gazette";
-  const dir = resolve2(root, base2);
+  const dir = resolve3(root, base2);
   try {
-    if (lstatSync8(dir).isSymbolicLink()) die("content directory is a symlink (refused): " + base2);
+    if (lstatSync9(dir).isSymbolicLink()) die("content directory is a symlink (refused): " + base2);
   } catch {
   }
   mkdirSync2(dir, { recursive: true });
   const writeIf = (rel, content) => {
-    const p = join9(dir, rel);
-    if (existsSync5(p)) {
+    const p = join12(dir, rel);
+    if (existsSync8(p)) {
       console.log("\xB7 exists, skipping: " + base2 + "/" + rel);
       return;
     }
     mkdirSync2(dirname3(p), { recursive: true });
-    writeFileSync4(p, content);
+    writeFileSync6(p, content);
     console.log("+ " + base2 + "/" + rel);
   };
   writeIf("_config.json", JSON.stringify({ meta: { title: "Untitled", subtitle: "workboard", home: "Overview" } }, null, 2) + "\n");
@@ -23740,21 +24284,21 @@ function runInit() {
     "</article>",
     ""
   ].join("\n"));
-  writeIf(join9("characters", "lin.html"), [
+  writeIf(join12("characters", "lin.html"), [
     '<article data-icon="user" data-status="draft">',
     "  <h1>Lin</h1>",
     "  <p>A doc in <code>characters/</code> \u2192 the \u201CCharacters\u201D sidebar section. Back to [[Overview]].</p>",
     "</article>",
     ""
   ].join("\n"));
-  const giPath = join9(root, ".gitignore");
+  const giPath = join12(root, ".gitignore");
   try {
-    if (lstatSync8(giPath).isSymbolicLink()) die(".gitignore is a symlink (refused): " + giPath);
+    if (lstatSync9(giPath).isSymbolicLink()) die(".gitignore is a symlink (refused): " + giPath);
   } catch {
   }
-  const has2 = existsSync5(giPath) && readFileSync8(giPath, "utf8").split(/\r?\n/).some((l) => l.trim() === "dist/");
+  const has2 = existsSync8(giPath) && readFileSync11(giPath, "utf8").split(/\r?\n/).some((l) => l.trim() === "dist/");
   if (!has2) {
-    appendFileSync(giPath, "dist/\n");
+    appendFileSync2(giPath, "dist/\n");
     console.log("+ .gitignore: dist/");
   }
   console.log("\nNext: gazette serve   (builds, watches " + base2 + "/, and hot-reloads your browser)");
@@ -23765,25 +24309,25 @@ function runNew() {
   const titleArg = argv[2] && !argv[2].startsWith("--") ? argv[2] : null;
   const root = process.cwd();
   const base2 = dirArg() || "gazette";
-  const dir = resolve2(root, base2);
-  if (!existsSync5(dir)) die("no " + base2 + "/ here \u2014 run `gazette init` first");
+  const dir = resolve3(root, base2);
+  if (!existsSync8(dir)) die("no " + base2 + "/ here \u2014 run `gazette init` first");
   const rel = target.replace(/\\/g, "/").replace(/\.html$/, "") + ".html";
-  const fp = resolve2(dir, rel);
-  if (!(fp === dir || fp.startsWith(dir + sep4))) die("path escapes the content dir: " + target);
-  if (existsSync5(fp)) die("already exists: " + base2 + "/" + rel);
-  const dirReal = realpathSync3(dir);
+  const fp = resolve3(dir, rel);
+  if (!(fp === dir || fp.startsWith(dir + sep5))) die("path escapes the content dir: " + target);
+  if (existsSync8(fp)) die("already exists: " + base2 + "/" + rel);
+  const dirReal = realpathSync4(dir);
   let anc = dirname3(fp);
-  while (!existsSync5(anc) && anc !== dirname3(anc)) anc = dirname3(anc);
-  const ancReal = realpathSync3(anc);
-  if (!(ancReal === dirReal || ancReal.startsWith(dirReal + sep4))) die("path escapes the content dir (via symlink): " + target);
+  while (!existsSync8(anc) && anc !== dirname3(anc)) anc = dirname3(anc);
+  const ancReal = realpathSync4(anc);
+  if (!(ancReal === dirReal || ancReal.startsWith(dirReal + sep5))) die("path escapes the content dir (via symlink): " + target);
   const title = titleArg || prettify(rel.split("/").pop().replace(/\.html$/, ""));
   mkdirSync2(dirname3(fp), { recursive: true });
-  writeFileSync4(fp, '<article data-updated="' + today() + '">\n  <h1>' + escapeHtml2(title) + "</h1>\n  <p></p>\n</article>\n");
+  writeFileSync6(fp, '<article data-updated="' + today() + '">\n  <h1>' + escapeHtml2(title) + "</h1>\n  <p></p>\n</article>\n");
   console.log("+ " + base2 + "/" + rel + '   (title "' + title + '")');
 }
 function runOpen() {
   const r = runBuild();
-  const idx = join9(r.outDir, "index.html");
+  const idx = join12(r.outDir, "index.html");
   const win = process.platform === "win32";
   const opener = process.platform === "darwin" ? "open" : win ? "rundll32" : "xdg-open";
   const args = win ? ["url.dll,FileProtocolHandler", idx] : [idx];
@@ -23818,9 +24362,9 @@ function runServe() {
   const port = +opt("port", "8080");
   if (!Number.isInteger(port) || port < 1 || port > 65535) die("--port must be an integer in 1-65535 (got: " + opt("port", "8080") + ")");
   const root = process.cwd();
-  const docsDir = resolve2(root, dirArg() || "gazette");
-  const dataDir = dataArg() ? resolve2(root, dataArg()) : void 0;
-  const out = resolve2(root, opt("out") || "dist");
+  const docsDir = resolve3(root, dirArg() || "gazette");
+  const dataDir = dataArg() ? resolve3(root, dataArg()) : void 0;
+  const out = resolve3(root, opt("out") || "dist");
   const doBuild = () => {
     try {
       return buildSite({ root, docsDir, dataDir, outDir: opt("out"), now: nowArg(), force: true });
@@ -23830,8 +24374,8 @@ function runServe() {
     }
   };
   if (!doBuild()) die("initial build failed \u2014 fix the error above and re-run");
-  const outReal = realpathSync3(out);
-  const within = (q, base2) => q === base2 || q.startsWith(base2 + sep4);
+  const outReal = realpathSync4(out);
+  const within = (q, base2) => q === base2 || q.startsWith(base2 + sep5);
   const clients = /* @__PURE__ */ new Set();
   const server = createServer((req, res) => {
     const url = (req.url || "/").split("?")[0];
@@ -23861,13 +24405,13 @@ function runServe() {
     }
     try {
       if (p === "/" || p.endsWith("/")) p += "index.html";
-      const fp = resolve2(out, "." + p);
-      if (!within(fp, out) || !existsSync5(fp) || statSync(fp).isDirectory()) {
+      const fp = resolve3(out, "." + p);
+      if (!within(fp, out) || !existsSync8(fp) || statSync(fp).isDirectory()) {
         res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
         res.end("404 " + p);
         return;
       }
-      const real = realpathSync3(fp);
+      const real = realpathSync4(fp);
       if (!within(real, outReal)) {
         res.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
         res.end("403");
@@ -23879,13 +24423,13 @@ function runServe() {
         return;
       }
       if (extname2(real) === ".html") {
-        const html = readFileSync8(real, "utf8").replace("connect-src 'none'", "connect-src 'self'").replace("</body>", '<script src="/__wb_reload.js"></script></body>');
+        const html = readFileSync11(real, "utf8").replace("connect-src 'none'", "connect-src 'self'").replace("</body>", '<script src="/__wb_reload.js"></script></body>');
         res.writeHead(200, { "content-type": MIME[".html"] });
         res.end(html);
         return;
       }
       res.writeHead(200, { "content-type": MIME[extname2(real)] || "application/octet-stream" });
-      res.end(readFileSync8(real));
+      res.end(readFileSync11(real));
     } catch (e) {
       res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
       res.end("500");
@@ -23908,10 +24452,140 @@ function runServe() {
       }
     }, 150);
   };
-  if (existsSync5(docsDir)) watchTree(docsDir, trigger);
+  if (existsSync8(docsDir)) watchTree(docsDir, trigger);
   for (const f of ["theme.json", "theme.css"]) {
-    const p = join9(root, f);
-    if (existsSync5(p)) watch(p, trigger);
+    const p = join12(root, f);
+    if (existsSync8(p)) watch(p, trigger);
+  }
+}
+function engineDir() {
+  return resolve3(process.cwd(), dirArg() || "gazette");
+}
+function runScan() {
+  try {
+    const docsDir = engineDir();
+    const r = scan({ docsDir, apply: !argv.includes("--dry") });
+    const s = r.summary;
+    const verb = argv.includes("--dry") ? "would append" : "appended";
+    console.log("\u2713 scan: " + verb + " " + r.planned.length + " event(s) \u2014 " + s.introduced + " introduce, " + s.edited + " edit, " + s.deleted + " delete");
+  } catch (e) {
+    die(e.message);
+  }
+}
+function runGate() {
+  try {
+    const docsDir = engineDir();
+    const model = buildModel({ corpus: loadCorpus({ docsDir }) });
+    const g = computeGate({ model, events: readLog(logPath(docsDir)) });
+    const c = g.counts;
+    console.log("gate: " + c.tracked + " tracked edges \xB7 " + g.dirty.length + " dirty pages \xB7 cutoff ratio " + (g.cutoffRatio == null ? "n/a" : (g.cutoffRatio * 100).toFixed(1) + "%") + " \xB7 " + c.untracked + " untracked \xB7 " + c.broken + " broken");
+    for (const d of g.dirty) console.log("  " + (d.freshness === "stale" ? "\u2717 stale       " : "\xB7 needs-review") + " " + d.uid);
+    process.exit(0);
+  } catch (e) {
+    die(e.message);
+  }
+}
+function runFsck() {
+  try {
+    const docsDir = engineDir();
+    const r = fsck({ docsDir, write: !argv.includes("--check") });
+    console.log("fsck: " + r.nodeCount + " pages \xB7 fixpoint " + (r.fixpointStable ? "stable \u2705" : "UNSTABLE \u2717") + " \xB7 digest " + r.digest.slice(0, 12) + " \xB7 " + r.findings.length + " finding(s)");
+    for (const f of r.findings) console.log("  \xB7 " + f.kind + (f.uid ? " " + f.uid : "") + (f.detail ? " \u2014 " + f.detail : "") + (f.count ? " \xD7" + f.count : ""));
+    process.exit(r.fixpointStable ? 0 : 1);
+  } catch (e) {
+    die(e.message);
+  }
+}
+function runReport() {
+  try {
+    const r = report({ docsDir: engineDir() });
+    console.log(renderMetricsText(r));
+    const wiringOk = r.wiring.killRate === null || r.wiring.killRate === 1;
+    process.exit(r.fixpoint.stable && wiringOk ? 0 : 1);
+  } catch (e) {
+    die(e.message);
+  }
+}
+function resolvePage(docsDir, title) {
+  const model = buildModel({ corpus: loadCorpus({ docsDir }) });
+  const node = model.nodes[nfc(String(title))];
+  if (!node) die("no page titled [" + title + "]");
+  return { model, node };
+}
+function runApprove() {
+  try {
+    const title = argv[1] && !argv[1].startsWith("--") ? argv[1] : opt("page");
+    if (!title) die('usage: gazette approve "<page title>"');
+    const docsDir = engineDir();
+    const { node } = resolvePage(docsDir, title);
+    const ev = appendEvent(logPath(docsDir), { type: "approve", id: node.uid, to_trust: "canonical", by: opt("by", "human") });
+    console.log("\u2713 approved [" + node.title + "] \u2192 trust: canonical (backed by log seq " + ev.seq + ")");
+  } catch (e) {
+    die(e.message);
+  }
+}
+function runReject() {
+  try {
+    const title = argv[1] && !argv[1].startsWith("--") ? argv[1] : opt("page");
+    if (!title) die('usage: gazette reject "<page title>" [--reason "\u2026"]');
+    const docsDir = engineDir();
+    const { node } = resolvePage(docsDir, title);
+    appendEvent(logPath(docsDir), { type: "reject", id: node.uid, reason: opt("reason", "") });
+    console.log("\u2713 rejected [" + node.title + "] (logged; the page's authored tier stands, no canonical backing)");
+  } catch (e) {
+    die(e.message);
+  }
+}
+function runConfirm() {
+  try {
+    const title = argv[1] && !argv[1].startsWith("--") ? argv[1] : opt("page");
+    if (!title) die('usage: gazette confirm "<dependent page title>"');
+    const docsDir = engineDir();
+    const { node, model } = resolvePage(docsDir, title);
+    const g = computeGate({ model, events: readLog(logPath(docsDir)) });
+    let n = 0;
+    for (const e of g.edges) if (e.tracked && e.open && e.edgeId && e.dep === node.uid) {
+      appendEvent(logPath(docsDir), { type: "confirm-edge", edge: e.edgeId, verdict_key: e.verdictKey, by: opt("by", "human") });
+      n++;
+    }
+    console.log(n ? "\u2713 confirmed " + n + " edge(s) for [" + node.title + "]" : "no open tracked edges for [" + node.title + "]");
+  } catch (e) {
+    die(e.message);
+  }
+}
+function runLedger() {
+  try {
+    const action = argv[1];
+    const docsDir = engineDir();
+    const root = process.cwd();
+    if (action === "verify") {
+      const page = opt("page"), artifact = opt("artifact"), claim = opt("claim");
+      if (!page || !artifact) die('usage: gazette ledger verify --page "<title>" --artifact <repo-relative-path> [--claim "<c>"]');
+      const hash = recordVerification(docsDir, { root, page, artifact, claim, date: opt("now", today()) });
+      console.log("\u2713 verified " + artifact + " for [" + page + "] \u2014 sha256 " + hash.slice(0, 12));
+    } else if (action === "recheck") {
+      const page = opt("page");
+      if (!page) die('usage: gazette ledger recheck --page "<title>"');
+      const rows = recheckVerification(docsDir, { root, page });
+      if (!rows.length) {
+        console.log("no recorded fingerprints for [" + page + "]");
+        return;
+      }
+      for (const c of rows) console.log("  " + (c.ok ? "\u2705 current " : "\u2717 DRIFTED ") + c.artifact);
+      process.exit(rows.every((c) => c.ok) ? 0 : 1);
+    } else if (action === "mark-compiled") {
+      const ids = argv.slice(2).filter((a) => !a.startsWith("--"));
+      if (!ids.length) die("usage: gazette ledger mark-compiled <session-id> [<session-id>...]");
+      console.log("\u2713 marked " + markCompiled(docsDir, ids) + " new session(s) compiled");
+    } else if (action === "uncompiled") {
+      const ids = argv.slice(2).filter((a) => !a.startsWith("--"));
+      const out = uncompiled(docsDir, ids);
+      console.log(out.length ? out.join("\n") : "(all compiled)");
+    } else {
+      die("usage: gazette ledger <verify|recheck|mark-compiled|uncompiled> \u2026");
+    }
+  } catch (e) {
+    die(e.message);
   }
 }
 switch (cmd) {
@@ -23943,6 +24617,30 @@ switch (cmd) {
   case "rename":
     runRename();
     break;
+  case "scan":
+    runScan();
+    break;
+  case "gate":
+    runGate();
+    break;
+  case "fsck":
+    runFsck();
+    break;
+  case "report":
+    runReport();
+    break;
+  case "ledger":
+    runLedger();
+    break;
+  case "approve":
+    runApprove();
+    break;
+  case "reject":
+    runReject();
+    break;
+  case "confirm":
+    runConfirm();
+    break;
   default:
     console.log([
       "gazette \u2014 offline board from a folder of HTML docs (default: gazette/)",
@@ -23961,6 +24659,15 @@ switch (cmd) {
       "  gazette audit  (alias: health)     deterministic check: dangling/orphan/contradiction/stale/schema/drift/unsourced",
       "  gazette doctor [--apply]           audit \u2192 repair plan (--apply fixes the safe subset)",
       '  gazette rename "<old>" "<new>" [--dry]  rename a doc + propagate every reference',
+      "",
+      "  recursion engine (ADR-0001):",
+      "  gazette scan [--dry]               reconcile the decision log with the corpus (span-revision events)",
+      "  gazette gate                       show the eager dirty index (needs-review/stale) + cutoff ratio",
+      "  gazette fsck [--check]             rebuild mechanical-derived state to a byte-fixpoint (CI gate)",
+      "  gazette report                     deterministic auditable metrics (kill rate, fixpoint, cutoff)",
+      '  gazette approve "<title>"          log a human approval \u2192 trust: canonical (backs the projection)',
+      `  gazette confirm "<title>"          vouch a dependent page's open rests_on edges (gate cutoff)`,
+      "  gazette ledger <verify|recheck|mark-compiled|uncompiled> \u2026   the code-owned trust ledgers",
       "",
       "  common flags: --dir <dir> (content dir, default gazette/)  --data <dir>  --out <dir>  --now YYYY-MM-DD"
     ].join("\n"));

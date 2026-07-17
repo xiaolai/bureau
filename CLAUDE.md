@@ -18,6 +18,11 @@ the managed block below imports.
 - Render the gazette: `node press/bin/gazette.mjs build --dir canon --out gazette`
 - Check canon health: `node press/bin/gazette.mjs health --dir canon`
 - Sync / verify the crew: `node scripts/crew.mjs sync` then `node scripts/crew.mjs check`
+- Recursion engine (ADR-0001, `docs/adr-0001-engine-data-model.md`):
+  `node press/bin/gazette.mjs scan --dir canon` (record span-revision events),
+  `… gate --dir canon` (dirty index), `… fsck --dir canon` (byte-fixpoint, CI gate),
+  `… report --dir canon` (auditable metrics). Rebuild the bundle after editing `press/src/engine/`:
+  `node scripts/build-gazette.mjs`.
 
 ## Test
 
@@ -32,7 +37,7 @@ the managed block below imports.
 | `skills/` | model-triggered skills — one per pipeline step, plus the `guide` orientation skill |
 | `crew/` | crew desk sources (`agent.md` + `brief.md`), materialized into `.claude/` on sync |
 | `scripts/` | hook + crew engine — `crew.mjs` (materializer), capture/scribe session hooks |
-| `press/` | the bundled renderer that builds the gazette; vendored, self-contained |
+| `press/` | the bundled renderer that builds the gazette; vendored, self-contained. `press/src/engine/` is the recursion engine (ADR-0001): decision log, span revisions, the deterministic gate, ledgers, fsck |
 | `templates/` | workspace scaffold + the `BUREAU.md` instruction template `bureau:init` writes |
 | `hooks/` | `hooks.json` wiring |
 | `test/` | the deterministic test pyramid + the e2e harness |

@@ -1,14 +1,17 @@
 ---
+id: pg-glossary
 title: Glossary
 updated: 2026-06-12
 status: proposed
+rests_on:
+  - { page: "[[ADR 0001 — Adopt bureau]]", span: "^decision", because: "the lexicon names the pieces of the architecture the ADR adopts" }
 ---
 
 # Glossary
 
 bureau's lexicon is one coherent picture: **a records office that publishes a gazette.** The nouns
 below are deliberately rare in dev-speak, so each names exactly one thing; the verbs that act on
-them stay plain (*build*, *file*, *review*, *check*, *ask*).
+them stay plain (*build*, *file*, *review*, *check*, *ask*). ^lexicon
 
 | Term | What it is |
 |---|---|

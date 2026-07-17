@@ -30,14 +30,12 @@ never writes `canonical` itself — that tier exists only on the far side of thi
 
 1. **Locate the workspace** (`bureau.json`; default `bureau`). If none, tell the user to run
    `bureau:init` first and stop.
-2. **Re-check staleness first.** For each `verified`/`canonical` page, read its recorded
-   fingerprints from `<workspace>/_verify.json` (keyed by page title → checks of
-   `{artifact, hash}`). **Before reading any recorded artifact, resolve it and confirm it stays
-   inside the repo/workspace** — reject absolute paths, `..` escapes, and symlinks pointing
-   outside; skip (do not read) any path that fails, and flag the page as `stale` because its
-   evidence can't be trusted. Recompute the hash of each contained artifact; any page whose
-   hash changed is demoted to `stale` and added to the queue. If `_verify.json` is absent, skip
-   this step.
+2. **Re-check staleness first.** For each `verified`/`canonical` page, run
+   `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" ledger recheck --dir <workspace> --page "<title>"`.
+   The press (in code) re-hashes every recorded artifact from `<workspace>/_verify.json` —
+   **path-jailed** inside the repo (absolute paths, `..` escapes, and symlinks pointing outside are
+   rejected/reported, never read). Any page reporting `DRIFTED` (or an unreadable artifact) is
+   demoted to `stale` and added to the queue. If the page has no recorded fingerprints, skip it.
 3. **Build the queue.** Collect every dossier at tier `proposed`, `verified`, or `stale`
    (i.e. not yet `canonical`, or fallen out of it). If the queue is empty, report "nothing to
    review — the canon is approved and current" and stop.
@@ -50,9 +48,13 @@ never writes `canonical` itself — that tier exists only on the far side of thi
    Group facts (auto-verified) apart from judgments (need human reasoning) — the judgments are
    the ones that actually need the human.
 5. **Take the human's decision** per page (ask in batches, not one-by-one):
-   - **approve** → set the page `status: canonical` and stamp `reviewed:` with today's date
-     (`reviewed:`, NOT `verified:` — `verified` is the automatic-check tier, `reviewed` is the
-     human stamp);
+   - **approve** → log the approval with
+     `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" approve "<title>" --dir <workspace>` (the
+     press appends an `approve` event to the decision log — `canonical` is a **projection of that
+     event**, not the frontmatter alone; `gazette fsck` flags any authored `canonical` that no
+     approval backs). Then set the page `status: canonical` and stamp `reviewed:` with today's date
+     for display (`reviewed:`, NOT `verified:` — `verified` is the automatic-check tier, `reviewed`
+     is the human stamp);
    - **reject** → confirm first, then remove the claim. If the page holds ONLY this claim,
      delete the page; if it carries other claims or provenance, strike just this claim and keep
      the rest — never delete unrelated content. Record the rejection by **appending a new
