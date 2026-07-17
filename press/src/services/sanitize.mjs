@@ -20,6 +20,7 @@ const ALLOWED_TAGS = [
 
 const ALLOWED_ATTRS = {
   "*": ["class", "id", "style", "title", "lang", "dir", "data-*", "aria-disabled", "role", "aria-label"],
+  // (style is kept but its properties are constrained by ALLOWED_STYLES below)
   a: ["href", "class", "title", "aria-disabled", "data-wiki", "rel", "target"],
   img: ["src", "alt", "width", "height", "loading"],
   source: ["src", "srcset", "type", "media"],
@@ -33,12 +34,26 @@ const ALLOWED_ATTRS = {
 // tags/attrs; keeps the viz/mermaid containers, wiki-link anchors, and data-*.
 // Link hrefs: http/https/mailto + relative/hash only. `data:` is allowed solely on
 // <img> (for inline images) — never on <a>, so a `data:text/html` link can't ship.
+// inline `style` is kept, but only COSMETIC properties — a board rendered from author/AI content
+// must not be able to hijack layout (position:fixed; inset:0 to cover the UI, transform, z-index).
+// sanitize-html re-serializes each declaration, so values can't inject; the risk is the property.
+const COSMETIC = [/^.*$/];
+const ALLOWED_STYLES = {
+  "*": {
+    color: COSMETIC, "background-color": COSMETIC, "font-weight": COSMETIC, "font-style": COSMETIC,
+    "font-size": COSMETIC, "text-align": COSMETIC, "text-decoration": COSMETIC, "font-family": COSMETIC,
+  },
+};
+
 export function sanitizeBody(html) {
   return sanitizeHtmlLib(String(html == null ? "" : html), {
     allowedTags: ALLOWED_TAGS,
     allowedAttributes: ALLOWED_ATTRS,
+    allowedStyles: ALLOWED_STYLES,
     allowedSchemes: ["http", "https", "mailto"],
-    allowedSchemesByTag: { img: ["data", "http", "https"] },
+    // offline artifact: the CSP is `img-src 'self' data:`, so a remote src only ever renders as a
+    // broken image — strip it here (data: + relative/local assets remain) so the HTML matches reality.
+    allowedSchemesByTag: { img: ["data"] },
     allowProtocolRelative: false,
     transformTags: {
       // a target=_blank link lets the opened tab reach window.opener — force rel to close the

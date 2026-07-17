@@ -1,12 +1,13 @@
 // gazette — public module API. The package is detachable (own bin + exports), so its
-// programmatic surface should match its CLI capability, not just `build`. This barrel
-// re-exports the entry point of every CLI verb; keep it in lockstep with bin/cli.mjs.
+// programmatic surface matches its CLI capability where one exists. This barrel re-exports
+// the FUNCTIONS behind the verbs; the pure-CLI verbs (serve / watch / open / init / new) are
+// interactive wrappers around buildSite with no separate programmatic entry point.
 //
-//   build / serve / watch / open → buildSite, computeHealth
-//   audit (health)               → deriveHealth, healthTotal, renderHealthText/Html
-//   doctor                       → buildRepairPlan, applySafe, renderRepairText
-//   rename                       → planRename, applyRename
-//   (programmatic substrate)     → loadCorpus, buildModel, SCHEMA_VERSION
+//   build (+ serve/watch/open build via)  → buildSite, computeHealth
+//   audit (health)                        → deriveHealth, healthTotal, renderHealthText/Html
+//   doctor                                → buildRepairPlan, applySafe, renderRepairText
+//   rename                                → planRename, applyRename
+//   (programmatic substrate)              → loadCorpus, buildModel, SCHEMA_VERSION
 
 export { buildSite, computeHealth } from "./build.mjs";
 export { loadCorpus, buildModel, SCHEMA_VERSION } from "./core/model.mjs";

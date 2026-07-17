@@ -1,6 +1,7 @@
 // services/dates — strict, deterministic date parsing (PRD P3; grill H6).
-// Accepts only `YYYY-MM-DD`, rejects calendar rollover (2025-02-30 → invalid, not
-// silently March 2), parses at UTC midnight so results are timezone-independent.
+// Accepts only `YYYY-MM-DD` (surrounding whitespace is trimmed first, but nothing else — the
+// date itself must match exactly), rejects calendar rollover (2025-02-30 → invalid, not silently
+// March 2), and parses at UTC midnight so results are timezone-independent.
 //
 // Returns { present, valid, ts }:
 //   absent      → { present:false, valid:false, ts:null }

@@ -6,9 +6,12 @@ import { hash32 } from "../shared/hash.mjs";
 
 const R = 7;
 const groupColor = (g) => "hsl(" + (hash32(g) % 360) + ", 32%, 56%)";
+// every value interpolated into an SVG numeric attribute goes through this: a non-finite coord
+// (NaN/Infinity/non-number) from a hand-built layout must not land raw in an attribute.
+const fin = (v, d = 0) => (Number.isFinite(v) ? v : (Number.isFinite(+v) ? +v : d));
 
 export function renderGraphSvg(layout, model) {
-  const W = layout.width || 100, H = layout.height || 100;
+  const W = fin(layout.width, 100) || 100, H = fin(layout.height, 100) || 100;
   let s = '<svg viewBox="0 0 ' + W + " " + H + '" width="' + W + '" height="' + H + '" xmlns="http://www.w3.org/2000/svg" font-family="var(--sans)">';
 
   // edges (skip those whose endpoint wasn't placed — e.g. dangling targets). own-property
@@ -18,14 +21,15 @@ export function renderGraphSvg(layout, model) {
   for (const e of layout.edges) {
     const a = placed(e.source) ? layout.nodes[e.source] : null, b = placed(e.target) ? layout.nodes[e.target] : null;
     if (!a || !b) continue;
-    s += '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="var(--line-strong)" stroke-width="1" opacity="0.7"/>';
+    s += '<line x1="' + fin(a.x) + '" y1="' + fin(a.y) + '" x2="' + fin(b.x) + '" y2="' + fin(b.y) + '" stroke="var(--line-strong)" stroke-width="1" opacity="0.7"/>';
   }
   // nodes + labels (titles escaped — XSS)
   for (const id of Object.keys(layout.nodes)) {
-    const n = layout.nodes[id];
+    const nd = layout.nodes[id];
     const title = (model.nodes[id] && model.nodes[id].title) || id;
-    s += '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + R + '" fill="' + groupColor(n.group) + '" stroke="var(--paper)" stroke-width="1.5"/>';
-    s += '<text x="' + (n.x + R + 3) + '" y="' + (n.y + 4) + '" font-size="11" fill="var(--ink-soft)">' + escapeHtml(title) + "</text>";
+    const nx = fin(nd.x), ny = fin(nd.y);
+    s += '<circle cx="' + nx + '" cy="' + ny + '" r="' + R + '" fill="' + groupColor(nd.group) + '" stroke="var(--paper)" stroke-width="1.5"/>';
+    s += '<text x="' + (nx + R + 3) + '" y="' + (ny + 4) + '" font-size="11" fill="var(--ink-soft)">' + escapeHtml(title) + "</text>";
   }
   s += "</svg>";
   return s;

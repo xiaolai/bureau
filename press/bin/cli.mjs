@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // gazette — offline knowledge-base board: gazette/*.html → self-contained static site.
-//   gazette init                  scaffold docs/_config.json + a sample in the current dir
+//   gazette init                  scaffold gazette/_config.json + a sample in the current dir
 //   gazette build [opts]          build dist/
 //   gazette serve [--port 8080]   build, then serve dist/ locally
 // opts: --docs <dir>(=docs)  --data <dir>(=data)  --out <dir>(=dist)
@@ -27,9 +27,11 @@ function opt(name, def) {
   return v && !v.startsWith("--") ? v : def; // a following flag is not this option's value (grill L6)
 }
 
-// today's date (YYYY-MM-DD) as the default staleness baseline; --now overrides.
+// today's date (YYYY-MM-DD) as the default staleness baseline; --now overrides. LOCAL date parts,
+// not toISOString() (which is UTC) — near midnight a UTC baseline can be a day off for the user.
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date(), p = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
 }
 
 function die(msg) { console.error("✗ " + msg); process.exit(1); }
@@ -85,10 +87,11 @@ function runWatch() {
   const root = process.cwd();
   const docsDir = resolve(root, dirArg() || "gazette");
   const dataDir = dataArg() ? resolve(root, dataArg()) : undefined;
-  const now = nowArg();
   const build = () => {
     try {
-      const r = buildSite({ root, docsDir, dataDir, outDir: opt("out"), now, force: true });
+      // recompute the baseline each rebuild (nowArg falls back to today()), so a watcher left
+      // running past midnight uses the current date for staleness, not the start-of-process one.
+      const r = buildSite({ root, docsDir, dataDir, outDir: opt("out"), now: nowArg(), force: true });
       console.log((r.cached ? "· unchanged" : "✓ rebuilt") + " (health " + (r.healthClean ? "✅)" : "⚠)"));
     } catch (e) { console.error("✗ " + e.message); }
   };
@@ -149,6 +152,8 @@ function runInit() {
   const root = process.cwd();
   const base = dirArg() || "gazette";
   const dir = resolve(root, base);
+  // refuse a symlinked content dir — scaffolding through it would write files outside the workspace.
+  try { if (lstatSync(dir).isSymbolicLink()) die("content directory is a symlink (refused): " + base); } catch { /* absent → fine, mkdir below */ }
   mkdirSync(dir, { recursive: true });
   const writeIf = (rel, content) => {
     const p = join(dir, rel);
@@ -179,6 +184,8 @@ function runInit() {
   ].join("\n"));
 
   const giPath = join(root, ".gitignore");
+  // refuse to append through a symlinked .gitignore (it could point at an arbitrary target).
+  try { if (lstatSync(giPath).isSymbolicLink()) die(".gitignore is a symlink (refused): " + giPath); } catch { /* absent → created below */ }
   const has = existsSync(giPath) && readFileSync(giPath, "utf8").split(/\r?\n/).some((l) => l.trim() === "dist/");
   if (!has) { appendFileSync(giPath, "dist/\n"); console.log("+ .gitignore: dist/"); }
 
@@ -251,9 +258,9 @@ function runServe() {
   const root = process.cwd();
   const docsDir = resolve(root, dirArg() || "gazette");
   const dataDir = dataArg() ? resolve(root, dataArg()) : undefined;
-  const now = nowArg();
   const out = resolve(root, opt("out") || "dist");
-  const doBuild = () => { try { return buildSite({ root, docsDir, dataDir, outDir: opt("out"), now, force: true }); } catch (e) { console.error("✗ " + e.message); return null; } };
+  // recompute the baseline each rebuild so a long-running server past midnight uses the current date.
+  const doBuild = () => { try { return buildSite({ root, docsDir, dataDir, outDir: opt("out"), now: nowArg(), force: true }); } catch (e) { console.error("✗ " + e.message); return null; } };
   if (!doBuild()) die("initial build failed — fix the error above and re-run");
   const outReal = realpathSync(out);
   const within = (q, base) => q === base || q.startsWith(base + sep);
@@ -263,6 +270,7 @@ function runServe() {
     const url = (req.url || "/").split("?")[0];
     if (url === "/__wb_reload") { // SSE live-reload channel
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+      if (clients.size >= 64) { res.end(); return; } // cap live-reload connections so leaked/looping clients can't exhaust fds
       res.write("retry: 1000\n\n"); clients.add(res); req.on("close", () => clients.delete(res));
       return;
     }

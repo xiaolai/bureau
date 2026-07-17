@@ -10311,7 +10311,7 @@ var require_util = __commonJS({
       return path;
     });
     exports.normalize = normalize3;
-    function join11(aRoot, aPath) {
+    function join10(aRoot, aPath) {
       if (aRoot === "") {
         aRoot = ".";
       }
@@ -10343,7 +10343,7 @@ var require_util = __commonJS({
       }
       return joined;
     }
-    exports.join = join11;
+    exports.join = join10;
     exports.isAbsolute = function(aPath) {
       return aPath.charAt(0) === "/" || urlRegexp.test(aPath);
     };
@@ -10557,7 +10557,7 @@ var require_util = __commonJS({
             parsed.path = parsed.path.substring(0, index + 1);
           }
         }
-        sourceURL = join11(urlGenerate(parsed), sourceURL);
+        sourceURL = join10(urlGenerate(parsed), sourceURL);
       }
       return normalize3(sourceURL);
     }
@@ -11998,7 +11998,7 @@ var require_previous_map = __commonJS({
   "node_modules/postcss/lib/previous-map.js"(exports, module) {
     "use strict";
     var { existsSync: existsSync6, readFileSync: readFileSync9 } = __require("fs");
-    var { dirname: dirname4, join: join11 } = __require("path");
+    var { dirname: dirname4, join: join10 } = __require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     function fromBase64(str) {
       if (Buffer) {
@@ -12103,7 +12103,7 @@ var require_previous_map = __commonJS({
           return this.decodeInline(this.annotation);
         } else if (this.annotation) {
           let map = this.annotation;
-          if (file) map = join11(dirname4(file), map);
+          if (file) map = join10(dirname4(file), map);
           let unknown = this.loadFile(map, file, false);
           if (unknown) {
             try {
@@ -15918,13 +15918,13 @@ and ensure you are accounting for this risk.
 });
 
 // bin/cli.mjs
-import { existsSync as existsSync5, mkdirSync as mkdirSync2, writeFileSync as writeFileSync4, appendFileSync, readFileSync as readFileSync8, statSync as statSync2, lstatSync as lstatSync7, readdirSync as readdirSync5, realpathSync as realpathSync3, watch } from "fs";
-import { join as join10, resolve as resolve2, dirname as dirname3, extname as extname2, sep as sep4, relative as relative4 } from "path";
+import { existsSync as existsSync5, mkdirSync as mkdirSync2, writeFileSync as writeFileSync4, appendFileSync, readFileSync as readFileSync8, statSync, lstatSync as lstatSync8, readdirSync as readdirSync5, realpathSync as realpathSync3, watch } from "fs";
+import { join as join9, resolve as resolve2, dirname as dirname3, extname as extname2, sep as sep4, relative as relative4 } from "path";
 import { createServer } from "http";
 import { spawn } from "child_process";
 
 // src/build.mjs
-import { readFileSync as readFileSync5, writeFileSync, existsSync as existsSync4, mkdirSync, copyFileSync, cpSync, rmSync, renameSync, readdirSync as readdirSync4, lstatSync as lstatSync5, realpathSync as realpathSync2 } from "fs";
+import { readFileSync as readFileSync5, writeFileSync, existsSync as existsSync4, mkdirSync, copyFileSync, cpSync, rmSync, renameSync, readdirSync as readdirSync4, lstatSync as lstatSync6, realpathSync as realpathSync2 } from "fs";
 import { join as join7, dirname as dirname2, resolve, sep as sep3, relative as relative3 } from "path";
 import { fileURLToPath } from "url";
 import { createHash } from "crypto";
@@ -21795,7 +21795,7 @@ var collator = new Intl.Collator(["zh-Hans", "en"], { numeric: true });
 
 // src/shared/prettify.mjs
 function prettify(s) {
-  return String(s).replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return String(s).replace(/[-_]/g, " ").replace(/(^|\s)(\p{L})/gu, (_, sp, c) => sp + c.toUpperCase());
 }
 
 // src/core/model.mjs
@@ -22163,6 +22163,7 @@ function parseCold(txt) {
     const dm = line.match(/^###\s*D(\d+)/);
     if (dm) {
       day = +dm[1];
+      if (day > 30) day = -1;
       continue;
     }
     const im = line.match(/^\s*-\s+(.+)$/);
@@ -22179,22 +22180,28 @@ function mmId(s) {
 function mmText(s) {
   return String(s).replace(/[\r\n;]+/g, " ").trim();
 }
-var esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+var esc = (s) => escapeHtml2(String(s == null ? "" : s));
 function segDoc(events, lo, hi, name) {
   const seg = events.filter((e) => e.day >= lo && e.day <= hi);
   const head = '<article data-generated="cold-events"><h1>Cold events \xB7 D' + lo + "\u2013" + hi + " (" + esc(name) + ")</h1>";
   if (!seg.length) return head + "<blockquote><p>fill in the per-day data in <code>data/cold-events.md</code>.</p></blockquote></article>";
-  const facs = [...new Set(seg.flatMap((e) => [e.faction, e.target].filter(Boolean).map(mmId)))];
+  const pid = /* @__PURE__ */ new Map();
+  const idOf = (orig) => {
+    if (!pid.has(orig)) pid.set(orig, "p" + pid.size);
+    return pid.get(orig);
+  };
+  for (const e of seg) for (const orig of [e.faction, e.target].filter(Boolean)) idOf(orig);
+  const ids = [...pid.values()];
   let g = "sequenceDiagram\n";
-  facs.forEach((f) => g += "  participant " + f + "\n");
-  if (facs.length > 1) g += "  Note over " + facs[0] + "," + facs[facs.length - 1] + ": D" + lo + "\u2013" + hi + " \xB7 " + mmText(name) + "\n";
+  for (const [orig, id] of pid) g += "  participant " + id + " as " + mmId(orig) + "\n";
+  if (ids.length > 1) g += "  Note over " + ids[0] + "," + ids[ids.length - 1] + ": D" + lo + "\u2013" + hi + " \xB7 " + mmText(name) + "\n";
   const days = [...new Set(seg.map((e) => e.day))].sort((a, b) => a - b);
   days.forEach((d, i) => {
     g += "  rect " + (i % 2 ? "rgb(252,251,247)" : "rgb(243,240,231)") + "\n";
     for (const e of seg.filter((x) => x.day === d)) {
       const tag = e.anchor === "fact" ? "[fact]" : "";
-      if (e.target) g += "    " + mmId(e.faction) + "->>" + mmId(e.target) + ": D" + d + "\xB7" + mmText(e.event) + tag + "\n";
-      else g += "    Note over " + mmId(e.faction) + ": D" + d + "\xB7" + mmText(e.event) + tag + "\n";
+      if (e.target) g += "    " + idOf(e.faction) + "->>" + idOf(e.target) + ": D" + d + "\xB7" + mmText(e.event) + tag + "\n";
+      else g += "    Note over " + idOf(e.faction) + ": D" + d + "\xB7" + mmText(e.event) + tag + "\n";
     }
     g += "  end\n";
   });
@@ -22339,20 +22346,22 @@ function deriveLayout(model) {
 // src/render/graph-svg.mjs
 var R = 7;
 var groupColor = (g) => "hsl(" + hash32(g) % 360 + ", 32%, 56%)";
+var fin = (v, d = 0) => Number.isFinite(v) ? v : Number.isFinite(+v) ? +v : d;
 function renderGraphSvg(layout, model) {
-  const W2 = layout.width || 100, H2 = layout.height || 100;
+  const W2 = fin(layout.width, 100) || 100, H2 = fin(layout.height, 100) || 100;
   let s = '<svg viewBox="0 0 ' + W2 + " " + H2 + '" width="' + W2 + '" height="' + H2 + '" xmlns="http://www.w3.org/2000/svg" font-family="var(--sans)">';
   const placed = (k) => Object.prototype.hasOwnProperty.call(layout.nodes, k);
   for (const e of layout.edges) {
     const a = placed(e.source) ? layout.nodes[e.source] : null, b = placed(e.target) ? layout.nodes[e.target] : null;
     if (!a || !b) continue;
-    s += '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="var(--line-strong)" stroke-width="1" opacity="0.7"/>';
+    s += '<line x1="' + fin(a.x) + '" y1="' + fin(a.y) + '" x2="' + fin(b.x) + '" y2="' + fin(b.y) + '" stroke="var(--line-strong)" stroke-width="1" opacity="0.7"/>';
   }
   for (const id of Object.keys(layout.nodes)) {
-    const n = layout.nodes[id];
+    const nd = layout.nodes[id];
     const title = model.nodes[id] && model.nodes[id].title || id;
-    s += '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + R + '" fill="' + groupColor(n.group) + '" stroke="var(--paper)" stroke-width="1.5"/>';
-    s += '<text x="' + (n.x + R + 3) + '" y="' + (n.y + 4) + '" font-size="11" fill="var(--ink-soft)">' + escapeHtml2(title) + "</text>";
+    const nx = fin(nd.x), ny = fin(nd.y);
+    s += '<circle cx="' + nx + '" cy="' + ny + '" r="' + R + '" fill="' + groupColor(nd.group) + '" stroke="var(--paper)" stroke-width="1.5"/>';
+    s += '<text x="' + (nx + R + 3) + '" y="' + (ny + 4) + '" font-size="11" fill="var(--ink-soft)">' + escapeHtml2(title) + "</text>";
   }
   s += "</svg>";
   return s;
@@ -22367,11 +22376,14 @@ function renderCanvasSvg(canvas) {
   const edges = Array.isArray(canvas && canvas.edges) ? canvas.edges : [];
   if (!nodes.length) return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>';
   const x = (n) => num(n.x), y = (n) => num(n.y), w = (n) => num(n.width, NW), h = (n) => num(n.height, NH);
-  const minX = Math.min(...nodes.map(x));
-  const minY = Math.min(...nodes.map(y));
-  const maxX = Math.max(...nodes.map((n) => x(n) + w(n)));
-  const maxY = Math.max(...nodes.map((n) => y(n) + h(n)));
-  const W2 = maxX - minX, H2 = maxY - minY;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of nodes) {
+    minX = Math.min(minX, x(n));
+    minY = Math.min(minY, y(n));
+    maxX = Math.max(maxX, x(n) + w(n));
+    maxY = Math.max(maxY, y(n) + h(n));
+  }
+  const W2 = Math.max(1, maxX - minX), H2 = Math.max(1, maxY - minY);
   const byId = /* @__PURE__ */ Object.create(null);
   for (const n of nodes) byId[n.id] = n;
   const cx = (n) => x(n) + w(n) / 2;
@@ -22818,6 +22830,7 @@ var ALLOWED_TAGS = [
 ];
 var ALLOWED_ATTRS = {
   "*": ["class", "id", "style", "title", "lang", "dir", "data-*", "aria-disabled", "role", "aria-label"],
+  // (style is kept but its properties are constrained by ALLOWED_STYLES below)
   a: ["href", "class", "title", "aria-disabled", "data-wiki", "rel", "target"],
   img: ["src", "alt", "width", "height", "loading"],
   source: ["src", "srcset", "type", "media"],
@@ -22826,12 +22839,28 @@ var ALLOWED_ATTRS = {
   col: ["span"],
   time: ["datetime"]
 };
+var COSMETIC = [/^.*$/];
+var ALLOWED_STYLES = {
+  "*": {
+    color: COSMETIC,
+    "background-color": COSMETIC,
+    "font-weight": COSMETIC,
+    "font-style": COSMETIC,
+    "font-size": COSMETIC,
+    "text-align": COSMETIC,
+    "text-decoration": COSMETIC,
+    "font-family": COSMETIC
+  }
+};
 function sanitizeBody(html) {
   return (0, import_sanitize_html.default)(String(html == null ? "" : html), {
     allowedTags: ALLOWED_TAGS,
     allowedAttributes: ALLOWED_ATTRS,
+    allowedStyles: ALLOWED_STYLES,
     allowedSchemes: ["http", "https", "mailto"],
-    allowedSchemesByTag: { img: ["data", "http", "https"] },
+    // offline artifact: the CSP is `img-src 'self' data:`, so a remote src only ever renders as a
+    // broken image — strip it here (data: + relative/local assets remain) so the HTML matches reality.
+    allowedSchemesByTag: { img: ["data"] },
     allowProtocolRelative: false,
     transformTags: {
       // a target=_blank link lets the opened tab reach window.opener — force rel to close the
@@ -22927,7 +22956,7 @@ function emitCssVars(tokens) {
 }
 
 // src/services/assets.mjs
-import { readdirSync as readdirSync3, statSync } from "fs";
+import { readdirSync as readdirSync3, lstatSync as lstatSync5 } from "fs";
 import { join as join6 } from "path";
 var DEFAULT_BUDGET = 8 * 1024 * 1024;
 function walk3(dir) {
@@ -22935,12 +22964,13 @@ function walk3(dir) {
   const files = [];
   for (const name of readdirSync3(dir)) {
     const p = join6(dir, name);
-    const st = statSync(p);
+    const st = lstatSync5(p);
+    if (st.isSymbolicLink()) continue;
     if (st.isDirectory()) {
       const r = walk3(p);
       total += r.total;
       files.push(...r.files);
-    } else {
+    } else if (st.isFile()) {
       total += st.size;
       files.push({ path: p, bytes: st.size });
     }
@@ -23023,7 +23053,7 @@ function buildAssetIndex(assetsDir) {
       const p = join7(dir, name);
       let st;
       try {
-        st = lstatSync5(p);
+        st = lstatSync6(p);
       } catch {
         continue;
       }
@@ -23087,7 +23117,7 @@ function hashInputs({ root, docsDir, dataDir, now }) {
   const addDir = (dir) => {
     if (!existsSync4(dir)) return;
     try {
-      if (lstatSync5(dir).isSymbolicLink()) return;
+      if (lstatSync6(dir).isSymbolicLink()) return;
     } catch {
       return;
     }
@@ -23095,7 +23125,7 @@ function hashInputs({ root, docsDir, dataDir, now }) {
       const p = join7(dir, name);
       let st;
       try {
-        st = lstatSync5(p);
+        st = lstatSync6(p);
       } catch {
         continue;
       }
@@ -23121,7 +23151,7 @@ function hashInputs({ root, docsDir, dataDir, now }) {
   let meta = {};
   try {
     const cfgPath = join7(docsDir, "_config.json");
-    if (!lstatSync5(cfgPath).isSymbolicLink()) meta = JSON.parse(readFileSync5(cfgPath, "utf8")).meta || {};
+    if (!lstatSync6(cfgPath).isSymbolicLink()) meta = JSON.parse(readFileSync5(cfgPath, "utf8")).meta || {};
   } catch {
   }
   if (meta.code && meta.code.dir) {
@@ -23133,7 +23163,7 @@ function hashInputs({ root, docsDir, dataDir, now }) {
         const p = join7(dir, name);
         let st;
         try {
-          st = lstatSync5(p);
+          st = lstatSync6(p);
         } catch {
           continue;
         }
@@ -23320,7 +23350,7 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
   let assetsCopied = false;
   const assetsDir = join7(root, "assets");
   if (existsSync4(assetsDir)) {
-    cpSync(assetsDir, join7(tmp, "assets"), { recursive: true, dereference: false, filter: (src) => !lstatSync5(src).isSymbolicLink() });
+    cpSync(assetsDir, join7(tmp, "assets"), { recursive: true, dereference: false, filter: (src) => !lstatSync6(src).isSymbolicLink() });
     assetsCopied = true;
   }
   if (existsSync4(outDir)) {
@@ -23357,25 +23387,26 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
 }
 
 // src/maintain/rename.mjs
-import { readFileSync as readFileSync6, writeFileSync as writeFileSync2 } from "fs";
-import { join as join8 } from "path";
+import { readFileSync as readFileSync6, writeFileSync as writeFileSync2, renameSync as renameSync2, unlinkSync } from "fs";
+var BAD_TITLE = /[[\]|#]|[\x00-\x1f]/;
 function planRename({ docsDir, from, to }) {
   if (!from || !to) throw new Error("rename needs both <old> and <new> titles");
-  if (/[[\]|]/.test(String(to))) throw new Error('invalid new title (must not contain [ ] |): "' + to + '"');
+  if (BAD_TITLE.test(String(to))) throw new Error('invalid new title (must not contain [ ] | # or control characters): "' + to + '"');
   const corpus = loadCorpus({ docsDir });
   const fromId = nfc(from), toId = nfc(to);
   if (fromId === toId) throw new Error("old and new titles are the same");
   const fromEntry = corpus.entries.find((e) => e.id === fromId);
   if (!fromEntry) throw new Error("no document titled [" + from + "]");
   if (corpus.entries.some((e) => e.id === toId)) throw new Error("the title [" + to + "] already exists - the rename would collide");
+  const fromTitle = fromEntry.title;
   const edits = [];
   let linkTotal = 0;
   for (const e of corpus.entries) {
-    const raw = readFileSync6(join8(docsDir, e.file), "utf8");
-    const ref = rewriteWikiRef(raw, from, to);
+    const raw = readFileSync6(safeDocPath(docsDir, e.file), "utf8");
+    const ref = rewriteWikiRef(raw, fromTitle, to);
     let next = ref.html, titleChanged = false;
     if (e.id === fromId) {
-      const t = rewriteTitle(next, from, to);
+      const t = rewriteTitle(next, fromTitle, to);
       next = t.html;
       titleChanged = t.changed;
     }
@@ -23385,13 +23416,30 @@ function planRename({ docsDir, from, to }) {
   return { from, to, edits, linkTotal };
 }
 function applyRename(plan, docsDir) {
-  for (const e of plan.edits) writeFileSync2(join8(docsDir, e.file), e.next);
+  const staged = [];
+  try {
+    for (const e of plan.edits) {
+      const dest = safeDocPath(docsDir, e.file);
+      const tmp = dest + ".rename-" + process.pid + ".tmp";
+      writeFileSync2(tmp, e.next);
+      staged.push({ tmp, dest });
+    }
+  } catch (err) {
+    for (const s of staged) {
+      try {
+        unlinkSync(s.tmp);
+      } catch {
+      }
+    }
+    throw err;
+  }
+  for (const s of staged) renameSync2(s.tmp, s.dest);
   return { files: plan.edits.length, links: plan.linkTotal };
 }
 
 // src/maintain/doctor.mjs
-import { readFileSync as readFileSync7, writeFileSync as writeFileSync3, lstatSync as lstatSync6 } from "fs";
-import { join as join9 } from "path";
+import { readFileSync as readFileSync7, writeFileSync as writeFileSync3, renameSync as renameSync3, lstatSync as lstatSync7 } from "fs";
+import { join as join8 } from "path";
 function levenshtein(a, b) {
   const m = a.length, n = b.length;
   if (!m) return n;
@@ -23444,8 +23492,8 @@ function applySafe(docsDir, fixes, model) {
   const applied = [];
   const drift = fixes.find((f) => f.kind === "drift");
   if (drift) {
-    const cfg = join9(docsDir, "_config.json");
-    if (lstatSync6(cfg).isSymbolicLink()) throw new Error("refusing to write a symlinked _config.json: " + cfg);
+    const cfg = join8(docsDir, "_config.json");
+    if (lstatSync7(cfg).isSymbolicLink()) throw new Error("refusing to write a symlinked _config.json: " + cfg);
     const c = JSON.parse(readFileSync7(cfg, "utf8"));
     c.meta = c.meta || {};
     c.meta.expectedDocs = drift.actual;
@@ -23459,19 +23507,22 @@ function applySafe(docsDir, fixes, model) {
     const raw = readFileSync7(p, "utf8");
     const { html: next, count } = rewriteWikiRef(raw, f.target, f.suggest);
     if (count > 0 && next !== raw) {
-      writeFileSync3(p, next);
+      const tmp = p + ".doctor-" + process.pid + ".tmp";
+      writeFileSync3(tmp, next);
+      renameSync3(tmp, p);
       applied.push("dangling: " + f.source + " [[" + f.target + "]] \u2192 [[" + f.suggest + "]]");
     }
   }
   return applied;
 }
+var plain2 = (s) => String(s == null ? "" : s).replace(/[\x00-\x1f\x7f-\x9f]/g, " ");
 function renderRepairText(fixes, applied) {
   const lines = ["gazette doctor \u2014 repair plan"];
   if (!fixes.length) return lines.concat("  \u2705 nothing to fix").join("\n");
   for (const f of fixes) {
-    if (f.kind === "dangling") lines.push("  " + (f.auto ? "->auto" : f.suggest ? "?suggest" : ".pending") + " dangling " + f.source + " [[" + f.target + "]]" + (f.suggest ? " => [[" + f.suggest + "]] (dist " + f.dist + ")" : ""));
+    if (f.kind === "dangling") lines.push("  " + (f.auto ? "->auto" : f.suggest ? "?suggest" : ".pending") + " dangling " + plain2(f.source) + " [[" + plain2(f.target) + "]]" + (f.suggest ? " => [[" + plain2(f.suggest) + "]] (dist " + f.dist + ")" : ""));
     else if (f.kind === "drift") lines.push("  ->auto ledger: declared " + f.declared + " \u2260 actual " + f.actual);
-    else lines.push("  .pending " + f.kind + " " + (f.node || f.a + "\xD7" + f.b) + " \u2014 " + (f.advice || ""));
+    else lines.push("  .pending " + f.kind + " " + plain2(f.node || f.a + "\xD7" + f.b) + " \u2014 " + (f.advice || ""));
   }
   if (applied && applied.length) lines.push("", "applied " + applied.length + " items: ", ...applied.map((a) => "  \u2713 " + a));
   return lines.join("\n");
@@ -23487,7 +23538,8 @@ function opt(name, def) {
   return v && !v.startsWith("--") ? v : def;
 }
 function today() {
-  return (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const d = /* @__PURE__ */ new Date(), p = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
 }
 function die(msg) {
   console.error("\u2717 " + msg);
@@ -23540,7 +23592,7 @@ function watchTree(dir, cb) {
     for (const ent of entries) {
       if (!ent.isDirectory() || ent.isSymbolicLink()) continue;
       if (ent.name.startsWith("_") || ent.name.startsWith(".") || ent.name === "dist" || ent.name === "node_modules") continue;
-      walk4(join10(d, ent.name));
+      walk4(join9(d, ent.name));
     }
   };
   walk4(dir);
@@ -23550,10 +23602,9 @@ function runWatch() {
   const root = process.cwd();
   const docsDir = resolve2(root, dirArg() || "gazette");
   const dataDir = dataArg() ? resolve2(root, dataArg()) : void 0;
-  const now = nowArg();
   const build = () => {
     try {
-      const r = buildSite({ root, docsDir, dataDir, outDir: opt("out"), now, force: true });
+      const r = buildSite({ root, docsDir, dataDir, outDir: opt("out"), now: nowArg(), force: true });
       console.log((r.cached ? "\xB7 unchanged" : "\u2713 rebuilt") + " (health " + (r.healthClean ? "\u2705)" : "\u26A0)"));
     } catch (e) {
       console.error("\u2717 " + e.message);
@@ -23567,7 +23618,7 @@ function runWatch() {
   };
   if (existsSync5(docsDir)) watchTree(docsDir, trigger);
   for (const f of ["theme.json", "theme.css"]) {
-    const p = join10(root, f);
+    const p = join9(root, f);
     if (existsSync5(p)) watch(p, trigger);
   }
   console.log("\u{1F440} watching " + relative4(root, docsDir) + " + theme (Ctrl-C to stop)");
@@ -23624,9 +23675,13 @@ function runInit() {
   const root = process.cwd();
   const base2 = dirArg() || "gazette";
   const dir = resolve2(root, base2);
+  try {
+    if (lstatSync8(dir).isSymbolicLink()) die("content directory is a symlink (refused): " + base2);
+  } catch {
+  }
   mkdirSync2(dir, { recursive: true });
   const writeIf = (rel, content) => {
-    const p = join10(dir, rel);
+    const p = join9(dir, rel);
     if (existsSync5(p)) {
       console.log("\xB7 exists, skipping: " + base2 + "/" + rel);
       return;
@@ -23647,14 +23702,18 @@ function runInit() {
     "</article>",
     ""
   ].join("\n"));
-  writeIf(join10("characters", "lin.html"), [
+  writeIf(join9("characters", "lin.html"), [
     '<article data-icon="user" data-status="draft">',
     "  <h1>Lin</h1>",
     "  <p>A doc in <code>characters/</code> \u2192 the \u201CCharacters\u201D sidebar section. Back to [[Overview]].</p>",
     "</article>",
     ""
   ].join("\n"));
-  const giPath = join10(root, ".gitignore");
+  const giPath = join9(root, ".gitignore");
+  try {
+    if (lstatSync8(giPath).isSymbolicLink()) die(".gitignore is a symlink (refused): " + giPath);
+  } catch {
+  }
   const has2 = existsSync5(giPath) && readFileSync8(giPath, "utf8").split(/\r?\n/).some((l) => l.trim() === "dist/");
   if (!has2) {
     appendFileSync(giPath, "dist/\n");
@@ -23686,7 +23745,7 @@ function runNew() {
 }
 function runOpen() {
   const r = runBuild();
-  const idx = join10(r.outDir, "index.html");
+  const idx = join9(r.outDir, "index.html");
   const win = process.platform === "win32";
   const opener = process.platform === "darwin" ? "open" : win ? "rundll32" : "xdg-open";
   const args = win ? ["url.dll,FileProtocolHandler", idx] : [idx];
@@ -23723,11 +23782,10 @@ function runServe() {
   const root = process.cwd();
   const docsDir = resolve2(root, dirArg() || "gazette");
   const dataDir = dataArg() ? resolve2(root, dataArg()) : void 0;
-  const now = nowArg();
   const out = resolve2(root, opt("out") || "dist");
   const doBuild = () => {
     try {
-      return buildSite({ root, docsDir, dataDir, outDir: opt("out"), now, force: true });
+      return buildSite({ root, docsDir, dataDir, outDir: opt("out"), now: nowArg(), force: true });
     } catch (e) {
       console.error("\u2717 " + e.message);
       return null;
@@ -23741,6 +23799,10 @@ function runServe() {
     const url = (req.url || "/").split("?")[0];
     if (url === "/__wb_reload") {
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+      if (clients.size >= 64) {
+        res.end();
+        return;
+      }
       res.write("retry: 1000\n\n");
       clients.add(res);
       req.on("close", () => clients.delete(res));
@@ -23762,7 +23824,7 @@ function runServe() {
     try {
       if (p === "/" || p.endsWith("/")) p += "index.html";
       const fp = resolve2(out, "." + p);
-      if (!within(fp, out) || !existsSync5(fp) || statSync2(fp).isDirectory()) {
+      if (!within(fp, out) || !existsSync5(fp) || statSync(fp).isDirectory()) {
         res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
         res.end("404 " + p);
         return;
@@ -23773,7 +23835,7 @@ function runServe() {
         res.end("403");
         return;
       }
-      if (!statSync2(real).isFile()) {
+      if (!statSync(real).isFile()) {
         res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
         res.end("404 " + p);
         return;
@@ -23810,7 +23872,7 @@ function runServe() {
   };
   if (existsSync5(docsDir)) watchTree(docsDir, trigger);
   for (const f of ["theme.json", "theme.css"]) {
-    const p = join10(root, f);
+    const p = join9(root, f);
     if (existsSync5(p)) watch(p, trigger);
   }
 }

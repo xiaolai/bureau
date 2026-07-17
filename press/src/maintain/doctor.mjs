@@ -2,7 +2,7 @@
 // the SAFE deterministic subset (drift count; high-confidence dangling-link typos).
 // Judgment-needing findings (orphan/contradiction/stale/invalidDate/schema) are
 // surfaced as advice for the author or the maintainer agent — never auto-changed.
-import { readFileSync, writeFileSync, lstatSync } from "fs";
+import { readFileSync, writeFileSync, renameSync, lstatSync } from "fs";
 import { join } from "path";
 import { rewriteWikiRef } from "../core/parse.mjs";
 import { safeDocPath } from "../core/model.mjs";
@@ -87,18 +87,29 @@ export function applySafe(docsDir, fixes, model) {
     const p = safeDocPath(docsDir, node.file); // resolves + rejects escapes/symlinks/non-files
     const raw = readFileSync(p, "utf8");
     const { html: next, count } = rewriteWikiRef(raw, f.target, f.suggest);
-    if (count > 0 && next !== raw) { writeFileSync(p, next); applied.push("dangling: " + f.source + " [[" + f.target + "]] → [[" + f.suggest + "]]"); }
+    if (count > 0 && next !== raw) {
+      // temp + atomic rename: never write through a symlink swapped in after safeDocPath, and a
+      // crash mid-write can't truncate the page — the original stays until the rename commits.
+      const tmp = p + ".doctor-" + process.pid + ".tmp";
+      writeFileSync(tmp, next);
+      renameSync(tmp, p);
+      applied.push("dangling: " + f.source + " [[" + f.target + "]] → [[" + f.suggest + "]]");
+    }
   }
   return applied;
 }
+
+// a control char (newline, CR, ANSI escape) in an untrusted title/target must not forge a line in
+// the repair report shown in a terminal or CI log.
+const plain = (s) => String(s == null ? "" : s).replace(/[\x00-\x1f\x7f-\x9f]/g, " ");
 
 export function renderRepairText(fixes, applied) {
   const lines = ["gazette doctor — repair plan"];
   if (!fixes.length) return lines.concat("  ✅ nothing to fix").join("\n");
   for (const f of fixes) {
-    if (f.kind === "dangling") lines.push("  " + (f.auto ? "->auto" : f.suggest ? "?suggest" : ".pending") + " dangling " + f.source + " [[" + f.target + "]]" + (f.suggest ? " => [[" + f.suggest + "]] (dist " + f.dist + ")" : ""));
+    if (f.kind === "dangling") lines.push("  " + (f.auto ? "->auto" : f.suggest ? "?suggest" : ".pending") + " dangling " + plain(f.source) + " [[" + plain(f.target) + "]]" + (f.suggest ? " => [[" + plain(f.suggest) + "]] (dist " + f.dist + ")" : ""));
     else if (f.kind === "drift") lines.push("  ->auto ledger: declared " + f.declared + " ≠ actual " + f.actual);
-    else lines.push("  .pending " + f.kind + " " + (f.node || f.a + "×" + f.b) + " — " + (f.advice || ""));
+    else lines.push("  .pending " + f.kind + " " + plain(f.node || f.a + "×" + f.b) + " — " + (f.advice || ""));
   }
   if (applied && applied.length) lines.push("", "applied " + applied.length + " items: ", ...applied.map((a) => "  ✓ " + a));
   return lines.join("\n");

@@ -14,11 +14,14 @@ export function renderCanvasSvg(canvas) {
   if (!nodes.length) return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>';
 
   const x = (n) => num(n.x), y = (n) => num(n.y), w = (n) => num(n.width, NW), h = (n) => num(n.height, NH);
-  const minX = Math.min(...nodes.map(x));
-  const minY = Math.min(...nodes.map(y));
-  const maxX = Math.max(...nodes.map((n) => x(n) + w(n)));
-  const maxY = Math.max(...nodes.map((n) => y(n) + h(n)));
-  const W = maxX - minX, H = maxY - minY;
+  // single-pass bounds — `Math.min(...nodes.map(…))` spreads one argument per node and throws
+  // (or exhausts the stack) on a canvas with tens of thousands of nodes.
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of nodes) {
+    minX = Math.min(minX, x(n)); minY = Math.min(minY, y(n));
+    maxX = Math.max(maxX, x(n) + w(n)); maxY = Math.max(maxY, y(n) + h(n));
+  }
+  const W = Math.max(1, maxX - minX), H = Math.max(1, maxY - minY); // never a zero/negative viewBox
   const byId = Object.create(null); // null-proto: edges referencing an inherited key ("toString") must not resolve to a phantom endpoint
   for (const n of nodes) byId[n.id] = n;
   const cx = (n) => x(n) + w(n) / 2;

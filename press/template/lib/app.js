@@ -727,6 +727,8 @@ function attachPanZoom(host, svg) {
 }
 
 const BASE_FONT = 16, THRESHOLD = 11, MMD_MAX = 20000; // cap diagram source so a giant graph can't freeze the UI
+const MMD_MAX_EDGES = 600; // structural cap: a COMPACT but densely-connected graph can be small in chars yet expensive to lay out
+const MMD_EDGE_RE = /--+>|-\.->|==+>|--+|->>|-->>|--x|--o/g; // mermaid edge/arrow tokens (flowchart + sequence)
 const VIZ_MAX = 200000; // cap viz/chart source text (datasets are larger than diagrams) so parsing can't hang the UI
 // flowchart node palette from theme vars (dedicated --mmd-node-* override the base
 // surface tokens), so diagrams follow the active theme instead of a fixed light fill.
@@ -746,6 +748,8 @@ function renderMermaid(scope) {
   scope.querySelectorAll(".mermaid").forEach((el) => {
     const src = el.textContent || "";
     if (src.length > MMD_MAX) { el.innerHTML = '<pre class="mermaid-error">diagram too large to render (' + src.length + " chars, limit " + MMD_MAX + ") — split it into smaller diagrams</pre>"; return; }
+    const edgeCount = (src.match(MMD_EDGE_RE) || []).length;
+    if (edgeCount > MMD_MAX_EDGES) { el.innerHTML = '<pre class="mermaid-error">diagram too connected to render (' + edgeCount + " edges, limit " + MMD_MAX_EDGES + ") — split it into smaller diagrams</pre>"; return; }
     const code = injectStyle(src, palette);
     const id = "mmd-" + mmdCounter++;
     try {
@@ -777,6 +781,8 @@ function renderMermaid(scope) {
 // it to the SAME pan/zoom viewport mermaid uses. Skips cleanly when the libs are
 // absent (e.g. the offline jsdom test stubs neither) — the source just stays visible.
 const DOT_MAX = 20000; // cap source so a giant graph can't freeze layout (mirrors MMD_MAX)
+const DOT_MAX_EDGES = 600; // structural cap: a compact but densely-connected graph is cheap in chars, costly in WASM layout
+const DOT_EDGE_RE = /->|--/g; // graphviz edge operators (digraph / graph)
 const DOT_ENGINES = new Set(["dot", "neato", "fdp", "sfdp", "circo", "twopi", "osage", "patchwork"]);
 let _vizInstance = null;
 function getViz() {
@@ -863,6 +869,8 @@ function renderDot(scope) {
   nodes.forEach((el) => {
     const src = el.textContent || "";
     if (src.length > DOT_MAX) { el.innerHTML = '<pre class="dot-error">graph too large to render (' + src.length + " chars, limit " + DOT_MAX + ") — split it</pre>"; return; }
+    const dotEdges = (src.match(DOT_EDGE_RE) || []).length;
+    if (dotEdges > DOT_MAX_EDGES) { el.innerHTML = '<pre class="dot-error">graph too connected to render (' + dotEdges + " edges, limit " + DOT_MAX_EDGES + ") — split it</pre>"; return; }
     let engine = (el.getAttribute("data-engine") || "dot").toLowerCase();
     if (!DOT_ENGINES.has(engine)) engine = "dot";
     let roughness = parseFloat(el.getAttribute("data-roughness"));

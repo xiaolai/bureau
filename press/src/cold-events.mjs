@@ -1,5 +1,6 @@
 // cold-events.mjs  -  render the per-day data in data/cold-events.md into[segment timeline + Daily table]
 // data-driven·SSOT: source is data/cold-events.md; rebuild after editing.
+import { escapeHtml } from "./shared/escape.mjs";
 // format: `### D{n}` marks a day; each line below: `- source | event | anchor | character-lines | target`
 //   anchor: "fact" = a hard historical anchor; empty = fiction overlay.
 //   character-lines: optional; comma-separated, rendered as [[wiki-links]].
@@ -10,7 +11,10 @@ export function parseCold(txt) {
   let day = -1;
   for (const line of txt.split(/\r?\n/)) {
     const dm = line.match(/^###\s*D(\d+)/);
-    if (dm) { day = +dm[1]; continue; }
+    // the model is a fixed 30-day base (titles, segments, and the daily table all assume D0–30).
+    // A day outside that range would be silently mislabeled into "③ after (D21–30)" and dropped
+    // from the diagrams — so ignore its section entirely, the same as text before any `### D`.
+    if (dm) { day = +dm[1]; if (day > 30) day = -1; continue; }
     const im = line.match(/^\s*-\s+(.+)$/);
     if (im && day >= 0) {
       const p = im[1].split("|").map((s) => s.trim());
@@ -30,23 +34,29 @@ function mmText(s) {
   return String(s).replace(/[\r\n;]+/g, " ").trim();
 }
 
-const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const esc = (s) => escapeHtml(String(s == null ? "" : s)); // the ONE escaper (also handles quotes)
 
 function segDoc(events, lo, hi, name) {
   const seg = events.filter((e) => e.day >= lo && e.day <= hi);
   const head = "<article data-generated=\"cold-events\"><h1>Cold events · D" + lo + "–" + hi + " (" + esc(name) + ")</h1>";
   if (!seg.length) return head + "<blockquote><p>fill in the per-day data in <code>data/cold-events.md</code>.</p></blockquote></article>";
-  const facs = [...new Set(seg.flatMap((e) => [e.faction, e.target].filter(Boolean).map(mmId)))];
+  // Assign each DISTINCT original faction/target its own participant id. mmId strips delimiters,
+  // so two different names (`A:B` and `AB`) would collapse to one participant and silently merge
+  // their events — give every original a unique id and carry the readable name as the `as` label.
+  const pid = new Map();
+  const idOf = (orig) => { if (!pid.has(orig)) pid.set(orig, "p" + pid.size); return pid.get(orig); };
+  for (const e of seg) for (const orig of [e.faction, e.target].filter(Boolean)) idOf(orig);
+  const ids = [...pid.values()];
   let g = "sequenceDiagram\n";
-  facs.forEach((f) => (g += "  participant " + f + "\n"));
-  if (facs.length > 1) g += "  Note over " + facs[0] + "," + facs[facs.length - 1] + ": D" + lo + "–" + hi + " · " + mmText(name) + "\n";
+  for (const [orig, id] of pid) g += "  participant " + id + " as " + mmId(orig) + "\n";
+  if (ids.length > 1) g += "  Note over " + ids[0] + "," + ids[ids.length - 1] + ": D" + lo + "–" + hi + " · " + mmText(name) + "\n";
   const days = [...new Set(seg.map((e) => e.day))].sort((a, b) => a - b);
   days.forEach((d, i) => {
     g += "  rect " + (i % 2 ? "rgb(252,251,247)" : "rgb(243,240,231)") + "\n"; // one band per day, alternating, isolating days
     for (const e of seg.filter((x) => x.day === d)) {
       const tag = e.anchor === "fact" ? "[fact]" : "";
-      if (e.target) g += "    " + mmId(e.faction) + "->>" + mmId(e.target) + ": D" + d + "·" + mmText(e.event) + tag + "\n";
-      else g += "    Note over " + mmId(e.faction) + ": D" + d + "·" + mmText(e.event) + tag + "\n";
+      if (e.target) g += "    " + idOf(e.faction) + "->>" + idOf(e.target) + ": D" + d + "·" + mmText(e.event) + tag + "\n";
+      else g += "    Note over " + idOf(e.faction) + ": D" + d + "·" + mmText(e.event) + tag + "\n";
     }
     g += "  end\n";
   });
@@ -78,7 +88,7 @@ function dailyDoc(events) {
   return body + "</article>";
 }
 
-// expand cold-events data into docs (into STORY.docs). returns the count added.
+// expand cold-events data into the generated timeline docs — returns a { title: doc } object.
 export function coldEventDocs(events) {
   const docs = {};
   docs["Cold events · D0–30 full"] = { group: "timeline", icon: "clock", meta: { type: "30-day base · full diagram", status: "🔨 data-driven" }, body: segDoc(events, 0, 30, "full · 31 days") };

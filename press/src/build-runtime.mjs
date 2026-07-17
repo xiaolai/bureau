@@ -20,8 +20,9 @@ function strip(code) {
   return code
     // drop import statements (named or default; possibly multi-line)
     .replace(/import\s+(?:\{[^}]*\}|[A-Za-z_$][\w$]*)\s+from\s+["'][^"']+["'];?/g, "")
-    // `export function f` → `function f`, `export const c` → `const c`, …
-    .replace(/^export\s+(function|const|let|var|class)\b/gm, "$1")
+    // `export function f` → `function f`, `export const c` → `const c`, `export async function` too.
+    // (No `export default` in the runtime sources; if one is ever added it would need its own handling.)
+    .replace(/^export\s+(async\s+)?(function|const|let|var|class)\b/gm, "$1$2")
     // drop bare `export { … };` re-export lines (none expected in bundled files)
     .replace(/^export\s+\{[^}]*\};?\s*$/gm, "")
     .replace(/^\s*\n(\s*\n)+/gm, "\n") // collapse blank runs left by stripped imports
