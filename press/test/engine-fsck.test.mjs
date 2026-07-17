@@ -5,7 +5,7 @@ import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync, existsSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { scan } from "../src/engine/scan.mjs";
-import { fsck, GATE_BASENAME } from "../src/engine/fsck.mjs";
+import { fsck, gateCachePath } from "../src/engine/fsck.mjs";
 import { logPath } from "../src/engine/log.mjs";
 
 function ws(files) {
@@ -22,11 +22,11 @@ test("fsck: derived tier rebuilds to a byte-fixpoint (build twice -> identical d
   try {
     scan({ docsDir: w.dir });
     const a = fsck({ docsDir: w.dir });
-    const cacheA = readFileSync(join(w.dir, GATE_BASENAME), "utf8");
+    const cacheA = readFileSync(gateCachePath(w.dir), "utf8");
     const b = fsck({ docsDir: w.dir });
     assert.equal(a.digest, b.digest);
     assert.equal(a.fixpointStable, true);
-    assert.equal(readFileSync(join(w.dir, GATE_BASENAME), "utf8"), cacheA);
+    assert.equal(readFileSync(gateCachePath(w.dir), "utf8"), cacheA);
   } finally { w.cleanup(); }
 });
 
@@ -35,11 +35,11 @@ test("fsck: dropping the mechanical cache and rebuilding reproduces identical by
   try {
     scan({ docsDir: w.dir });
     const first = fsck({ docsDir: w.dir });
-    const bytes = readFileSync(join(w.dir, GATE_BASENAME), "utf8");
-    rmSync(join(w.dir, GATE_BASENAME));                       // drop the derived cache
+    const bytes = readFileSync(gateCachePath(w.dir), "utf8");
+    rmSync(gateCachePath(w.dir));                       // drop the derived cache
     const rebuilt = fsck({ docsDir: w.dir });
     assert.equal(rebuilt.digest, first.digest);
-    assert.equal(readFileSync(join(w.dir, GATE_BASENAME), "utf8"), bytes); // byte-identical
+    assert.equal(readFileSync(gateCachePath(w.dir), "utf8"), bytes); // byte-identical
   } finally { w.cleanup(); }
 });
 

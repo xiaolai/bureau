@@ -5,7 +5,7 @@ import { join, dirname, resolve, sep, relative } from "path";
 import { fileURLToPath } from "url";
 import { createHash } from "crypto";
 import { execFileSync } from "child_process";
-import { loadCorpus, buildModel, SCHEMA_VERSION } from "./core/model.mjs";
+import { loadCorpus, buildModel, SCHEMA_VERSION, orderGroups } from "./core/model.mjs";
 import { deriveBacklinks } from "./derive/backlinks.mjs";
 import { deriveHealth, healthTotal } from "./derive/health.mjs";
 import { deriveTimeline } from "./derive/timeline.mjs";
@@ -403,7 +403,9 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
   if (layout) writeFileSync(join(tmp, "graph.json"), canonicalJSON(layout) + "\n");
   if (temporal) writeFileSync(join(tmp, "temporal.json"), canonicalJSON(temporal) + "\n");
 
-  const STORY = { meta: corpus.meta, groups, docs, backlinks };
+  // sidebar section order: authored `_config.json` groups[] order wins (across folders AND generated
+  // sections), then anything unlisted keeps its folder/append order (§ configurable-sidebar).
+  const STORY = { meta: corpus.meta, groups: orderGroups(groups, corpus.groupOrder), docs, backlinks };
   writeFileSync(
     join(tmp, "lib", "content.js"),
     "// ⚠ auto-generated. Do not edit. Source is gazette/*.html; rebuild with: gazette build\n" +

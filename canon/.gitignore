@@ -4,7 +4,6 @@
 # workspace needs ignoring by default; the cabinets and logbook are committed.
 #
 # Recursion engine (ADR-0001): the decision log `_log.jsonl` is the SOURCE OF TRUTH and the
-# trust ledgers `_verify.json` / `_compile-state.json` summarize decisions — all committed.
-# `_gate.json` is the MECHANICAL-DERIVED cache: a pure function of (snapshot + log), rebuilt
-# by `gazette fsck` to a byte-fixpoint, so it is regenerable and not committed.
-_gate.json
+# trust ledgers `_verify.json` / `_compile-state.json` summarize decisions — all committed here.
+# The MECHANICAL-DERIVED gate cache lives OUTSIDE the workspace (repo-root `.bureau-cache/`,
+# gitignored there), so this workspace holds only source + committed decisions, zero derived files.

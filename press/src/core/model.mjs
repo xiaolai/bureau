@@ -178,7 +178,20 @@ export function loadCorpus({ docsDir, dataDir = null } = {}) {
     dataFiles: src.dataFiles, canvasFiles: src.canvasFiles,
     ids: new Set(byId.keys()),
     uidByKey, keyByUid,
+    // the sidebar SECTION order the author declared in _config.json `groups[]` (by id, in array
+    // order). Empty ⇒ keep the folder/first-appearance order. Applied to the FULL section set
+    // (folders + generated Timeline/Health/…) in build.mjs, so any section is positionable by id.
+    groupOrder: cfgGroups.map((g) => g.id),
   };
+}
+
+// Order a section list by an authored id order (stable): listed ids first, in `order`; unlisted
+// keep their original relative order after. Empty order ⇒ unchanged (current folder behavior).
+export function orderGroups(groups, order) {
+  if (!Array.isArray(order) || !order.length) return groups;
+  const idx = new Map(order.map((id, i) => [id, i]));
+  const rank = (g) => (idx.has(g.id) ? idx.get(g.id) : order.length + 1);
+  return groups.map((g, i) => ({ g, i })).sort((a, b) => (rank(a.g) - rank(b.g)) || (a.i - b.i)).map((x) => x.g);
 }
 
 function dedupeEdges(edges) {

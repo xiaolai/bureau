@@ -3,8 +3,8 @@
 // fixpoint. Human/LLM decisions are verified PRESENT IN THE LOG, never rebuilt. The derived state is
 // a pure function of its inputs - no clock, no randomness - so `build twice -> identical bytes` is a
 // property, and `drop _gate.json -> rebuild -> identical` is the regenerability gate.
-import { existsSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { join, dirname, resolve } from "path";
 import { createHash } from "crypto";
 import { loadCorpus, buildModel, SCHEMA_VERSION } from "../core/model.mjs";
 import { canonicalJSON } from "../services/determinism.mjs";
@@ -15,7 +15,11 @@ import { computeGate } from "./gate.mjs";
 import { scan } from "./scan.mjs";
 import { readVerify, readCompiled } from "./ledgers.mjs";
 
-export const GATE_BASENAME = "_gate.json";
+// The gate cache is DERIVED state, so it lives OUTSIDE the workspace — in a sibling `.bureau-cache/`
+// (gitignored at the repo root) — keeping the workspace to source + committed decisions only, zero
+// derived files. It is regenerable (drop it → `fsck` rebuilds identical bytes), never committed.
+export const GATE_CACHE_DIR = ".bureau-cache";
+export function gateCachePath(docsDir) { return join(dirname(resolve(docsDir)), GATE_CACHE_DIR, "gate.json"); }
 const sha256 = (s) => createHash("sha256").update(String(s)).digest("hex");
 
 // contradicts partners per uid (both directions), for the conflict projection.
@@ -102,12 +106,12 @@ export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, 
   }
   findings.sort((a, b) => (canonicalJSON(a) < canonicalJSON(b) ? -1 : 1));
 
-  // refresh the mechanical-derived cache; report drift vs the previous on-disk copy
-  const gateFile = join(docsDir, GATE_BASENAME);
+  // refresh the mechanical-derived cache (OUTSIDE the workspace); report drift vs the previous copy
+  const gateFile = gateCachePath(docsDir);
   const priorRaw = existsSync(gateFile) ? readFileSync(gateFile, "utf8") : null;
   const nextRaw = canonicalJSON(d1, 2) + "\n";
   const cacheDrift = priorRaw != null && priorRaw !== nextRaw;
-  if (write) writeFileSync(gateFile, nextRaw);
+  if (write) { mkdirSync(dirname(gateFile), { recursive: true }); writeFileSync(gateFile, nextRaw); }
 
   const blockingFindings = findings.filter((f) => !ADVISORY.has(f.kind));
   return { ok: fixpointStable && blockingFindings.length === 0, fixpointStable, digest: digest1, cacheDrift, findings, blockingFindings, derived: d1, nodeCount: model.nodeCount };

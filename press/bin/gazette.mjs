@@ -11998,7 +11998,7 @@ var require_previous_map = __commonJS({
   "node_modules/postcss/lib/previous-map.js"(exports, module) {
     "use strict";
     var { existsSync: existsSync10, readFileSync: readFileSync13 } = __require("fs");
-    var { dirname: dirname4, join: join14 } = __require("path");
+    var { dirname: dirname5, join: join14 } = __require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     function fromBase64(str) {
       if (Buffer) {
@@ -12018,7 +12018,7 @@ var require_previous_map = __commonJS({
         if (!this.mapFile && opts.from) {
           this.mapFile = opts.from;
         }
-        if (this.mapFile) this.root = dirname4(this.mapFile);
+        if (this.mapFile) this.root = dirname5(this.mapFile);
         if (text2) this.text = text2;
       }
       consumer() {
@@ -12066,7 +12066,7 @@ var require_previous_map = __commonJS({
             return void 0;
           }
         }
-        this.root = dirname4(path);
+        this.root = dirname5(path);
         if (existsSync10(path)) {
           this.mapFile = path;
           return readFileSync13(path, "utf-8").toString().trim();
@@ -12103,7 +12103,7 @@ var require_previous_map = __commonJS({
           return this.decodeInline(this.annotation);
         } else if (this.annotation) {
           let map = this.annotation;
-          if (file) map = join14(dirname4(file), map);
+          if (file) map = join14(dirname5(file), map);
           let unknown = this.loadFile(map, file, false);
           if (unknown) {
             try {
@@ -12133,7 +12133,7 @@ var require_input = __commonJS({
   "node_modules/postcss/lib/input.js"(exports, module) {
     "use strict";
     var { nanoid } = require_non_secure();
-    var { isAbsolute: isAbsolute2, resolve: resolve4 } = __require("path");
+    var { isAbsolute: isAbsolute2, resolve: resolve5 } = __require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     var { fileURLToPath: fileURLToPath2, pathToFileURL } = __require("url");
     var CssSyntaxError = require_css_syntax_error();
@@ -12141,7 +12141,7 @@ var require_input = __commonJS({
     var terminalHighlight = require_terminal_highlight();
     var lineToIndexCache = Symbol("lineToIndexCache");
     var sourceMapAvailable = Boolean(SourceMapConsumer && SourceMapGenerator);
-    var pathAvailable = Boolean(resolve4 && isAbsolute2);
+    var pathAvailable = Boolean(resolve5 && isAbsolute2);
     function getLineToIndex(input) {
       if (input[lineToIndexCache]) return input[lineToIndexCache];
       let lines = input.css.split("\n");
@@ -12175,7 +12175,7 @@ var require_input = __commonJS({
           if (!pathAvailable || /^\w+:\/\//.test(opts.from) || isAbsolute2(opts.from)) {
             this.file = opts.from;
           } else {
-            this.file = resolve4(opts.from);
+            this.file = resolve5(opts.from);
           }
         }
         if (pathAvailable && sourceMapAvailable) {
@@ -12296,7 +12296,7 @@ var require_input = __commonJS({
         if (/^\w+:\/\//.test(file)) {
           return file;
         }
-        return resolve4(this.map.consumer().sourceRoot || this.map.root || ".", file);
+        return resolve5(this.map.consumer().sourceRoot || this.map.root || ".", file);
       }
       origin(line, column, endLine, endColumn) {
         if (!this.map) return false;
@@ -12555,12 +12555,12 @@ var require_fromJSON = __commonJS({
 var require_map_generator = __commonJS({
   "node_modules/postcss/lib/map-generator.js"(exports, module) {
     "use strict";
-    var { dirname: dirname4, relative: relative6, resolve: resolve4, sep: sep6 } = __require("path");
+    var { dirname: dirname5, relative: relative6, resolve: resolve5, sep: sep6 } = __require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     var { pathToFileURL } = __require("url");
     var Input = require_input();
     var sourceMapAvailable = Boolean(SourceMapConsumer && SourceMapGenerator);
-    var pathAvailable = Boolean(dirname4 && resolve4 && relative6 && sep6);
+    var pathAvailable = Boolean(dirname5 && resolve5 && relative6 && sep6);
     var MapGenerator = class {
       constructor(stringify, root, opts, cssString) {
         this.stringify = stringify;
@@ -12592,7 +12592,7 @@ var require_map_generator = __commonJS({
       applyPrevMaps() {
         for (let prev of this.previous()) {
           let from = this.toUrl(this.path(prev.file));
-          let root = prev.root || dirname4(prev.file);
+          let root = prev.root || dirname5(prev.file);
           let map;
           if (this.mapOpts.sourcesContent === false) {
             map = new SourceMapConsumer(prev.text);
@@ -12787,9 +12787,9 @@ var require_map_generator = __commonJS({
         if (/^\w+:\/\//.test(file)) return file;
         let cached = this.memoizedPaths.get(file);
         if (cached) return cached;
-        let from = this.opts.to ? dirname4(this.opts.to) : ".";
+        let from = this.opts.to ? dirname5(this.opts.to) : ".";
         if (typeof this.mapOpts.annotation === "string") {
-          from = dirname4(resolve4(from, this.mapOpts.annotation));
+          from = dirname5(resolve5(from, this.mapOpts.annotation));
         }
         let path = relative6(from, file);
         this.memoizedPaths.set(file, path);
@@ -15918,8 +15918,8 @@ and ensure you are accounting for this risk.
 });
 
 // bin/cli.mjs
-import { existsSync as existsSync9, mkdirSync as mkdirSync2, writeFileSync as writeFileSync7, appendFileSync as appendFileSync2, readFileSync as readFileSync12, statSync as statSync2, lstatSync as lstatSync9, readdirSync as readdirSync5, realpathSync as realpathSync4, watch } from "fs";
-import { join as join13, resolve as resolve3, dirname as dirname3, extname as extname2, sep as sep5, relative as relative5 } from "path";
+import { existsSync as existsSync9, mkdirSync as mkdirSync3, writeFileSync as writeFileSync7, appendFileSync as appendFileSync2, readFileSync as readFileSync12, statSync as statSync2, lstatSync as lstatSync9, readdirSync as readdirSync5, realpathSync as realpathSync4, watch } from "fs";
+import { join as join13, resolve as resolve4, dirname as dirname4, extname as extname2, sep as sep5, relative as relative5 } from "path";
 import { createServer } from "http";
 import { spawn } from "child_process";
 
@@ -21770,7 +21770,7 @@ function replaceInGaps(html, fn) {
   }
   return out + fn(html.slice(last));
 }
-function resolveLinks(html, resolve4) {
+function resolveLinks(html, resolve5) {
   const slots = [];
   let h = String(html).replace(SENTINEL, "").replace(PROTECT, (m) => {
     slots.push(m);
@@ -21779,9 +21779,9 @@ function resolveLinks(html, resolve4) {
   h = h.replace(A_WIKI, (_, dq, sq, uq, inner) => {
     const target = decodeEntities((dq != null ? dq : sq != null ? sq : uq != null ? uq : "").trim());
     const label = decodeEntities(stripTags(inner)) || target;
-    return resolve4(target, label);
+    return resolve5(target, label);
   });
-  h = replaceInGaps(h, (gap) => gap.replace(WIKI_RE2_LINK, (_, t, l) => resolve4(decodeEntities(t.trim()), decodeEntities((l || t).trim()))));
+  h = replaceInGaps(h, (gap) => gap.replace(WIKI_RE2_LINK, (_, t, l) => resolve5(decodeEntities(t.trim()), decodeEntities((l || t).trim()))));
   return h.replace(/\uE000(\d+)\uE001/g, (_, i) => slots[+i]);
 }
 var escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -22083,8 +22083,18 @@ function loadCorpus({ docsDir, dataDir = null } = {}) {
     canvasFiles: src.canvasFiles,
     ids: new Set(byId.keys()),
     uidByKey,
-    keyByUid
+    keyByUid,
+    // the sidebar SECTION order the author declared in _config.json `groups[]` (by id, in array
+    // order). Empty ⇒ keep the folder/first-appearance order. Applied to the FULL section set
+    // (folders + generated Timeline/Health/…) in build.mjs, so any section is positionable by id.
+    groupOrder: cfgGroups.map((g) => g.id)
   };
+}
+function orderGroups(groups, order) {
+  if (!Array.isArray(order) || !order.length) return groups;
+  const idx = new Map(order.map((id, i) => [id, i]));
+  const rank = (g) => idx.has(g.id) ? idx.get(g.id) : order.length + 1;
+  return groups.map((g, i) => ({ g, i })).sort((a, b) => rank(a.g) - rank(b.g) || a.i - b.i).map((x) => x.g);
 }
 function dedupeEdges(edges) {
   const seen = /* @__PURE__ */ new Set();
@@ -23403,7 +23413,7 @@ function nfc2(s) {
   return s == null ? s : String(s).normalize("NFC");
 }
 function makeResolve(docs, selfId) {
-  return function resolve4(target, label) {
+  return function resolve5(target, label) {
     const hi = String(target).indexOf("#");
     const sameDoc = hi === 0;
     let docName = hi < 0 ? target : target.slice(0, hi);
@@ -23849,7 +23859,7 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
   writeFileSync(join8(tmp, "health.json"), canonicalJSON(health) + "\n");
   if (layout) writeFileSync(join8(tmp, "graph.json"), canonicalJSON(layout) + "\n");
   if (temporal) writeFileSync(join8(tmp, "temporal.json"), canonicalJSON(temporal) + "\n");
-  const STORY = { meta: corpus.meta, groups, docs, backlinks };
+  const STORY = { meta: corpus.meta, groups: orderGroups(groups, corpus.groupOrder), docs, backlinks };
   writeFileSync(
     join8(tmp, "lib", "content.js"),
     "// \u26A0 auto-generated. Do not edit. Source is gazette/*.html; rebuild with: gazette build\nwindow.STORY = " + JSON.stringify(STORY, null, 2) + ";\n"
@@ -24086,8 +24096,8 @@ function renderRepairText(fixes, applied) {
 }
 
 // src/engine/fsck.mjs
-import { existsSync as existsSync7, readFileSync as readFileSync10, writeFileSync as writeFileSync5 } from "fs";
-import { join as join11 } from "path";
+import { existsSync as existsSync7, readFileSync as readFileSync10, writeFileSync as writeFileSync5, mkdirSync as mkdirSync2 } from "fs";
+import { join as join11, dirname as dirname3, resolve as resolve3 } from "path";
 import { createHash as createHash5 } from "crypto";
 
 // src/engine/state.mjs
@@ -24240,7 +24250,10 @@ function uncompiled(workspaceDir, allSessionIds) {
 }
 
 // src/engine/fsck.mjs
-var GATE_BASENAME = "_gate.json";
+var GATE_CACHE_DIR = ".bureau-cache";
+function gateCachePath(docsDir) {
+  return join11(dirname3(resolve3(docsDir)), GATE_CACHE_DIR, "gate.json");
+}
 var sha2563 = (s) => createHash5("sha256").update(String(s)).digest("hex");
 function conflictPartners(model) {
   const partners = /* @__PURE__ */ new Map();
@@ -24306,11 +24319,14 @@ function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write =
     if ((n.trust || n.status) === "canonical" && !approved.has(n.uid)) findings.push({ kind: "unbacked-canonical", uid: n.uid, title: n.title });
   }
   findings.sort((a, b) => canonicalJSON(a) < canonicalJSON(b) ? -1 : 1);
-  const gateFile = join11(docsDir, GATE_BASENAME);
+  const gateFile = gateCachePath(docsDir);
   const priorRaw = existsSync7(gateFile) ? readFileSync10(gateFile, "utf8") : null;
   const nextRaw = canonicalJSON(d1, 2) + "\n";
   const cacheDrift = priorRaw != null && priorRaw !== nextRaw;
-  if (write) writeFileSync5(gateFile, nextRaw);
+  if (write) {
+    mkdirSync2(dirname3(gateFile), { recursive: true });
+    writeFileSync5(gateFile, nextRaw);
+  }
   const blockingFindings = findings.filter((f) => !ADVISORY.has(f.kind));
   return { ok: fixpointStable && blockingFindings.length === 0, fixpointStable, digest: digest1, cacheDrift, findings, blockingFindings, derived: d1, nodeCount: model.nodeCount };
 }
@@ -24595,8 +24611,8 @@ function watchTree(dir, cb) {
 }
 function runWatch() {
   const root = process.cwd();
-  const docsDir = resolve3(root, dirArg() || "gazette");
-  const dataDir = dataArg() ? resolve3(root, dataArg()) : void 0;
+  const docsDir = resolve4(root, dirArg() || "gazette");
+  const dataDir = dataArg() ? resolve4(root, dataArg()) : void 0;
   const build = () => {
     try {
       const r = buildSite({ root, docsDir, dataDir, outDir: opt("out"), now: nowArg(), force: true });
@@ -24622,7 +24638,7 @@ function runRename() {
   const from = argv[1], to = argv[2];
   if (!from || !to || from.startsWith("--") || to.startsWith("--")) die('usage: gazette rename "<old title>" "<new title>" [--dry]');
   try {
-    const docsDir = resolve3(process.cwd(), dirArg() || "gazette");
+    const docsDir = resolve4(process.cwd(), dirArg() || "gazette");
     const plan = planRename({ docsDir, from, to });
     if (!plan.edits.length) {
       console.log("no changes.");
@@ -24642,8 +24658,8 @@ function runRename() {
 function runDoctor() {
   try {
     const root = process.cwd();
-    const docsDir = resolve3(root, dirArg() || "gazette");
-    const { model, health } = computeHealth({ docsDir, dataDir: dataArg() ? resolve3(root, dataArg()) : void 0, now: nowArg() });
+    const docsDir = resolve4(root, dirArg() || "gazette");
+    const { model, health } = computeHealth({ docsDir, dataDir: dataArg() ? resolve4(root, dataArg()) : void 0, now: nowArg() });
     const fixes = buildRepairPlan(model, health);
     const applied = argv.includes("--apply") ? applySafe(docsDir, fixes, model) : [];
     console.log(renderRepairText(fixes, applied));
@@ -24656,8 +24672,8 @@ function runHealth() {
   try {
     const root = process.cwd();
     const { health } = computeHealth({
-      docsDir: resolve3(root, dirArg() || "gazette"),
-      dataDir: dataArg() ? resolve3(root, dataArg()) : void 0,
+      docsDir: resolve4(root, dirArg() || "gazette"),
+      dataDir: dataArg() ? resolve4(root, dataArg()) : void 0,
       now: nowArg()
     });
     console.log(renderHealthText(health));
@@ -24669,19 +24685,19 @@ function runHealth() {
 function runInit() {
   const root = process.cwd();
   const base2 = dirArg() || "gazette";
-  const dir = resolve3(root, base2);
+  const dir = resolve4(root, base2);
   try {
     if (lstatSync9(dir).isSymbolicLink()) die("content directory is a symlink (refused): " + base2);
   } catch {
   }
-  mkdirSync2(dir, { recursive: true });
+  mkdirSync3(dir, { recursive: true });
   const writeIf = (rel, content) => {
     const p = join13(dir, rel);
     if (existsSync9(p)) {
       console.log("\xB7 exists, skipping: " + base2 + "/" + rel);
       return;
     }
-    mkdirSync2(dirname3(p), { recursive: true });
+    mkdirSync3(dirname4(p), { recursive: true });
     writeFileSync7(p, content);
     console.log("+ " + base2 + "/" + rel);
   };
@@ -24722,19 +24738,19 @@ function runNew() {
   const titleArg = argv[2] && !argv[2].startsWith("--") ? argv[2] : null;
   const root = process.cwd();
   const base2 = dirArg() || "gazette";
-  const dir = resolve3(root, base2);
+  const dir = resolve4(root, base2);
   if (!existsSync9(dir)) die("no " + base2 + "/ here \u2014 run `gazette init` first");
   const rel = target.replace(/\\/g, "/").replace(/\.html$/, "") + ".html";
-  const fp = resolve3(dir, rel);
+  const fp = resolve4(dir, rel);
   if (!(fp === dir || fp.startsWith(dir + sep5))) die("path escapes the content dir: " + target);
   if (existsSync9(fp)) die("already exists: " + base2 + "/" + rel);
   const dirReal = realpathSync4(dir);
-  let anc = dirname3(fp);
-  while (!existsSync9(anc) && anc !== dirname3(anc)) anc = dirname3(anc);
+  let anc = dirname4(fp);
+  while (!existsSync9(anc) && anc !== dirname4(anc)) anc = dirname4(anc);
   const ancReal = realpathSync4(anc);
   if (!(ancReal === dirReal || ancReal.startsWith(dirReal + sep5))) die("path escapes the content dir (via symlink): " + target);
   const title = titleArg || prettify(rel.split("/").pop().replace(/\.html$/, ""));
-  mkdirSync2(dirname3(fp), { recursive: true });
+  mkdirSync3(dirname4(fp), { recursive: true });
   writeFileSync7(fp, '<article data-updated="' + today() + '">\n  <h1>' + escapeHtml2(title) + "</h1>\n  <p></p>\n</article>\n");
   console.log("+ " + base2 + "/" + rel + '   (title "' + title + '")');
 }
@@ -24775,9 +24791,9 @@ function runServe() {
   const port = +opt("port", "8080");
   if (!Number.isInteger(port) || port < 1 || port > 65535) die("--port must be an integer in 1-65535 (got: " + opt("port", "8080") + ")");
   const root = process.cwd();
-  const docsDir = resolve3(root, dirArg() || "gazette");
-  const dataDir = dataArg() ? resolve3(root, dataArg()) : void 0;
-  const out = resolve3(root, opt("out") || "dist");
+  const docsDir = resolve4(root, dirArg() || "gazette");
+  const dataDir = dataArg() ? resolve4(root, dataArg()) : void 0;
+  const out = resolve4(root, opt("out") || "dist");
   const doBuild = () => {
     try {
       return buildSite({ root, docsDir, dataDir, outDir: opt("out"), now: nowArg(), force: true });
@@ -24818,7 +24834,7 @@ function runServe() {
     }
     try {
       if (p === "/" || p.endsWith("/")) p += "index.html";
-      const fp = resolve3(out, "." + p);
+      const fp = resolve4(out, "." + p);
       if (!within(fp, out) || !existsSync9(fp) || statSync2(fp).isDirectory()) {
         res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
         res.end("404 " + p);
@@ -24872,7 +24888,7 @@ function runServe() {
   }
 }
 function engineDir() {
-  return resolve3(process.cwd(), dirArg() || "gazette");
+  return resolve4(process.cwd(), dirArg() || "gazette");
 }
 function runBuildAt(ref) {
   try {
@@ -24882,7 +24898,7 @@ function runBuildAt(ref) {
       /* resolved inside buildAtRef, but pre-resolve for the default dir name */
       ref.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 24)
     );
-    const outDirAbs = resolve3(root, opt("out") || "dist-at-" + sha);
+    const outDirAbs = resolve4(root, opt("out") || "dist-at-" + sha);
     const r = buildAtRef({ root, ref, docsDirAbs, outDirAbs, now: nowArg(), buildSite });
     console.log("\u2713 build @" + ref + " (" + r.commit.slice(0, 8) + "): " + r.fileDocCount + " documents (" + r.totalDocs + " pages) -> " + r.outDir);
   } catch (e) {

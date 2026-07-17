@@ -3,3 +3,6 @@
 
 # the gazette (the rendered board, derived from canon/ — rebuild with bureau:inspect)
 /gazette/
+
+# recursion-engine derived cache (regenerable by `gazette fsck`; never committed)
+/.bureau-cache/
