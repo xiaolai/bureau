@@ -50,6 +50,18 @@ test("live: an UNCOMMITTED upstream edit shows dependent needs-review + upstream
   } finally { w.cleanup(); }
 });
 
+test("live: removing a page file doesn't inflate the modified count (a deleted page has no badge)", () => {
+  const w = ws({ "u.md": UP(), "d.md": DOWN });
+  try {
+    scan({ docsDir: w.dir }); confirmAll(w.dir);
+    rmSync(join(w.dir, "u.md")); // delete the Upstream PAGE (its span lingers in the log as a pending delete)
+    const f = liveFreshness({ corpus: loadCorpus({ docsDir: w.dir }), docsDir: w.dir });
+    assert.equal(f.counts.modified, 0);               // the vanished page is not a "modified" live page
+    assert.equal(f.byKey.get("Downstream"), "stale");  // D now rests on a missing target
+    assert.ok(f.pending >= 1);                         // the delete is still reflected as an unscanned change
+  } finally { w.cleanup(); }
+});
+
 test("live: a broken log degrades to no badges + surfaces the integrity failure", () => {
   const w = ws({ "u.md": UP(), "d.md": DOWN });
   try {

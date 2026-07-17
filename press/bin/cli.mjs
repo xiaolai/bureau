@@ -25,7 +25,7 @@ import { recordVerification, recheckVerification, markCompiled, uncompiled } fro
 import { loadCorpus, buildModel } from "../src/core/model.mjs";
 import { logPath, readLog, appendEvent } from "../src/engine/log.mjs";
 import { conflictKey } from "../src/engine/state.mjs";
-import { buildAtRef, logDiff, snapshotCreate, readSnapshots } from "../src/engine/versions.mjs";
+import { buildAtRef, logDiff, snapshotCreate, readSnapshots, resolveSnapshotOrRef } from "../src/engine/versions.mjs";
 import { nfc } from "../src/services/i18n.mjs";
 
 const argv = process.argv.slice(2);
@@ -60,7 +60,7 @@ function nowArg() {
 }
 
 function runBuild() {
-  if (opt("at")) return runBuildAt(opt("at"));
+  if (argv.includes("--at")) { const v = opt("at"); if (!v) die("--at needs a ref or snapshot name (e.g. --at HEAD)"); return runBuildAt(v); }
   try {
     const r = buildSite({ docsDir: dirArg(), dataDir: dataArg(), outDir: opt("out"), now: nowArg() });
     const bits = [r.fileDocCount + " documents"];
@@ -77,8 +77,9 @@ function runBuild() {
   }
 }
 
-// live engine freshness, one-line: ✅ when every page is current, else the needs-review/stale/modified tally.
+// live engine freshness, one-line: integrity failure first, then ✅ / the needs-review/stale/modified tally.
 function freshnessBit(r) {
+  if (r.freshnessIntact === false) return "⚠ decision-log integrity FAILED — run `gazette fsck`";
   const f = r.freshness || { needsReview: 0, stale: 0, modified: 0 };
   const n = (f.needsReview || 0) + (f.stale || 0) + (f.modified || 0);
   if (!n) return "✅";
@@ -348,10 +349,11 @@ function runBuildAt(ref) {
   try {
     const root = process.cwd();
     const docsDirAbs = engineDir();
-    // never clobber the live board by default — a ref build goes to its own dir unless --out is given
-    const sha = /* resolved inside buildAtRef, but pre-resolve for the default dir name */ ref.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 24);
-    const outDirAbs = resolve(root, opt("out") || ("dist-at-" + sha));
-    const r = buildAtRef({ root, ref, docsDirAbs, outDirAbs, now: nowArg(), buildSite });
+    // resolve a snapshot NAME or a git ref → the concrete commit (so named snapshots work, and the
+    // default output dir is keyed by the UNIQUE commit hash — distinct refs never collide).
+    const sha = resolveSnapshotOrRef({ root, docsDirAbs, ref });
+    const outDirAbs = resolve(root, opt("out") || ("dist-at-" + sha.slice(0, 12)));
+    const r = buildAtRef({ root, ref: sha, docsDirAbs, outDirAbs, now: nowArg(), buildSite });
     console.log("✓ build @" + ref + " (" + r.commit.slice(0, 8) + "): " + r.fileDocCount + " documents (" + r.totalDocs + " pages) -> " + r.outDir);
   } catch (e) { die(e.message); }
 }
@@ -368,7 +370,7 @@ function runDiff() {
       const label = (e) => e.id ? e.id + (e.span ? " " + e.span : "") : (e.edge ? "edge " + e.edge.slice(0, 8) : (e.conflict || ""));
       console.log("  " + t + " ×" + evs.length + ": " + evs.slice(0, 8).map(label).join(", ") + (evs.length > 8 ? " …" : ""));
     }
-    for (const ad of d.artifactDrift) console.log("  artifact-drift: [" + ad.page + "] → " + ad.artifact);
+    for (const ad of d.artifactDrift) console.log("  artifact-drift (" + ad.kind + "): [" + ad.page + "] → " + ad.artifact);
     if (!d.newEvents && !d.artifactDrift.length) console.log("  (no decision-log changes between these versions)");
   } catch (e) { die(e.message); }
 }
@@ -381,8 +383,10 @@ function runSnapshot() {
     if (action === "create") {
       const name = argv[2];
       if (!name || name.startsWith("--")) die('usage: gazette snapshot create <name> [--note "…"]');
-      let digest = null;
-      try { digest = engineFsck({ docsDir: docsDirAbs, write: false }).digest; } catch { /* no engine state yet → pin without a digest */ }
+      // digest describes the engine state. If there's no decision log yet, pin without one; but any
+      // OTHER fsck failure (tampered log, malformed corpus, broken ledger) is a real problem — let it
+      // propagate rather than silently create a digestless snapshot.
+      const digest = existsSync(logPath(docsDirAbs)) ? engineFsck({ docsDir: docsDirAbs, write: false }).digest : null;
       const e = snapshotCreate({ root, docsDirAbs, name, note: opt("note"), digest });
       console.log('✓ snapshot "' + e.name + '" → commit ' + e.commit.slice(0, 8) + ", log seq " + e.seq + (e.digest ? ", digest " + e.digest.slice(0, 12) : "") + "  (commit + push to preserve)");
     } else if (action === "list" || action == null) {

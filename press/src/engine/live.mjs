@@ -23,7 +23,7 @@ export function liveFreshness({ corpus, docsDir, model }) {
     const v = verifyIntegrity(committed);
     if (!v.ok) integrity = v;
   } catch (e) { integrity = { ok: false, reason: e.message }; }
-  if (integrity) return { byKey: new Map(), modified: new Set(), drift: [], pending: 0, counts: { needsReview: 0, stale: 0, modified: 0 }, integrity };
+  if (integrity) return { byKey: new Map(), drift: [], pending: 0, counts: { needsReview: 0, stale: 0, modified: 0 }, integrity };
 
   // uncommitted working-tree changes (dry-run), applied as an OVERLAY on the committed log
   const planned = scan({ docsDir: dir, corpus, apply: false, events: committed }).planned;
@@ -42,7 +42,9 @@ export function liveFreshness({ corpus, docsDir, model }) {
   for (const [uid, lvl] of level) {
     if (lvl === "current") continue;
     const key = corpus.keyByUid.get(uid);
-    if (key) byKey.set(key, lvl);
+    if (!key) continue; // a DELETED page (its uid lingers via the pending delete) has no badge — don't
+    //                     count it as a live page; it is still reflected in `pending` (unscanned changes).
+    byKey.set(key, lvl);
     if (lvl === "needs-review") counts.needsReview++;
     else if (lvl === "stale") counts.stale++;
     else if (lvl === "modified") counts.modified++;
@@ -55,7 +57,7 @@ export function liveFreshness({ corpus, docsDir, model }) {
     if (!e.tracked || !e.open) continue;
     drift.push({ page: corpus.keyByUid.get(e.dep) || e.dep, on: e.target, span: e.span || null, level: e.broken ? "stale" : "needs-review", reason: e.broken ? "broken dependency (target/span missing)" : "upstream span changed" });
   }
-  drift.sort((a, b) => (JSON.stringify(a) < JSON.stringify(b) ? -1 : 1));
+  drift.sort((a, b) => { const A = JSON.stringify(a), B = JSON.stringify(b); return A < B ? -1 : A > B ? 1 : 0; }); // total order (0 for equal)
 
-  return { byKey, modified: modifiedUids, drift, pending: planned.length, counts, integrity: null };
+  return { byKey, drift, pending: planned.length, counts, integrity: null };
 }

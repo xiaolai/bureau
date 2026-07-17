@@ -472,6 +472,7 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
     totalDocs: Object.keys(docs).length, themeOverride, assetsCopied,
     health: health.counts, healthClean, bundleBytes: bundle.totalBytes,
     freshness: fresh.counts, freshnessPending: fresh.pending, // live engine badges: {needsReview, stale, modified}
+    freshnessIntact: !fresh.integrity, // false ⇒ the decision log failed its integrity check (badges suppressed)
   };
   writeFileSync(metaPath, JSON.stringify({ hash, summary }));
   return summary;

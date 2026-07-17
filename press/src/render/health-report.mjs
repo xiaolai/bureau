@@ -57,7 +57,10 @@ export function renderHealthHtml(health, fresh = null) {
     rows.map(([k, v]) => "<tr><td>" + k + '</td><td class="num">' + v + "</td></tr>").join("") +
     "</tbody></table>";
 
-  if (clean) return b + "<blockquote><p>✅ No findings. The knowledge base is consistent.</p></blockquote></article>";
+  // "clean" is STRUCTURAL only — the Drift section above carries dependency-aware freshness, which
+  // can flag needs-review/stale/integrity even when the structural checks pass. Qualify accordingly.
+  if (clean) return b + "<blockquote><p>✅ No <em>structural</em> findings — the knowledge base is structurally consistent." +
+    (fresh ? " (Dependency-aware freshness is in the <strong>Drift</strong> section above.)" : "") + "</p></blockquote></article>";
 
   const section = (title, n, note, inner) =>
     "<h2>" + esc(title) + " · " + n + "</h2><blockquote><p>" + note + "</p></blockquote>" + inner;

@@ -3,8 +3,8 @@
 // fixpoint. Human/LLM decisions are verified PRESENT IN THE LOG, never rebuilt. The derived state is
 // a pure function of its inputs - no clock, no randomness - so `build twice -> identical bytes` is a
 // property, and `drop _gate.json -> rebuild -> identical` is the regenerability gate.
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
-import { join, dirname, resolve } from "path";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, lstatSync, renameSync } from "fs";
+import { join, dirname, resolve, basename } from "path";
 import { createHash } from "crypto";
 import { loadCorpus, buildModel, SCHEMA_VERSION } from "../core/model.mjs";
 import { canonicalJSON } from "../services/determinism.mjs";
@@ -15,12 +15,18 @@ import { computeGate } from "./gate.mjs";
 import { scan } from "./scan.mjs";
 import { readVerify, readCompiled } from "./ledgers.mjs";
 
+const sha256 = (s) => createHash("sha256").update(String(s)).digest("hex");
 // The gate cache is DERIVED state, so it lives OUTSIDE the workspace — in a sibling `.bureau-cache/`
 // (gitignored at the repo root) — keeping the workspace to source + committed decisions only, zero
-// derived files. It is regenerable (drop it → `fsck` rebuilds identical bytes), never committed.
+// derived files. It is regenerable (drop it → `fsck` rebuilds identical bytes), never committed. The
+// filename is NAMESPACED per-workspace (basename + a hash of the resolved path) so two content dirs
+// sharing a parent never overwrite each other's cache.
 export const GATE_CACHE_DIR = ".bureau-cache";
-export function gateCachePath(docsDir) { return join(dirname(resolve(docsDir)), GATE_CACHE_DIR, "gate.json"); }
-const sha256 = (s) => createHash("sha256").update(String(s)).digest("hex");
+export function gateCachePath(docsDir) {
+  const abs = resolve(docsDir);
+  const tag = basename(abs).replace(/[^A-Za-z0-9._-]/g, "_") + "-" + sha256(abs).slice(0, 8);
+  return join(dirname(abs), GATE_CACHE_DIR, tag + ".json");
+}
 
 // contradicts partners per uid (both directions), for the conflict projection.
 function conflictPartners(model) {
@@ -106,12 +112,17 @@ export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, 
   }
   findings.sort((a, b) => (canonicalJSON(a) < canonicalJSON(b) ? -1 : 1));
 
-  // refresh the mechanical-derived cache (OUTSIDE the workspace); report drift vs the previous copy
+  // refresh the mechanical-derived cache (OUTSIDE the workspace); report drift vs the previous copy.
+  // Reject a symlinked cache dir/file (a swap could redirect the write) and write atomically.
   const gateFile = gateCachePath(docsDir);
+  const cacheDir = dirname(gateFile);
+  const isLink = (p) => existsSync(p) && lstatSync(p).isSymbolicLink();
+  if (isLink(cacheDir)) throw new Error("gate cache dir is a symlink (refused): " + cacheDir);
+  if (isLink(gateFile)) throw new Error("gate cache file is a symlink (refused): " + gateFile);
   const priorRaw = existsSync(gateFile) ? readFileSync(gateFile, "utf8") : null;
   const nextRaw = canonicalJSON(d1, 2) + "\n";
   const cacheDrift = priorRaw != null && priorRaw !== nextRaw;
-  if (write) { mkdirSync(dirname(gateFile), { recursive: true }); writeFileSync(gateFile, nextRaw); }
+  if (write) { mkdirSync(cacheDir, { recursive: true }); const tmp = gateFile + ".tmp-" + process.pid; writeFileSync(tmp, nextRaw); renameSync(tmp, gateFile); }
 
   const blockingFindings = findings.filter((f) => !ADVISORY.has(f.kind));
   return { ok: fixpointStable && blockingFindings.length === 0, fixpointStable, digest: digest1, cacheDrift, findings, blockingFindings, derived: d1, nodeCount: model.nodeCount };

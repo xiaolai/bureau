@@ -57,6 +57,27 @@ test("versions: build --at renders the board AS OF a past commit (ignores later 
   } finally { r.cleanup(); }
 });
 
+test("versions: logDiff rejects a reversed/divergent history (not an append-only extension)", () => {
+  const r = gitRepo();
+  try {
+    r.write("u.md", U()); scan({ docsDir: r.dir }); const c1 = r.commit("v1");
+    r.write("u.md", U("changed")); scan({ docsDir: r.dir }); const c2 = r.commit("v2");
+    assert.throws(() => logDiff({ root: r.root, refA: c2, refB: c1, docsDirAbs: r.dir }), /longer log|diverge/);
+  } finally { r.cleanup(); }
+});
+
+test("versions: snapshot refuses a dirty SOURCE tree, but the manifest write itself doesn't count", () => {
+  const r = gitRepo();
+  try {
+    r.write("u.md", U()); scan({ docsDir: r.dir }); r.commit("v1");
+    snapshotCreate({ root: r.root, docsDirAbs: r.dir, name: "one" }); // writes _snapshots.json (untracked) — allowed
+    snapshotCreate({ root: r.root, docsDirAbs: r.dir, name: "two" }); // second still works despite the dirty manifest
+    assert.equal(readSnapshots(r.dir).length, 2);
+    r.write("u.md", U("uncommitted source edit"));
+    assert.throws(() => snapshotCreate({ root: r.root, docsDirAbs: r.dir, name: "three" }), /uncommitted changes/);
+  } finally { r.cleanup(); }
+});
+
 test("versions: snapshot create pins {commit, seq}; the name resolves to its commit; dupes rejected", () => {
   const r = gitRepo();
   try {
