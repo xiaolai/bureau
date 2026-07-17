@@ -69,7 +69,7 @@ matter when the workspace already exists; on a first init they are no-ops.
 
 4. **Write resolved config.** Update `<workspace>/bureau.json` so BOTH `profiles` AND
    `workspace` (and `board`) reflect the resolved values — a custom `--workspace` must not
-   leave the template's default `"bureau"` behind.
+   leave the template's default `"canon"` behind.
 
 5. **Add profile drawers, and arm the provenance check.** Two parts:
 

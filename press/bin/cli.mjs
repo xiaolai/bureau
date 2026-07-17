@@ -49,6 +49,23 @@ function die(msg) { console.error("✗ " + msg); process.exit(1); }
 
 // content dir: --dir (or legacy --docs); engine defaults to "gazette" when omitted
 function dirArg() { return opt("dir") || opt("docs"); }
+
+// Content dir for the RENDER + engine commands when --dir/--docs is omitted. In a BUREAU repo — a
+// single `*/bureau.json` child of the cwd — use that workspace dir, so `gazette build` renders the
+// canon instead of the `gazette/` board-OUTPUT dir. Otherwise the press's own default, "gazette".
+// (The `init`/`new` scaffolders keep the plain "gazette" default — they create, they don't read.)
+function contentDir() {
+  const explicit = dirArg();
+  if (explicit) return explicit;
+  try {
+    const root = process.cwd();
+    const ws = readdirSync(root, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && !d.name.startsWith(".") && existsSync(join(root, d.name, "bureau.json")))
+      .map((d) => d.name);
+    if (ws.length === 1) return ws[0]; // exactly one bureau workspace → use it; 0 or ambiguous → "gazette"
+  } catch { /* unreadable cwd → fall through to the default */ }
+  return "gazette";
+}
 function dataArg() { return opt("data"); }
 
 // validated staleness baseline — a bad --now must fail loud, never silently disable
@@ -62,7 +79,7 @@ function nowArg() {
 function runBuild() {
   if (argv.includes("--at")) { const v = opt("at"); if (!v) die("--at needs a ref or snapshot name (e.g. --at HEAD)"); return runBuildAt(v); }
   try {
-    const r = buildSite({ docsDir: dirArg(), dataDir: dataArg(), outDir: opt("out"), now: nowArg() });
+    const r = buildSite({ docsDir: contentDir(), dataDir: dataArg(), outDir: opt("out"), now: nowArg() });
     const bits = [r.fileDocCount + " documents"];
     if (r.coldCount) bits.push("cold events " + r.coldCount + " → sequence diagrams + daily table");
     if (r.themeOverride) bits.push("theme.css override");
@@ -112,7 +129,7 @@ function watchTree(dir, cb) {
 
 function runWatch() {
   const root = process.cwd();
-  const docsDir = resolve(root, dirArg() || "gazette");
+  const docsDir = resolve(root, contentDir());
   const dataDir = dataArg() ? resolve(root, dataArg()) : undefined;
   const build = () => {
     try {
@@ -135,7 +152,7 @@ function runRename() {
   const from = argv[1], to = argv[2];
   if (!from || !to || from.startsWith("--") || to.startsWith("--")) die('usage: gazette rename "<old title>" "<new title>" [--dry]');
   try {
-    const docsDir = resolve(process.cwd(), dirArg() || "gazette");
+    const docsDir = resolve(process.cwd(), contentDir());
     const plan = planRename({ docsDir, from, to });
     if (!plan.edits.length) { console.log("no changes."); return; }
     if (argv.includes("--dry")) {
@@ -151,7 +168,7 @@ function runRename() {
 function runDoctor() {
   try {
     const root = process.cwd();
-    const docsDir = resolve(root, dirArg() || "gazette");
+    const docsDir = resolve(root, contentDir());
     const { model, health } = computeHealth({ docsDir, dataDir: dataArg() ? resolve(root, dataArg()) : undefined, now: nowArg() });
     const fixes = buildRepairPlan(model, health);
     const applied = argv.includes("--apply") ? applySafe(docsDir, fixes, model) : [];
@@ -164,7 +181,7 @@ function runHealth() {
   try {
     const root = process.cwd();
     const { health } = computeHealth({
-      docsDir: resolve(root, dirArg() || "gazette"),
+      docsDir: resolve(root, contentDir()),
       dataDir: dataArg() ? resolve(root, dataArg()) : undefined,
       now: nowArg(),
     });
@@ -283,7 +300,7 @@ function runServe() {
   const port = +opt("port", "8080");
   if (!Number.isInteger(port) || port < 1 || port > 65535) die("--port must be an integer in 1-65535 (got: " + opt("port", "8080") + ")");
   const root = process.cwd();
-  const docsDir = resolve(root, dirArg() || "gazette");
+  const docsDir = resolve(root, contentDir());
   const dataDir = dataArg() ? resolve(root, dataArg()) : undefined;
   const out = resolve(root, opt("out") || "dist");
   // recompute the baseline each rebuild so a long-running server past midnight uses the current date.
@@ -341,7 +358,7 @@ function runServe() {
 }
 
 // ── recursion engine (ADR-0001) ────────────────────────────────────────────────
-function engineDir() { return resolve(process.cwd(), dirArg() || "gazette"); }
+function engineDir() { return resolve(process.cwd(), contentDir()); }
 
 // ── versioned board (git-backed): render a past board, diff two versions, pin named snapshots ──
 // build --at <ref|snapshot>: render the board AS OF a git commit (via a detached worktree).
@@ -602,7 +619,7 @@ switch (cmd) {
       "  gazette snapshot create <name>     pin a named version {commit, log-seq, digest}",
       "  gazette snapshot list              list pinned snapshots",
       "",
-      "  common flags: --dir <dir> (content dir, default gazette/)  --data <dir>  --out <dir>  --now YYYY-MM-DD",
+      "  common flags: --dir <dir> (content dir; auto-detects a bureau workspace via */bureau.json, else gazette/)  --data <dir>  --out <dir>  --now YYYY-MM-DD",
     ].join("\n"));
     if (cmd && cmd !== "help" && cmd !== "--help" && cmd !== "-h") process.exit(1);
 }

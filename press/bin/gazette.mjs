@@ -24614,6 +24614,17 @@ function die(msg) {
 function dirArg() {
   return opt("dir") || opt("docs");
 }
+function contentDir() {
+  const explicit = dirArg();
+  if (explicit) return explicit;
+  try {
+    const root = process.cwd();
+    const ws = readdirSync5(root, { withFileTypes: true }).filter((d) => d.isDirectory() && !d.name.startsWith(".") && existsSync9(join13(root, d.name, "bureau.json"))).map((d) => d.name);
+    if (ws.length === 1) return ws[0];
+  } catch {
+  }
+  return "gazette";
+}
 function dataArg() {
   return opt("data");
 }
@@ -24629,7 +24640,7 @@ function runBuild() {
     return runBuildAt(v);
   }
   try {
-    const r = buildSite({ docsDir: dirArg(), dataDir: dataArg(), outDir: opt("out"), now: nowArg() });
+    const r = buildSite({ docsDir: contentDir(), dataDir: dataArg(), outDir: opt("out"), now: nowArg() });
     const bits = [r.fileDocCount + " documents"];
     if (r.coldCount) bits.push("cold events " + r.coldCount + " \u2192 sequence diagrams + daily table");
     if (r.themeOverride) bits.push("theme.css override");
@@ -24684,7 +24695,7 @@ function watchTree(dir, cb) {
 }
 function runWatch() {
   const root = process.cwd();
-  const docsDir = resolve5(root, dirArg() || "gazette");
+  const docsDir = resolve5(root, contentDir());
   const dataDir = dataArg() ? resolve5(root, dataArg()) : void 0;
   const build = () => {
     try {
@@ -24711,7 +24722,7 @@ function runRename() {
   const from = argv[1], to = argv[2];
   if (!from || !to || from.startsWith("--") || to.startsWith("--")) die('usage: gazette rename "<old title>" "<new title>" [--dry]');
   try {
-    const docsDir = resolve5(process.cwd(), dirArg() || "gazette");
+    const docsDir = resolve5(process.cwd(), contentDir());
     const plan = planRename({ docsDir, from, to });
     if (!plan.edits.length) {
       console.log("no changes.");
@@ -24731,7 +24742,7 @@ function runRename() {
 function runDoctor() {
   try {
     const root = process.cwd();
-    const docsDir = resolve5(root, dirArg() || "gazette");
+    const docsDir = resolve5(root, contentDir());
     const { model, health } = computeHealth({ docsDir, dataDir: dataArg() ? resolve5(root, dataArg()) : void 0, now: nowArg() });
     const fixes = buildRepairPlan(model, health);
     const applied = argv.includes("--apply") ? applySafe(docsDir, fixes, model) : [];
@@ -24745,7 +24756,7 @@ function runHealth() {
   try {
     const root = process.cwd();
     const { health } = computeHealth({
-      docsDir: resolve5(root, dirArg() || "gazette"),
+      docsDir: resolve5(root, contentDir()),
       dataDir: dataArg() ? resolve5(root, dataArg()) : void 0,
       now: nowArg()
     });
@@ -24864,7 +24875,7 @@ function runServe() {
   const port = +opt("port", "8080");
   if (!Number.isInteger(port) || port < 1 || port > 65535) die("--port must be an integer in 1-65535 (got: " + opt("port", "8080") + ")");
   const root = process.cwd();
-  const docsDir = resolve5(root, dirArg() || "gazette");
+  const docsDir = resolve5(root, contentDir());
   const dataDir = dataArg() ? resolve5(root, dataArg()) : void 0;
   const out = resolve5(root, opt("out") || "dist");
   const doBuild = () => {
@@ -24961,7 +24972,7 @@ function runServe() {
   }
 }
 function engineDir() {
-  return resolve5(process.cwd(), dirArg() || "gazette");
+  return resolve5(process.cwd(), contentDir());
 }
 function runBuildAt(ref) {
   try {
@@ -25263,7 +25274,7 @@ switch (cmd) {
       "  gazette snapshot create <name>     pin a named version {commit, log-seq, digest}",
       "  gazette snapshot list              list pinned snapshots",
       "",
-      "  common flags: --dir <dir> (content dir, default gazette/)  --data <dir>  --out <dir>  --now YYYY-MM-DD"
+      "  common flags: --dir <dir> (content dir; auto-detects a bureau workspace via */bureau.json, else gazette/)  --data <dir>  --out <dir>  --now YYYY-MM-DD"
     ].join("\n"));
     if (cmd && cmd !== "help" && cmd !== "--help" && cmd !== "-h") process.exit(1);
 }
