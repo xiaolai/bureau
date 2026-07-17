@@ -60,9 +60,12 @@ function tailRead(file, cap) {
 }
 
 function readPayload() {
-  const MAX = 1_000_000, buf = Buffer.alloc(65536); let raw = "";
-  while (raw.length <= MAX) { let n; try { n = readSync(0, buf, 0, buf.length, null); } catch { break; } if (!n) break; raw += buf.toString("utf8", 0, n); }
-  return raw.length > MAX ? {} : safe(() => JSON.parse(raw || "{}"), {});
+  // accumulate raw BYTES and decode once: per-chunk toString("utf8") corrupts a multibyte
+  // character split across a 64 KB read boundary, and the cap must count bytes, not UTF-16 units.
+  const MAX = 1_000_000, buf = Buffer.alloc(65536), chunks = []; let total = 0;
+  while (total <= MAX) { let n; try { n = readSync(0, buf, 0, buf.length, null); } catch { break; } if (!n) break; chunks.push(Buffer.from(buf.subarray(0, n))); total += n; }
+  if (total > MAX) return {};
+  return safe(() => JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"), {});
 }
 
 function main() {
@@ -84,6 +87,10 @@ function main() {
   if (!containedUnder(dir, wsDir)) return;
   safe(() => mkdirSync(dir, { recursive: true }), null);
   if (!containedUnder(dir, wsDir)) return;
+  // never append to OR read through a symlinked session file — a link at logbook/YYYY/MM/<id>.md
+  // could redirect the write/read outside the workspace. (The create path uses flag "wx", which
+  // O_EXCL-fails on any existing path including a symlink, so only the append/read paths need this.)
+  { let st = null; try { st = lstatSync(file); } catch { st = null; } if (st && st.isSymbolicLink()) return; }
   const marker = "\n## [" + iso + "] context checkpoint (compaction)\n\n_Context was compacted here. Full transcript on disk. Run `bureau:note` to capture live minutes._\n";
   if (existsSync(file)) safe(() => appendFileSync(file, marker), null);
   else safe(() => writeFileSync(file, "---\ntitle: session " + sessionId + " · " + iso.slice(0, 10) + "\nupdated: " + iso.slice(0, 10) + "\nstatus: logbook\nsession: " + sessionId + "\n---\n" + marker, { flag: "wx" }), null);
@@ -91,7 +98,10 @@ function main() {
   // 2. re-ground the thinned agent: feed the entry's existing notes back into the fresh context.
   // Bounded tail-read: read only the last ~6000 bytes of the (possibly large) entry rather than
   // slurping the whole file into a SessionStart hook.
-  const ctx = tailRead(file, 6000);
+  // neutralize the wrapper delimiter INSIDE the untrusted text: a logbook containing a literal
+  // `</bureau-logbook>` would otherwise close the reference block early, and everything after it
+  // would read as post-compaction instructions. Encoding the `<` breaks any open/close attempt.
+  const ctx = tailRead(file, 6000).replace(/<(\/?)\s*bureau-logbook/gi, "&lt;$1bureau-logbook");
   if (ctx) {
     // The logbook is UNTRUSTED text (prior AI/tool output). Label it as reference data, not
     // instructions — an embedded "ignore your rules" line must not act as a command after compaction.

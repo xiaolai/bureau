@@ -11,7 +11,7 @@
 //   node crew.mjs list | enable <name> | new <name> [--role "…"] | disable <name> [--purge] | sync | check
 //
 // Safe: process.cwd() is the repo; idempotent; never writes/deletes outside the repo.
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync, statSync, lstatSync, cpSync, realpathSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync, lstatSync, cpSync, realpathSync } from "fs";
 import { join, dirname, sep, relative } from "path";
 import { fileURLToPath } from "url";
 import { createHash } from "crypto";
@@ -71,11 +71,25 @@ function expectedAgent(m) { return genMarker(`bureau/crew/${m.name}/agent.md`, r
 function expectedSkillFile(m, s, rel) { const srcAbs = join(m.dir, "skills", s, rel); const raw = readFileSync(srcAbs); return rel === "SKILL.md" ? Buffer.from(genMarker(`bureau/crew/${m.name}/skills/${s}/SKILL.md`, raw.toString("utf8"))) : raw; }
 
 // ── materialize ──────────────────────────────────────────────────────────────────
+// a materialized target is safe to (over)write only if it's ABSENT or already bureau-owned by THIS
+// member (its bureau:gen marker names it). A file with no marker is user-authored — never clobber it.
+function ownedByOrAbsent(target, owner) {
+  if (!existsSync(target)) return true;
+  const gi = genInfo(target);
+  return !!gi && gi.owner === owner;
+}
 function materialize(m) {
-  write(join(AGENTS, m.name + ".md"), expectedAgent(m));
+  const agentTarget = join(AGENTS, m.name + ".md");
+  if (!ownedByOrAbsent(agentTarget, m.name)) die(`refusing to overwrite .claude/agents/${m.name}.md — it exists and is not bureau-generated (a user-authored agent shares this name). Rename one of them.`);
+  write(agentTarget, expectedAgent(m));
   for (const s of skillNames(m)) {
     const base = join(m.dir, "skills", s), to = join(SKILLS, `${m.name}-${s}`);
-    for (const abs of filesUnder(base)) write(join(to, relative(base, abs)), expectedSkillFile(m, s, relative(base, abs)));
+    if (existsSync(to) && !ownedByOrAbsent(join(to, "SKILL.md"), m.name)) die(`refusing to overwrite .claude/skills/${m.name}-${s}/ — it is not bureau-generated (a user-authored skill shares this name).`);
+    const want = new Set();
+    for (const abs of filesUnder(base)) { const rel = relative(base, abs); want.add(rel); write(join(to, rel), expectedSkillFile(m, s, rel)); }
+    // remove materialized files no longer present in the source skill — a deleted source file must
+    // not linger as an active skill. (Whole removed/disabled skill dirs are cleaned in sync().)
+    if (existsSync(to)) for (const a of filesUnder(to)) { if (!want.has(relative(to, a))) safeRm(a); }
   }
 }
 
@@ -116,9 +130,9 @@ function installTemplate(name, from, ws, role) {
   if (!contained(dest)) die("refusing to write outside the repo");
   if (!existsSync(from)) die(`no template at ${from}`);
   cpSync(from, dest, { recursive: true, dereference: false });
-  for (const e of readdirSync(dest, { withFileTypes: true, recursive: true })) {
-    if (typeof e.isSymbolicLink === "function" && e.isSymbolicLink()) rmLink(join(e.parentPath || e.path, e.name)); // delete the copied symlink itself (target may point outside)
-  }
+  // (copied symlinks are removed by walk() below — it lstat-checks every entry and rmLinks any
+  // symlink before substitution. A separate `readdirSync(…, { recursive: true })` pass here would
+  // need Node ≥ 20 for that option AND `Dirent.parentPath`, breaking the documented Node ≥ 18 floor.)
   // substitute safe tokens in text files (NAME/WORKSPACE everywhere; ROLE only in prose, not crew.json).
   const walk = (d) => { for (const e of readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name); if (safe(() => lstatSync(p).isSymbolicLink(), false)) { rmLink(p); continue; } if (e.isDirectory()) walk(p); else if (/\.(md|json)$/.test(e.name)) { let s = readText(p); s = s.split("{{NAME}}").join(name).split("{{WORKSPACE}}").join(ws); if (e.name !== "crew.json") s = s.split("{{ROLE}}").join(role); write(p, s); } } };
   walk(dest);

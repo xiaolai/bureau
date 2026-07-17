@@ -106,6 +106,14 @@ function csrfOK(req) {
   try { return ["127.0.0.1", "::1", "[::1]", "localhost"].includes(new URL(o).hostname); } catch { return false; }
 }
 
+// A state-changing POST must be application/json. A cross-origin HTML <form> can only send
+// urlencoded/multipart/text-plain (JSON requires a preflighted fetch, which same-origin policy
+// blocks without CORS) — so this rejects the form-auto-submit CSRF a bare Origin check can miss,
+// including one launched from another loopback port that happens to pass csrfOK.
+function jsonPost(req) {
+  return /^application\/json\b/i.test(String(req.headers["content-type"] || ""));
+}
+
 // ── intake: a proposed claim → an append-only logbook minute (low authority) ───────
 function writeIntake(ctx, body) {
   let b; try { b = JSON.parse(body || "{}"); } catch { return { code: 400, err: "invalid JSON" }; }
@@ -375,7 +383,7 @@ function handle(req, res, ctx) {
     return serveStatic(res, ctx.outDir, path.replace(/^\/gazette\/?/, ""));
   }
   if (req.method === "POST" && path === "/intake") {
-    if (!csrfOK(req)) return sendJson(res, 403, { err: "cross-site request refused" });
+    if (!csrfOK(req) || !jsonPost(req)) return sendJson(res, 403, { err: "cross-site request refused" });
     return readBody(req).then((body) => {
       if (body == null) return sendJson(res, 413, { err: "request body too large or unreadable" });
       const r = writeIntake(ctx, body);
@@ -386,7 +394,7 @@ function handle(req, res, ctx) {
   // dispose — listing is open (read-only); deciding is the human's act, token-gated.
   if (req.method === "GET" && path === "/review") return sendJson(res, 200, { pending: cabinetDossiers(ctx.wsDir) });
   if (req.method === "POST" && path === "/review/decision") {
-    if (!csrfOK(req)) return sendJson(res, 403, { err: "cross-site request refused" });
+    if (!csrfOK(req) || !jsonPost(req)) return sendJson(res, 403, { err: "cross-site request refused" });
     if (req.headers["x-bureau-review"] !== ctx.reviewToken) return sendJson(res, 403, { err: "reviewer token required — see the bureau:serve terminal output" });
     return readBody(req).then((body) => {
       if (body == null) return sendJson(res, 413, { err: "request body too large or unreadable" });
@@ -404,7 +412,7 @@ function handle(req, res, ctx) {
 // Exported so the debounce/build wiring is unit-testable without depending on fs.watch timing.
 export function makeWatcher(dir, build, { debounceMs = 250 } = {}) {
   let timer = null, pending = false, watcher = null;
-  const fire = () => { pending = true; if (timer) return; timer = setTimeout(() => { timer = null; if (pending) { pending = false; Promise.resolve().then(build).catch(() => {}); } }, debounceMs); };
+  const fire = () => { pending = true; if (timer) return; timer = setTimeout(() => { timer = null; if (pending) { pending = false; Promise.resolve().then(build).catch((e) => safe(() => process.stderr.write("bureau serve: rebuild error — " + (e && e.message || e) + "\n"), null)); } }, debounceMs); };
   try { watcher = fsWatch(dir, { recursive: true }, fire); }
   catch (e) { watcher = null; } // recursive watch unsupported (older Node on Linux) → caller warns
   return { fire, supported: !!watcher, close: () => safe(() => watcher && watcher.close(), null) };

@@ -55,17 +55,21 @@ function safeId(v) {
 // read the hook payload (Claude Code passes JSON on stdin). GENUINELY bounded: read in chunks
 // and stop the moment we exceed the cap, so a huge/never-closing stdin can't be slurped whole.
 function readPayload() {
+  // accumulate raw BYTES and decode once: per-chunk toString("utf8") corrupts a multibyte
+  // character split across a read boundary, and the cap must count bytes, not UTF-16 units.
   const MAX = 1_000_000;
   const buf = Buffer.alloc(65536);
-  let raw = "";
-  while (raw.length <= MAX) {
+  const chunks = [];
+  let total = 0;
+  while (total <= MAX) {
     let n;
     try { n = readSync(0, buf, 0, buf.length, null); } catch { break; } // EOF/EAGAIN/closed → stop
     if (!n) break; // EOF
-    raw += buf.toString("utf8", 0, n);
+    chunks.push(Buffer.from(buf.subarray(0, n)));
+    total += n;
   }
-  if (raw.length > MAX) return {}; // oversized → ignore (no-op)
-  return safe(() => JSON.parse(raw || "{}"), {});
+  if (total > MAX) return {}; // oversized → ignore (no-op)
+  return safe(() => JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"), {});
 }
 
 function main() {
