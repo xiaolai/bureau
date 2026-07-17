@@ -425,7 +425,7 @@ function rebuildGazette(ctx) {
     const ch = spawn(process.execPath, [bin, "build", "--dir", ctx.wsDir, "--out", ctx.outDir], { stdio: ["ignore", "ignore", "pipe"] });
     let err = ""; ch.stderr.on("data", (d) => { err += d; });
     ch.on("close", (code) => { if (code !== 0) safe(() => process.stderr.write("bureau serve: rebuild failed (" + err.slice(0, 160).replace(/\n/g, " ") + ")\n"), null); res2(code === 0); });
-    ch.on("error", () => res2(false));
+    ch.on("error", (e) => { safe(() => process.stderr.write("bureau serve: could not spawn the renderer — " + (e && e.message || e) + "\n"), null); res2(false); });
   });
 }
 

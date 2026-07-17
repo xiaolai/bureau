@@ -84,7 +84,12 @@ function materialize(m) {
   write(agentTarget, expectedAgent(m));
   for (const s of skillNames(m)) {
     const base = join(m.dir, "skills", s), to = join(SKILLS, `${m.name}-${s}`);
-    if (existsSync(to) && !ownedByOrAbsent(join(to, "SKILL.md"), m.name)) die(`refusing to overwrite .claude/skills/${m.name}-${s}/ — it is not bureau-generated (a user-authored skill shares this name).`);
+    // a materialized skill dir is ours ONLY if it already holds an OWNED SKILL.md. An existing dir
+    // with no SKILL.md (or a foreign one) is user territory — refuse, so we never write into / stale-
+    // clean a directory bureau didn't generate. (ownedByOrAbsent alone treats a missing SKILL.md as
+    // "absent → OK", which would green-light a user dir that simply lacks that file.)
+    const dirIsOurs = !existsSync(to) || (existsSync(join(to, "SKILL.md")) && ownedByOrAbsent(join(to, "SKILL.md"), m.name));
+    if (!dirIsOurs) die(`refusing to overwrite .claude/skills/${m.name}-${s}/ — it is not bureau-generated (a user-authored skill shares this name).`);
     const want = new Set();
     for (const abs of filesUnder(base)) { const rel = relative(base, abs); want.add(rel); write(join(to, rel), expectedSkillFile(m, s, rel)); }
     // remove materialized files no longer present in the source skill — a deleted source file must

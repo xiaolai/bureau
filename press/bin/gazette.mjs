@@ -23404,7 +23404,7 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
 
 // src/maintain/rename.mjs
 import { readFileSync as readFileSync6, writeFileSync as writeFileSync2, renameSync as renameSync2, unlinkSync } from "fs";
-var BAD_TITLE = /[[\]|#]|[\x00-\x1f]/;
+var BAD_TITLE = /[[\]|#]|[\x00-\x1f\x7f-\x9f]/;
 function planRename({ docsDir, from, to }) {
   if (!from || !to) throw new Error("rename needs both <old> and <new> titles");
   if (BAD_TITLE.test(String(to))) throw new Error('invalid new title (must not contain [ ] | # or control characters): "' + to + '"');
@@ -23437,8 +23437,8 @@ function applyRename(plan, docsDir) {
     for (const e of plan.edits) {
       const dest = safeDocPath(docsDir, e.file);
       const tmp = dest + ".rename-" + process.pid + ".tmp";
+      staged.push({ tmp, dest, raw: e.raw });
       writeFileSync2(tmp, e.next);
-      staged.push({ tmp, dest });
     }
   } catch (err) {
     for (const s of staged) {
@@ -23449,7 +23449,27 @@ function applyRename(plan, docsDir) {
     }
     throw err;
   }
-  for (const s of staged) renameSync2(s.tmp, s.dest);
+  const done = [];
+  try {
+    for (const s of staged) {
+      renameSync2(s.tmp, s.dest);
+      done.push(s);
+    }
+  } catch (err) {
+    for (const s of done) {
+      try {
+        writeFileSync2(s.dest, s.raw);
+      } catch {
+      }
+    }
+    for (const s of staged) {
+      try {
+        unlinkSync(s.tmp);
+      } catch {
+      }
+    }
+    throw err;
+  }
   return { files: plan.edits.length, links: plan.linkTotal };
 }
 
@@ -23513,7 +23533,9 @@ function applySafe(docsDir, fixes, model) {
     const c = JSON.parse(readFileSync7(cfg, "utf8"));
     c.meta = c.meta || {};
     c.meta.expectedDocs = drift.actual;
-    writeFileSync3(cfg, JSON.stringify(c, null, 2) + "\n");
+    const tmp = cfg + ".doctor-" + process.pid + ".tmp";
+    writeFileSync3(tmp, JSON.stringify(c, null, 2) + "\n");
+    renameSync3(tmp, cfg);
     applied.push("drift: expectedDocs \u2192 " + drift.actual);
   }
   for (const f of fixes.filter((x) => x.kind === "dangling" && x.auto)) {

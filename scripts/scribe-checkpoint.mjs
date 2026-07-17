@@ -13,8 +13,13 @@
 //   - that `hookSpecificOutput.additionalContext` is injected from SessionStart;
 //   - if a true PreCompact (pre-signal) exists in your build, prefer it for a high-fidelity
 //     headless-`claude -p` summary written BEFORE the context thins.
-import { existsSync, mkdirSync, appendFileSync, writeFileSync, readSync, statSync, realpathSync, openSync, closeSync, lstatSync, opendirSync } from "fs";
+import { existsSync, mkdirSync, writeFileSync, readSync, writeSync, statSync, realpathSync, openSync, closeSync, lstatSync, opendirSync, constants as FS } from "fs";
 import { join, dirname, sep } from "path";
+
+// O_NOFOLLOW closes the lstat→use race atomically: open fails outright if the final path component
+// is a symlink, so a link swapped in after the pre-check can't redirect the read/append. It's POSIX;
+// on a platform without it (Windows) the flag is 0 and the earlier lstat guard remains the backstop.
+const NOFOLLOW = FS.O_NOFOLLOW || 0;
 
 const safe = (fn, d) => { try { return fn(); } catch { return d; } };
 // the realpath of `target`'s deepest EXISTING ancestor must sit inside `root` (symlink-safe).
@@ -53,7 +58,7 @@ function tailRead(file, cap) {
     const start = size > cap ? size - cap : 0;
     const len = Math.min(size, cap);
     if (!len) return "";
-    const fd = openSync(file, "r");
+    const fd = openSync(file, FS.O_RDONLY | NOFOLLOW); // no-follow: never read through a symlink
     try { const buf = Buffer.alloc(len); const n = readSync(fd, buf, 0, len, start); return buf.toString("utf8", 0, n); }
     finally { closeSync(fd); }
   }, "");
@@ -92,7 +97,7 @@ function main() {
   // O_EXCL-fails on any existing path including a symlink, so only the append/read paths need this.)
   { let st = null; try { st = lstatSync(file); } catch { st = null; } if (st && st.isSymbolicLink()) return; }
   const marker = "\n## [" + iso + "] context checkpoint (compaction)\n\n_Context was compacted here. Full transcript on disk. Run `bureau:note` to capture live minutes._\n";
-  if (existsSync(file)) safe(() => appendFileSync(file, marker), null);
+  if (existsSync(file)) safe(() => { const fd = openSync(file, FS.O_WRONLY | FS.O_APPEND | NOFOLLOW); try { writeSync(fd, marker); } finally { closeSync(fd); } }, null); // no-follow append
   else safe(() => writeFileSync(file, "---\ntitle: session " + sessionId + " · " + iso.slice(0, 10) + "\nupdated: " + iso.slice(0, 10) + "\nstatus: logbook\nsession: " + sessionId + "\n---\n" + marker, { flag: "wx" }), null);
 
   // 2. re-ground the thinned agent: feed the entry's existing notes back into the fresh context.

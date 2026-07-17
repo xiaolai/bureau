@@ -11,7 +11,7 @@ import { nfc } from "../services/i18n.mjs";
 // a title becomes both an attribute value and a [[wiki-link]] target — reject anything that could
 // break out of either: brackets/pipe ([[..]] semantics), `#` (the heading delimiter, so the target
 // can't be addressed), and control chars (a CR/LF could inject an extra frontmatter line on rewrite).
-const BAD_TITLE = /[[\]|#]|[\x00-\x1f]/;
+const BAD_TITLE = /[[\]|#]|[\x00-\x1f\x7f-\x9f]/; // C0 + DEL + C1 controls
 
 export function planRename({ docsDir, from, to }) {
   if (!from || !to) throw new Error("rename needs both <old> and <new> titles");
@@ -49,13 +49,23 @@ export function applyRename(plan, docsDir) {
     for (const e of plan.edits) {
       const dest = safeDocPath(docsDir, e.file);
       const tmp = dest + ".rename-" + process.pid + ".tmp";
+      staged.push({ tmp, dest, raw: e.raw }); // track BEFORE writing, so a failed write's temp is still cleaned
       writeFileSync(tmp, e.next);
-      staged.push({ tmp, dest });
     }
   } catch (err) {
     for (const s of staged) { try { unlinkSync(s.tmp); } catch { /* best-effort cleanup */ } }
     throw err;
   }
-  for (const s of staged) renameSync(s.tmp, s.dest); // each rename is atomic; replaces a symlink target rather than writing through it
+  // commit phase: each rename is atomic. If one fails after earlier files were replaced, restore the
+  // already-committed ones from their captured originals (best-effort) so the corpus isn't left half
+  // renamed — then surface the error. Remaining temps are cleaned up regardless.
+  const done = [];
+  try {
+    for (const s of staged) { renameSync(s.tmp, s.dest); done.push(s); }
+  } catch (err) {
+    for (const s of done) { try { writeFileSync(s.dest, s.raw); } catch { /* best-effort rollback */ } }
+    for (const s of staged) { try { unlinkSync(s.tmp); } catch { /* temp may already be renamed away */ } }
+    throw err;
+  }
   return { files: plan.edits.length, links: plan.linkTotal };
 }

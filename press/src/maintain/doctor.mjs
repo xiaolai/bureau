@@ -78,7 +78,11 @@ export function applySafe(docsDir, fixes, model) {
     const c = JSON.parse(readFileSync(cfg, "utf8"));
     c.meta = c.meta || {};
     c.meta.expectedDocs = drift.actual;
-    writeFileSync(cfg, JSON.stringify(c, null, 2) + "\n");
+    // temp + atomic rename (same as the doc rewrites) — a crash can't leave a truncated _config.json,
+    // and a symlink swapped in after the lstat is replaced rather than written through.
+    const tmp = cfg + ".doctor-" + process.pid + ".tmp";
+    writeFileSync(tmp, JSON.stringify(c, null, 2) + "\n");
+    renameSync(tmp, cfg);
     applied.push("drift: expectedDocs → " + drift.actual);
   }
   for (const f of fixes.filter((x) => x.kind === "dangling" && x.auto)) {
