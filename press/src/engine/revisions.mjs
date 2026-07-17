@@ -29,14 +29,18 @@ export function verdictKey({ targetUid, targetSpan, targetRev, depUid, depSpan, 
 export function projectRevisions(events) {
   const spans = new Map();
   for (const ev of events) {
-    if (ev.type === "introduce") spans.set(spanKey(ev.id, ev.span), { uid: ev.id, span: ev.span, revision: 1, hash: ev.hash, alive: true });
-    else if (ev.type === "edit") {
-      const s = spans.get(spanKey(ev.id, ev.span)) || { uid: ev.id, span: ev.span, revision: 0, hash: null, alive: true };
-      spans.set(spanKey(ev.id, ev.span), { uid: ev.id, span: ev.span, revision: s.revision + 1, hash: ev.hash, alive: true });
+    if (ev.type === "introduce" || ev.type === "edit") {
+      // revision = COUNT of introduce|edit events for this span — both increment, neither resets.
+      // (A stray second introduce therefore counts as +1, not a reset to 1; a revert A->B->A gives 3.)
+      const s = spans.get(spanKey(ev.id, ev.span));
+      spans.set(spanKey(ev.id, ev.span), { uid: ev.id, span: ev.span, revision: (s ? s.revision : 0) + 1, hash: ev.hash, alive: true });
     } else if (ev.type === "delete") { const s = spans.get(spanKey(ev.id, ev.span)); if (s) s.alive = false; }
     else if (ev.type === "split") {
+      // split is a STRUCTURAL event, not an introduce/edit — it must NOT invent a revision. It marks
+      // the parent dead and registers each child as existing with revision 0 (no content event yet);
+      // the next scan introduces the child's content (edit -> revision 1). Keeps the count honest.
       const s = spans.get(spanKey(ev.id, ev.from)); if (s) s.alive = false;
-      for (const a of ev.into || []) if (!spans.has(spanKey(ev.id, a))) spans.set(spanKey(ev.id, a), { uid: ev.id, span: a, revision: 1, hash: null, alive: true });
+      for (const a of ev.into || []) if (!spans.has(spanKey(ev.id, a))) spans.set(spanKey(ev.id, a), { uid: ev.id, span: a, revision: 0, hash: null, alive: true });
     }
     // rename: uid is stable, so span identity is unaffected - no-op here.
   }

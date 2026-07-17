@@ -24,6 +24,7 @@ import { report as engineReport, renderMetricsText } from "../src/engine/metrics
 import { recordVerification, recheckVerification, markCompiled, uncompiled } from "../src/engine/ledgers.mjs";
 import { loadCorpus, buildModel } from "../src/core/model.mjs";
 import { logPath, readLog, appendEvent } from "../src/engine/log.mjs";
+import { conflictKey } from "../src/engine/state.mjs";
 import { nfc } from "../src/services/i18n.mjs";
 
 const argv = process.argv.slice(2);
@@ -350,24 +351,25 @@ function runGate() {
   } catch (e) { die(e.message); }
 }
 
-// fsck: rebuild the mechanical-derived tier to a byte-fixpoint; non-zero only on fixpoint/integrity failure.
+// fsck: rebuild the mechanical-derived tier to a byte-fixpoint. Non-zero on a broken fixpoint OR any
+// BLOCKING finding (unbacked-canonical, orphan-confirm, ledger-malformed); pending-scan is advisory.
 function runFsck() {
   try {
     const docsDir = engineDir();
     const r = engineFsck({ docsDir, write: !argv.includes("--check") });
     console.log("fsck: " + r.nodeCount + " pages · fixpoint " + (r.fixpointStable ? "stable ✅" : "UNSTABLE ✗") + " · digest " + r.digest.slice(0, 12) + " · " + r.findings.length + " finding(s)");
-    for (const f of r.findings) console.log("  · " + f.kind + (f.uid ? " " + f.uid : "") + (f.detail ? " — " + f.detail : "") + (f.count ? " ×" + f.count : ""));
-    process.exit(r.fixpointStable ? 0 : 1); // findings are warnings; a broken fixpoint fails CI
+    for (const f of r.findings) console.log("  " + (r.blockingFindings.includes(f) ? "✗" : "·") + " " + f.kind + (f.uid ? " " + f.uid : "") + (f.detail ? " — " + f.detail : "") + (f.count ? " ×" + f.count : ""));
+    process.exit(r.ok ? 0 : 1); // r.ok = fixpoint stable AND no blocking findings
   } catch (e) { die(e.message); } // a tampered log throws here → non-zero
 }
 
-// report: the deterministic, auditable metrics block.
+// report: the deterministic, auditable metrics block. Exit tracks r.ok (fixpoint + broken edges +
+// mutation survivors + blocking findings) — a "needs attention" report never returns success.
 function runReport() {
   try {
     const r = engineReport({ docsDir: engineDir() });
     console.log(renderMetricsText(r));
-    const wiringOk = r.wiring.killRate === null || r.wiring.killRate === 1;
-    process.exit(r.fixpoint.stable && wiringOk ? 0 : 1); // fixpoint drift OR a wiring survivor fails CI
+    process.exit(r.ok ? 0 : 1);
   } catch (e) { die(e.message); }
 }
 
@@ -409,9 +411,36 @@ function runConfirm() {
     const docsDir = engineDir();
     const { node, model } = resolvePage(docsDir, title);
     const g = computeGate({ model, events: readLog(logPath(docsDir)) });
-    let n = 0;
-    for (const e of g.edges) if (e.tracked && e.open && e.edgeId && e.dep === node.uid) { appendEvent(logPath(docsDir), { type: "confirm-edge", edge: e.edgeId, verdict_key: e.verdictKey, by: opt("by", "human") }); n++; }
-    console.log(n ? "✓ confirmed " + n + " edge(s) for [" + node.title + "]" : "no open tracked edges for [" + node.title + "]");
+    let n = 0, skippedBroken = 0;
+    for (const e of g.edges) {
+      if (!e.tracked || !e.open || e.dep !== node.uid) continue;
+      // never confirm a BROKEN edge (missing target / missing span) — it has no valid verdict key to
+      // vouch for; confirming it would append a bogus/empty confirmation and falsely report success.
+      if (e.broken || !e.edgeId || !e.verdictKey) { skippedBroken++; continue; }
+      appendEvent(logPath(docsDir), { type: "confirm-edge", edge: e.edgeId, verdict_key: e.verdictKey, by: opt("by", "human") });
+      n++;
+    }
+    const note = skippedBroken ? " (skipped " + skippedBroken + " broken edge(s) — fix the target/span first)" : "";
+    console.log((n ? "✓ confirmed " + n + " edge(s) for [" + node.title + "]" : "no confirmable open edges for [" + node.title + "]") + note);
+  } catch (e) { die(e.message); }
+}
+// resolve a `contradicts` conflict: record which page wins. The resolution is a log event; the
+// projection turns `conflict: contested` into `resolved` with a resolution_id (ADR-0001, §4.18 seed).
+function runResolve() {
+  try {
+    const a = argv[1], b = argv[2];
+    if (!a || !b || a.startsWith("--") || b.startsWith("--")) die('usage: gazette resolve "<page A>" "<page B>" --winner "<title>"');
+    const docsDir = engineDir();
+    const model = buildModel({ corpus: loadCorpus({ docsDir }) });
+    const na = model.nodes[nfc(String(a))], nb = model.nodes[nfc(String(b))];
+    if (!na) die("no page titled [" + a + "]");
+    if (!nb) die("no page titled [" + b + "]");
+    const winner = opt("winner");
+    if (!winner) die('resolve needs --winner "<title>"');
+    const wn = model.nodes[nfc(String(winner))];
+    if (!wn || (wn.uid !== na.uid && wn.uid !== nb.uid)) die("--winner must be one of the two named pages");
+    const ev = appendEvent(logPath(docsDir), { type: "resolve", conflict: conflictKey(na.uid, nb.uid), winner: wn.uid });
+    console.log("✓ resolved [" + na.title + "] × [" + nb.title + "] → winner [" + wn.title + "] (resolution_id " + ev.seq + ")");
   } catch (e) { die(e.message); }
 }
 
@@ -464,6 +493,7 @@ switch (cmd) {
   case "approve": runApprove(); break;
   case "reject": runReject(); break;
   case "confirm": runConfirm(); break;
+  case "resolve": runResolve(); break;
   default:
     console.log([
       "gazette — offline board from a folder of HTML docs (default: gazette/)",
@@ -490,6 +520,7 @@ switch (cmd) {
       "  gazette report                     deterministic auditable metrics (kill rate, fixpoint, cutoff)",
       '  gazette approve "<title>"          log a human approval → trust: canonical (backs the projection)',
       '  gazette confirm "<title>"          vouch a dependent page\'s open rests_on edges (gate cutoff)',
+      '  gazette resolve "<A>" "<B>" --winner "<title>"   record a contradicts resolution',
       "  gazette ledger <verify|recheck|mark-compiled|uncompiled> …   the code-owned trust ledgers",
       "",
       "  common flags: --dir <dir> (content dir, default gazette/)  --data <dir>  --out <dir>  --now YYYY-MM-DD",

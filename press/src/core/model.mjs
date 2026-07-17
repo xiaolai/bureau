@@ -174,7 +174,7 @@ export function loadCorpus({ docsDir, dataDir = null } = {}) {
   const keyByUid = new Map(entries.map((e) => [e.uid, e.id]));
 
   return {
-    meta, groups, groupIds, entries, types,
+    meta, groups, groupIds, entries, types, docsDir,
     dataFiles: src.dataFiles, canvasFiles: src.canvasFiles,
     ids: new Set(byId.keys()),
     uidByKey, keyByUid,
@@ -185,8 +185,10 @@ function dedupeEdges(edges) {
   const seen = new Set();
   const out = [];
   for (const e of edges) {
-    // include span so two rests_on edges to different spans of one target both survive (ADR-0001)
-    const k = JSON.stringify([e.source, e.target, e.edgeType || "", e.span || ""]);
+    // include span, because, AND tracked so two rests_on edges that differ in any of them both
+    // survive — dropping one would silently lose an authored `because` (or a tracked/untracked
+    // distinction) the verdict key depends on.
+    const k = JSON.stringify([e.source, e.target, e.edgeType || "", e.span || "", e.because || "", e.tracked ? 1 : 0]);
     if (seen.has(k)) continue;
     seen.add(k);
     out.push(e);

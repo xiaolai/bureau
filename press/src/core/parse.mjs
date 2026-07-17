@@ -137,7 +137,7 @@ export function splitFrontmatter(raw) {
     while (li + 1 < lines.length) {
       const it = lines[li + 1].match(/^[ \t]*-[ \t]+(.*)$/);
       if (!it) break;
-      items.push(seqItem(it[1], lines[li + 1]));
+      items.push(seqItem(it[1], lines[li + 1], key));
       li++;
     }
     fm[key] = items.length ? items : "";
@@ -149,14 +149,14 @@ export function splitFrontmatter(raw) {
 // makes real provenance strings ("… theorist: Wayne") work. UNQUOTED, a `: ` makes it a YAML
 // *mapping* (`- theorist: Wayne` is a map, not a string) — we don't implement maps, so reading
 // it as text would be the same silent misread this parser exists to stop. Reject it instead.
-function seqItem(raw, line) {
+function seqItem(raw, line, key) {
   const v = raw.trim();
   const q = v[0];
   if ((q === '"' || q === "'") && v.length > 1 && v[v.length - 1] === q) return v.slice(1, -1);
-  // the ONE nested shape we accept: a bounded inline-flow map `{ key: "v", … }` (rests_on object
-  // edge, ADR-0001). It bypasses the mapping guard below precisely because it is explicit and
-  // recognizable — not a `- key: value` that could be a silent misread.
-  if (v.startsWith("{") && v.endsWith("}")) return parseInlineMap(v.slice(1, -1), line);
+  // the ONE nested shape we accept: a bounded inline-flow map `{ key: "v", … }` — and ONLY under
+  // `rests_on:` (ADR-0001, Decision B). For any other key a `{...}` falls through to the mapping
+  // guard and throws, so the bounded grammar can't leak into `tags:` etc.
+  if (key === "rests_on" && v.startsWith("{") && v.endsWith("}")) return parseInlineMap(v.slice(1, -1), line);
   if (BLOCK_SCALAR.test(v) || ANCHOR.test(v)) throw new Error(unsupportedFm(line));
   if (/^-(\s|$)/.test(v)) throw new Error(unsupportedFm(line));  // `- - x` → a nested sequence
   if (/:(\s|$)/.test(v)) throw new Error(unsupportedFm(line));   // `- key: value` → a mapping
@@ -198,20 +198,51 @@ function parseAttrValue(v) {
 // ── engine: author-anchored spans + object edges (recursion-engine data model, ADR-0001) ──
 // A cited span is an author-anchored `^anchor` block marker terminating a line (Obsidian block-ref
 // convention). The span's content is the contiguous non-blank line block ending at the anchor line,
-// with the trailing `^anchor` token removed. Deterministic; format-agnostic (operates on the raw
-// body text). A `^` mid-line (e.g. "2^8") is never a span — only end-of-line anchors count.
+// with only the trailing `^anchor` token removed. Deterministic; format-agnostic (operates on the
+// raw body text). A `^` mid-line (e.g. "2^8") is never a span — only end-of-line anchors count.
 const SPAN_ANCHOR = /(^|[ \t])\^([A-Za-z0-9][A-Za-z0-9_-]*)[ \t]*$/;
+const ATX_HEADING = /^ {0,3}#{1,6}(\s|$)/;
+
+// Flag every line that is LITERAL — inside a ``` / ~~~ code fence, inside a raw HTML <pre>/<code>
+// block, or an ATX heading. A `^anchor` on such a line is never a real span (it's code, or a
+// heading id would be the wrong granularity), and a span block must not swallow literal lines.
+function literalLineMask(lines) {
+  const mask = new Array(lines.length).fill(false);
+  let fence = null, htmlRaw = null; // fence: {ch,len}; htmlRaw: closing tag we're waiting for
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (fence) {
+      mask[i] = true;
+      const c = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/);
+      if (c && c[1][0] === fence.ch && c[1].length >= fence.len) fence = null;
+      continue;
+    }
+    if (htmlRaw) { mask[i] = true; if (new RegExp("</" + htmlRaw + ">", "i").test(line)) htmlRaw = null; continue; }
+    const o = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    if (o) { fence = { ch: o[1][0], len: o[1].length }; mask[i] = true; continue; }
+    const h = line.match(/<(pre|code|script|style)\b/i);
+    if (h && !new RegExp("</" + h[1] + ">", "i").test(line)) { htmlRaw = h[1].toLowerCase(); mask[i] = true; continue; }
+    if (ATX_HEADING.test(line)) { mask[i] = true; continue; }
+    // Setext heading: a non-blank line whose NEXT line is an `===`/`---` underline. Mask both the
+    // heading text and the underline so an anchor on a heading isn't taken as a span.
+    if (line.trim() && i + 1 < lines.length && /^ {0,3}(=+|-+)[ \t]*$/.test(lines[i + 1])) { mask[i] = true; mask[i + 1] = true; }
+  }
+  return mask;
+}
+
 export function extractSpans(rawBody) {
   const lines = String(rawBody == null ? "" : rawBody).split(/\r?\n/);
+  const literal = literalLineMask(lines);
   const out = [];
   for (let i = 0; i < lines.length; i++) {
+    if (literal[i]) continue;                     // no spans in code fences, raw HTML, or headings
     const m = lines[i].match(SPAN_ANCHOR);
     if (!m) continue;
-    let start = i;
-    while (start > 0 && lines[start - 1].trim() !== "") start--; // walk up to a blank line / start
-    const block = lines.slice(start, i + 1).join("\n");
-    const text = block.replace(SPAN_ANCHOR, "").trim(); // drop the trailing ^anchor token for hashing
-    out.push({ anchor: m[2], text });
+    let start = i; // walk up while non-blank AND non-literal (a block never swallows code/headings)
+    while (start > 0 && lines[start - 1].trim() !== "" && !literal[start - 1]) start--;
+    const bodyLines = lines.slice(start, i + 1);
+    bodyLines[bodyLines.length - 1] = bodyLines[bodyLines.length - 1].replace(SPAN_ANCHOR, ""); // drop ONLY the anchor
+    out.push({ anchor: m[2], text: bodyLines.join("\n") });  // no trim() — authored whitespace is content
   }
   return out;
 }
@@ -235,10 +266,12 @@ function firstColonOutsideQuotes(s) {
   return -1;
 }
 // Parse a BOUNDED inline-flow map body (the text between `{` and `}`): `key: "value", key: value`.
-// This is the ONE nested shape the frontmatter grammar accepts (ADR-0001, Decision B); anything
-// else still throws via the flat-grammar guards. Keys are plain identifiers; values are quoted
-// strings or bare tokens. Not a general YAML flow-map — no nesting, no lists.
-export function parseInlineMap(body, line) {
+// This is the ONE nested shape the frontmatter grammar accepts (ADR-0001, Decision B); anything else
+// still throws via the flat-grammar guards. Enforces the parser's LOUD-ERROR contract: only
+// `allowed` keys, each at most once, values are quoted strings (balanced quotes) or bare tokens —
+// no nesting, no lists. `allowed` defaults to the rests_on edge shape.
+const REST_ON_KEYS = new Set(["page", "span", "because"]);
+export function parseInlineMap(body, line, allowed = REST_ON_KEYS) {
   const obj = Object.create(null);
   for (const part of splitOutsideQuotes(body, ",")) {
     if (!part.trim()) continue;
@@ -246,17 +279,33 @@ export function parseInlineMap(body, line) {
     if (ci < 0) throw new Error(unsupportedFm(line));
     const k = part.slice(0, ci).trim();
     if (!FM_KEY.test(k)) throw new Error(unsupportedFm(line));
+    if (!allowed.has(k)) throw new Error('unsupported key "' + k + '" in inline map (allowed: ' + [...allowed].join(", ") + '): ' + line.trim());
+    if (Object.prototype.hasOwnProperty.call(obj, k)) throw new Error('duplicate key "' + k + '" in inline map: ' + line.trim());
     let v = part.slice(ci + 1).trim();
     const q = v[0];
-    if ((q === '"' || q === "'") && v.length > 1 && v[v.length - 1] === q) v = v.slice(1, -1);
+    if (q === '"' || q === "'") {
+      if (v.length < 2 || v[v.length - 1] !== q) throw new Error('unbalanced quote in inline-map value for "' + k + '": ' + line.trim());
+      v = v.slice(1, -1);
+    }
+    // after stripping a proper wrapper, a residual quote means a stray/embedded quote (or an
+    // unquoted value containing one) — reject it (no escaping is supported): loud, not silent.
+    if (v.includes('"') || v.includes("'")) throw new Error('stray quote in inline-map value for "' + k + '": ' + line.trim());
     obj[k] = v;
   }
   return obj;
 }
 
-// rests_on: string | {page, span, because} list → edges. An OBJECT item is a TRACKED edge — it has
-// a `span` to anchor the deterministic gate on. A bare STRING is an UNTRACKED edge (recorded, but
-// outside the sound-gate guarantee — no span/justification to key a verdict on). Order preserved.
+// rests_on: string | {page, span, because} list → edges. An OBJECT item is a TRACKED edge and MUST
+// carry both a page target and a `span` to anchor the gate on — a malformed object (no page, no
+// span) is a LOUD error, never silently downgraded. A bare STRING is the ONLY untracked form
+// (recorded, but outside the sound-gate guarantee). Order preserved.
+// the authored recursion-engine meta fields (ADR-0001), resolved by a lane-specific `get`. Shared
+// by parseHtmlDoc and parseMarkdownDoc so the two lanes cannot silently diverge.
+export function engineMeta(get) {
+  return { id: get("id"), trust: get("trust"), freeze: get("freeze"), kind: get("kind"), claim: get("claim") };
+}
+
+const SPAN_REF = /^\^[A-Za-z0-9][A-Za-z0-9_-]*$/; // the `^anchor` a tracked edge points at
 export function restsOnEdges(value) {
   const out = [];
   for (let raw of (Array.isArray(value) ? value : [value])) {
@@ -268,7 +317,9 @@ export function restsOnEdges(value) {
     if (item && typeof item === "object" && !Array.isArray(item)) {
       const page = extractLinks(String(item.page == null ? "" : item.page))[0];
       if (!page) throw new Error('rests_on object edge needs page: "[[Target]]" (got: ' + JSON.stringify(item) + ")");
-      out.push({ target: page, edgeType: "rests_on", span: item.span ? String(item.span) : null, because: item.because ? String(item.because) : null, tracked: !!item.span });
+      const span = item.span == null ? "" : String(item.span).trim();
+      if (!SPAN_REF.test(span)) throw new Error('rests_on object edge needs a span: "^anchor" (got: ' + JSON.stringify(item.span) + "); use a bare-string entry for an untracked edge");
+      out.push({ target: page, edgeType: "rests_on", span, because: item.because ? String(item.because) : null, tracked: true });
     } else {
       for (const t of extractLinks(String(item == null ? "" : item))) out.push({ target: t, edgeType: "rests_on", span: null, because: null, tracked: false });
     }
@@ -304,11 +355,7 @@ export function parseHtmlDoc(raw) {
     icon: fmStr("icon") ?? dget("icon") ?? "file",
     updated: fmStr("updated") ?? dget("updated") ?? null,
     // recursion-engine authored meta (ADR-0001): opaque id + the four-field state (trust/freeze)
-    id: fmStr("id") ?? dget("id") ?? null,
-    trust: fmStr("trust") ?? dget("trust") ?? null,
-    freeze: fmStr("freeze") ?? dget("freeze") ?? null,
-    kind: fmStr("kind") ?? dget("kind") ?? null,
-    claim: fmStr("claim") ?? dget("claim") ?? null,
+    ...engineMeta((k) => fmStr(k) ?? dget(k) ?? null),
   };
   const metaChips = {};
   for (const k of META_CHIP_KEYS) { const v = fm[k] != null ? fm[k] : dget(k); if (v) metaChips[k] = v; }
@@ -323,10 +370,14 @@ export function parseHtmlDoc(raw) {
   if (metaEl) for (const a of Object.keys(metaEl.attributes || {})) {
     if (!a.startsWith("data-")) continue;
     const key = a.slice(5);
+    if (key === "rests_on") continue; // engine edge — routed through restsOnEdges below, never generic addRel
     if (DATA_RESERVED.has(key) || Object.prototype.hasOwnProperty.call(attrs, key)) continue; // frontmatter wins
     addRel(key, metaEl.getAttribute(a));
   }
-  if (fm.rests_on != null) for (const e of restsOnEdges(fm.rests_on)) edges.push(e); // object/tracked edges (ADR-0001)
+  // rests_on (ADR-0001): a frontmatter value (object edges) wins; else a `data-rests_on` string is
+  // normalized through the SAME parser → untracked edge (never a bare generic edge that loses shape).
+  const restsOnSrc = fm.rests_on != null ? fm.rests_on : (metaEl ? metaEl.getAttribute("data-rests_on") : null);
+  if (restsOnSrc != null) for (const e of restsOnEdges(restsOnSrc)) edges.push(e);
 
   // body links (graph/health/backlinks): [[..]] / note-![[..]] in text outside raw-text
   // (anchors stripped, image embeds excluded) + [data-wiki] targets.
@@ -555,7 +606,7 @@ export function parseMarkdownDoc(raw) {
   if (title == null) { const h = prose.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/m); title = h ? h[1].trim() : ""; }
   const meta = {
     title: title || "", group: fmStr("group") ?? null, icon: fmStr("icon") ?? "file", updated: fmStr("updated") ?? null,
-    id: fmStr("id") ?? null, trust: fmStr("trust") ?? null, freeze: fmStr("freeze") ?? null, kind: fmStr("kind") ?? null, claim: fmStr("claim") ?? null,
+    ...engineMeta((k) => fmStr(k) ?? null),
   };
   const metaChips = {};
   for (const k of META_CHIP_KEYS) if (fm[k] != null) metaChips[k] = String(fm[k]);

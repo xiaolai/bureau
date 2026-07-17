@@ -116,7 +116,7 @@ test("blastRadius: terminates on a rests_on cycle, each node processed at most o
   try {
     const model = buildModel({ corpus: loadCorpus({ docsDir: w.dir }) });
     const br = blastRadius(model, "A");
-    assert.deepEqual(br.affected, ["A", "B"]); // both reachable via the cycle
+    assert.deepEqual(br.affected, ["B"]); // B rests on A; the root A is seeded in visited, not re-added via the cycle
     assert.ok(br.processed <= 3); // bounded despite the cycle (no infinite walk)
   } finally { w.cleanup(); }
 });

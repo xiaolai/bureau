@@ -5,7 +5,7 @@
 // hash `ic` chaining it to every prior line, so a rewritten past line is detectable (tamper-evident).
 //
 // Node-only (the engine never runs in the browser): uses node:crypto sha256 freely.
-import { existsSync, readFileSync, appendFileSync } from "fs";
+import { existsSync, readFileSync, appendFileSync, openSync, closeSync, unlinkSync, statSync } from "fs";
 import { join } from "path";
 import { createHash } from "crypto";
 import { canonicalJSON } from "../services/determinism.mjs";
@@ -73,20 +73,56 @@ export function head(logFile) {
   return { seq: last.seq, ic: last.ic };
 }
 
-// Validate the caller-supplied event shape: a plain object with a known `type`, no reserved
-// machine fields (seq/ic are assigned here, never by the caller — a caller-set seq is a bug/attack).
+// Validate the caller-supplied event shape: a plain object with a known `type`, the fields that type
+// requires (well-formed strings / ^spans / arrays), and no reserved machine fields (seq/ic are
+// assigned here, never by the caller — a caller-set seq is a bug/attack). The log is trust-critical;
+// a malformed event must never enter it.
 const EVENT_TYPES = new Set(["introduce", "edit", "rename", "split", "delete", "confirm-edge", "approve", "reject", "resolve"]);
+const isStr = (v) => typeof v === "string" && v.length > 0;
+const isSpan = (v) => typeof v === "string" && /^\^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(v);
+// hash/verdict_key are OPAQUE fingerprints (the integrity chain, not their format, guards the log),
+// so they are validated as non-empty strings, not a fixed shape. `to_trust` is a closed enum.
+const TRUST_TIERS = new Set(["proposed", "verified", "canonical"]);
+const REQUIRED = {
+  introduce: (e) => isStr(e.id) && isSpan(e.span) && isStr(e.hash),
+  edit: (e) => isStr(e.id) && isSpan(e.span) && isStr(e.hash),
+  rename: (e) => isStr(e.id) && isStr(e.from) && isStr(e.to),
+  split: (e) => isStr(e.id) && isSpan(e.from) && Array.isArray(e.into) && e.into.length > 0 && e.into.every(isSpan),
+  delete: (e) => isStr(e.id) && isSpan(e.span),
+  "confirm-edge": (e) => isStr(e.edge) && isStr(e.verdict_key),
+  approve: (e) => isStr(e.id) && (e.to_trust == null || TRUST_TIERS.has(e.to_trust)),
+  reject: (e) => isStr(e.id),
+  resolve: (e) => isStr(e.conflict) && isStr(e.winner),
+};
 function validateEvent(event) {
   if (event === null || typeof event !== "object" || Array.isArray(event)) throw new Error("log event must be an object");
-  if (!EVENT_TYPES.has(event.type)) throw new Error('log event has unknown type: ' + JSON.stringify(event.type));
+  if (!EVENT_TYPES.has(event.type)) throw new Error("log event has unknown type: " + JSON.stringify(event.type));
   if ("seq" in event || "ic" in event) throw new Error("log event must not set `seq`/`ic` (assigned by the log)");
+  if (!REQUIRED[event.type](event)) throw new Error("malformed " + event.type + " event (missing/invalid required fields): " + canonicalJSON(event, 0));
 }
 
-// Append one event: assign the next seq + integrity link, write ONE full line (O_APPEND, so a
-// concurrent append can never interleave a partial line). Returns the stored event. NOTE: seq is
-// read-then-write — under true multi-writer concurrency use compareAndAppend for the CAS guard.
-export function appendEvent(logFile, event) {
-  validateEvent(event);
+// Serialize read-head-then-append across processes with an advisory lock file. Node is
+// single-threaded, so within ONE process the whole (head → link → append) sequence is already
+// atomic; the lock closes the CROSS-process window (a hook and a CLI run touching the same log).
+// A stale lock left by a crashed writer is stolen after STALE_MS. ts/lock timing is runtime-only
+// and never part of the byte-fixpoint, so wall-clock here is fine.
+const STALE_LOCK_MS = 30000;
+export function withLock(logFile, fn) {
+  const lock = logFile + ".lock";
+  let fd = null;
+  for (let i = 0; i < 200 && fd == null; i++) {
+    try { fd = openSync(lock, "wx"); }
+    catch (e) {
+      if (e.code !== "EEXIST") throw e;
+      try { if (Date.now() - statSync(lock).mtimeMs > STALE_LOCK_MS) { unlinkSync(lock); continue; } } catch { /* lock vanished — retry */ }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15); // 15ms backoff, no busy-spin
+    }
+  }
+  if (fd == null) throw new Error("could not acquire decision-log lock (held > " + (200 * 15) + "ms): " + lock);
+  try { return fn(); } finally { try { closeSync(fd); } catch { /* already closed */ } try { unlinkSync(lock); } catch { /* already gone */ } }
+}
+
+function appendLocked(logFile, event) {
   const h = head(logFile);
   const stored = { seq: h.seq + 1, ...event };
   stored.ic = linkIc(h.ic, stored);
@@ -94,14 +130,38 @@ export function appendEvent(logFile, event) {
   return stored;
 }
 
-// Optimistic compare-and-swap: append ONLY if the on-disk head seq still equals `expectedSeq`.
-// A hook that read stale state (expectedSeq behind the real head) is rejected, never clobbering.
+// Append one event: assign the next seq + integrity link and write ONE full line, under the lock so
+// the head read and the append cannot interleave with another writer.
+export function appendEvent(logFile, event) {
+  validateEvent(event);
+  return withLock(logFile, () => appendLocked(logFile, event));
+}
+
+// Optimistic compare-and-swap: the head check and the append happen under ONE lock, so a writer that
+// read stale state (expectedSeq behind the real head) is rejected, never clobbering.
 export function compareAndAppend(logFile, expectedSeq, event) {
-  const h = head(logFile);
-  if (h.seq !== expectedSeq) {
-    const err = new Error("decision log CAS failed: expected head seq " + expectedSeq + ", found " + h.seq);
-    err.code = "ECASFAIL";
-    throw err;
-  }
-  return appendEvent(logFile, event);
+  validateEvent(event);
+  return withLock(logFile, () => {
+    const h = head(logFile);
+    if (h.seq !== expectedSeq) {
+      const err = new Error("decision log CAS failed: expected head seq " + expectedSeq + ", found " + h.seq);
+      err.code = "ECASFAIL";
+      throw err;
+    }
+    return appendLocked(logFile, event);
+  });
+}
+
+// Atomic batch append: acquire the lock ONCE, read the current log inside it, let `produce(current)`
+// compute the events to append from that locked snapshot, then validate + append them all. This is
+// how a multi-event producer (scan) stays consistent — the diff is computed against, and appended
+// onto, the SAME locked state, so two concurrent scans can't double-append.
+export function appendBatch(logFile, produce) {
+  return withLock(logFile, () => {
+    const current = readLog(logFile);
+    const toAppend = produce(current) || [];
+    const stored = [];
+    for (const ev of toAppend) { validateEvent(ev); stored.push(appendLocked(logFile, ev)); }
+    return stored;
+  });
 }

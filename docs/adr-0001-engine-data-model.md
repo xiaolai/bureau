@@ -73,8 +73,15 @@ across `because`/revision churn, so the log can track one edge over time).
 |---|---|---|---|
 | **Authored** | `id` `title` `kind` `trust`(intent) `claim` `rests_on(+span+because)` `contradicts` `freeze` | human/agent | inputs |
 | **Decided** | `trust: canonical`, `conflict`/`resolution_id` | decision log (projection) | inputs (via log) |
-| **Mechanical-derived** | `freshness` `span_revision` edge verdict-keys backlinks dirty-marks | code | **yes — byte-fixpoint** |
+| **Mechanical-derived** | `freshness` `span_revision` edge verdict-keys backlinks dirty-marks (`_gate.json`) | code | **yes — byte-fixpoint** |
+| **Ledgers (inputs)** | `_verify.json` (artifact fingerprints), `_compile-state.json` (compile watermark) | code (`engine/ledgers.mjs`) | **no — inputs** |
 | **LLM-derived** | `digest`, semantic-verdict candidates | model | **no** (deferred to 0.9) |
+
+> **Ledgers are inputs, not fixpoint outputs.** `_verify.json` records filesystem artifact hashes
+> and `_compile-state.json` records which sessions were compiled — neither is derivable from
+> `(authored snapshot + decision log)`, so they are *authoritative inputs* the code maintains, not
+> rebuildable derived state. `gazette fsck` **verifies they are well-formed** and never claims to
+> rebuild them (correcting the earlier draft that filed them under mechanical-derived).
 
 **Four orthogonal state fields** (never one overloaded `status:`):
 

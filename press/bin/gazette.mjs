@@ -15918,7 +15918,7 @@ and ensure you are accounting for this risk.
 });
 
 // bin/cli.mjs
-import { existsSync as existsSync8, mkdirSync as mkdirSync2, writeFileSync as writeFileSync6, appendFileSync as appendFileSync2, readFileSync as readFileSync11, statSync, lstatSync as lstatSync9, readdirSync as readdirSync5, realpathSync as realpathSync4, watch } from "fs";
+import { existsSync as existsSync8, mkdirSync as mkdirSync2, writeFileSync as writeFileSync6, appendFileSync as appendFileSync2, readFileSync as readFileSync11, statSync as statSync2, lstatSync as lstatSync9, readdirSync as readdirSync5, realpathSync as realpathSync4, watch } from "fs";
 import { join as join12, resolve as resolve3, dirname as dirname3, extname as extname2, sep as sep5, relative as relative4 } from "path";
 import { createServer } from "http";
 import { spawn } from "child_process";
@@ -21302,18 +21302,18 @@ function splitFrontmatter(raw) {
     while (li + 1 < lines.length) {
       const it = lines[li + 1].match(/^[ \t]*-[ \t]+(.*)$/);
       if (!it) break;
-      items.push(seqItem(it[1], lines[li + 1]));
+      items.push(seqItem(it[1], lines[li + 1], key));
       li++;
     }
     fm[key] = items.length ? items : "";
   }
   return { frontmatter: fm, body: m[2] };
 }
-function seqItem(raw, line) {
+function seqItem(raw, line, key) {
   const v = raw.trim();
   const q = v[0];
   if ((q === '"' || q === "'") && v.length > 1 && v[v.length - 1] === q) return v.slice(1, -1);
-  if (v.startsWith("{") && v.endsWith("}")) return parseInlineMap(v.slice(1, -1), line);
+  if (key === "rests_on" && v.startsWith("{") && v.endsWith("}")) return parseInlineMap(v.slice(1, -1), line);
   if (BLOCK_SCALAR.test(v) || ANCHOR.test(v)) throw new Error(unsupportedFm(line));
   if (/^-(\s|$)/.test(v)) throw new Error(unsupportedFm(line));
   if (/:(\s|$)/.test(v)) throw new Error(unsupportedFm(line));
@@ -21338,17 +21338,59 @@ function parseAttrValue(v) {
   return v;
 }
 var SPAN_ANCHOR = /(^|[ \t])\^([A-Za-z0-9][A-Za-z0-9_-]*)[ \t]*$/;
+var ATX_HEADING = /^ {0,3}#{1,6}(\s|$)/;
+function literalLineMask(lines) {
+  const mask = new Array(lines.length).fill(false);
+  let fence2 = null, htmlRaw = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (fence2) {
+      mask[i] = true;
+      const c = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/);
+      if (c && c[1][0] === fence2.ch && c[1].length >= fence2.len) fence2 = null;
+      continue;
+    }
+    if (htmlRaw) {
+      mask[i] = true;
+      if (new RegExp("</" + htmlRaw + ">", "i").test(line)) htmlRaw = null;
+      continue;
+    }
+    const o = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    if (o) {
+      fence2 = { ch: o[1][0], len: o[1].length };
+      mask[i] = true;
+      continue;
+    }
+    const h = line.match(/<(pre|code|script|style)\b/i);
+    if (h && !new RegExp("</" + h[1] + ">", "i").test(line)) {
+      htmlRaw = h[1].toLowerCase();
+      mask[i] = true;
+      continue;
+    }
+    if (ATX_HEADING.test(line)) {
+      mask[i] = true;
+      continue;
+    }
+    if (line.trim() && i + 1 < lines.length && /^ {0,3}(=+|-+)[ \t]*$/.test(lines[i + 1])) {
+      mask[i] = true;
+      mask[i + 1] = true;
+    }
+  }
+  return mask;
+}
 function extractSpans(rawBody) {
   const lines = String(rawBody == null ? "" : rawBody).split(/\r?\n/);
+  const literal = literalLineMask(lines);
   const out = [];
   for (let i = 0; i < lines.length; i++) {
+    if (literal[i]) continue;
     const m = lines[i].match(SPAN_ANCHOR);
     if (!m) continue;
     let start = i;
-    while (start > 0 && lines[start - 1].trim() !== "") start--;
-    const block2 = lines.slice(start, i + 1).join("\n");
-    const text2 = block2.replace(SPAN_ANCHOR, "").trim();
-    out.push({ anchor: m[2], text: text2 });
+    while (start > 0 && lines[start - 1].trim() !== "" && !literal[start - 1]) start--;
+    const bodyLines = lines.slice(start, i + 1);
+    bodyLines[bodyLines.length - 1] = bodyLines[bodyLines.length - 1].replace(SPAN_ANCHOR, "");
+    out.push({ anchor: m[2], text: bodyLines.join("\n") });
   }
   return out;
 }
@@ -21381,7 +21423,8 @@ function firstColonOutsideQuotes(s) {
   }
   return -1;
 }
-function parseInlineMap(body, line) {
+var REST_ON_KEYS = /* @__PURE__ */ new Set(["page", "span", "because"]);
+function parseInlineMap(body, line, allowed = REST_ON_KEYS) {
   const obj = /* @__PURE__ */ Object.create(null);
   for (const part of splitOutsideQuotes(body, ",")) {
     if (!part.trim()) continue;
@@ -21389,13 +21432,23 @@ function parseInlineMap(body, line) {
     if (ci < 0) throw new Error(unsupportedFm(line));
     const k = part.slice(0, ci).trim();
     if (!FM_KEY.test(k)) throw new Error(unsupportedFm(line));
+    if (!allowed.has(k)) throw new Error('unsupported key "' + k + '" in inline map (allowed: ' + [...allowed].join(", ") + "): " + line.trim());
+    if (Object.prototype.hasOwnProperty.call(obj, k)) throw new Error('duplicate key "' + k + '" in inline map: ' + line.trim());
     let v = part.slice(ci + 1).trim();
     const q = v[0];
-    if ((q === '"' || q === "'") && v.length > 1 && v[v.length - 1] === q) v = v.slice(1, -1);
+    if (q === '"' || q === "'") {
+      if (v.length < 2 || v[v.length - 1] !== q) throw new Error('unbalanced quote in inline-map value for "' + k + '": ' + line.trim());
+      v = v.slice(1, -1);
+    }
+    if (v.includes('"') || v.includes("'")) throw new Error('stray quote in inline-map value for "' + k + '": ' + line.trim());
     obj[k] = v;
   }
   return obj;
 }
+function engineMeta(get) {
+  return { id: get("id"), trust: get("trust"), freeze: get("freeze"), kind: get("kind"), claim: get("claim") };
+}
+var SPAN_REF = /^\^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 function restsOnEdges(value) {
   const out = [];
   for (let raw of Array.isArray(value) ? value : [value]) {
@@ -21407,7 +21460,9 @@ function restsOnEdges(value) {
     if (item && typeof item === "object" && !Array.isArray(item)) {
       const page = extractLinks(String(item.page == null ? "" : item.page))[0];
       if (!page) throw new Error('rests_on object edge needs page: "[[Target]]" (got: ' + JSON.stringify(item) + ")");
-      out.push({ target: page, edgeType: "rests_on", span: item.span ? String(item.span) : null, because: item.because ? String(item.because) : null, tracked: !!item.span });
+      const span = item.span == null ? "" : String(item.span).trim();
+      if (!SPAN_REF.test(span)) throw new Error('rests_on object edge needs a span: "^anchor" (got: ' + JSON.stringify(item.span) + "); use a bare-string entry for an untracked edge");
+      out.push({ target: page, edgeType: "rests_on", span, because: item.because ? String(item.because) : null, tracked: true });
     } else {
       for (const t of extractLinks(String(item == null ? "" : item))) out.push({ target: t, edgeType: "rests_on", span: null, because: null, tracked: false });
     }
@@ -21432,11 +21487,7 @@ function parseHtmlDoc(raw) {
     icon: fmStr("icon") ?? dget("icon") ?? "file",
     updated: fmStr("updated") ?? dget("updated") ?? null,
     // recursion-engine authored meta (ADR-0001): opaque id + the four-field state (trust/freeze)
-    id: fmStr("id") ?? dget("id") ?? null,
-    trust: fmStr("trust") ?? dget("trust") ?? null,
-    freeze: fmStr("freeze") ?? dget("freeze") ?? null,
-    kind: fmStr("kind") ?? dget("kind") ?? null,
-    claim: fmStr("claim") ?? dget("claim") ?? null
+    ...engineMeta((k) => fmStr(k) ?? dget(k) ?? null)
   };
   const metaChips = {};
   for (const k of META_CHIP_KEYS) {
@@ -21458,10 +21509,12 @@ function parseHtmlDoc(raw) {
   if (metaEl) for (const a of Object.keys(metaEl.attributes || {})) {
     if (!a.startsWith("data-")) continue;
     const key = a.slice(5);
+    if (key === "rests_on") continue;
     if (DATA_RESERVED.has(key) || Object.prototype.hasOwnProperty.call(attrs, key)) continue;
     addRel(key, metaEl.getAttribute(a));
   }
-  if (fm.rests_on != null) for (const e of restsOnEdges(fm.rests_on)) edges.push(e);
+  const restsOnSrc = fm.rests_on != null ? fm.rests_on : metaEl ? metaEl.getAttribute("data-rests_on") : null;
+  if (restsOnSrc != null) for (const e of restsOnEdges(restsOnSrc)) edges.push(e);
   const seen = [];
   const walk4 = (node) => {
     for (const ch of node.childNodes) {
@@ -21679,11 +21732,7 @@ function parseMarkdownDoc(raw) {
     group: fmStr("group") ?? null,
     icon: fmStr("icon") ?? "file",
     updated: fmStr("updated") ?? null,
-    id: fmStr("id") ?? null,
-    trust: fmStr("trust") ?? null,
-    freeze: fmStr("freeze") ?? null,
-    kind: fmStr("kind") ?? null,
-    claim: fmStr("claim") ?? null
+    ...engineMeta((k) => fmStr(k) ?? null)
   };
   const metaChips = {};
   for (const k of META_CHIP_KEYS) if (fm[k] != null) metaChips[k] = String(fm[k]);
@@ -22029,6 +22078,7 @@ function loadCorpus({ docsDir, dataDir = null } = {}) {
     groupIds,
     entries,
     types,
+    docsDir,
     dataFiles: src.dataFiles,
     canvasFiles: src.canvasFiles,
     ids: new Set(byId.keys()),
@@ -22040,7 +22090,7 @@ function dedupeEdges(edges) {
   const seen = /* @__PURE__ */ new Set();
   const out = [];
   for (const e of edges) {
-    const k = JSON.stringify([e.source, e.target, e.edgeType || "", e.span || ""]);
+    const k = JSON.stringify([e.source, e.target, e.edgeType || "", e.span || "", e.because || "", e.tracked ? 1 : 0]);
     if (seen.has(k)) continue;
     seen.add(k);
     out.push(e);
@@ -23690,7 +23740,7 @@ function renderRepairText(fixes, applied) {
 }
 
 // src/engine/log.mjs
-import { existsSync as existsSync5, readFileSync as readFileSync8, appendFileSync } from "fs";
+import { existsSync as existsSync5, readFileSync as readFileSync8, appendFileSync, openSync, closeSync, unlinkSync as unlinkSync2, statSync } from "fs";
 import { join as join9 } from "path";
 import { createHash as createHash2 } from "crypto";
 var LOG_BASENAME = "_log.jsonl";
@@ -23747,18 +23797,81 @@ function head(logFile) {
   return { seq: last.seq, ic: last.ic };
 }
 var EVENT_TYPES = /* @__PURE__ */ new Set(["introduce", "edit", "rename", "split", "delete", "confirm-edge", "approve", "reject", "resolve"]);
+var isStr = (v) => typeof v === "string" && v.length > 0;
+var isSpan = (v) => typeof v === "string" && /^\^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(v);
+var TRUST_TIERS = /* @__PURE__ */ new Set(["proposed", "verified", "canonical"]);
+var REQUIRED = {
+  introduce: (e) => isStr(e.id) && isSpan(e.span) && isStr(e.hash),
+  edit: (e) => isStr(e.id) && isSpan(e.span) && isStr(e.hash),
+  rename: (e) => isStr(e.id) && isStr(e.from) && isStr(e.to),
+  split: (e) => isStr(e.id) && isSpan(e.from) && Array.isArray(e.into) && e.into.length > 0 && e.into.every(isSpan),
+  delete: (e) => isStr(e.id) && isSpan(e.span),
+  "confirm-edge": (e) => isStr(e.edge) && isStr(e.verdict_key),
+  approve: (e) => isStr(e.id) && (e.to_trust == null || TRUST_TIERS.has(e.to_trust)),
+  reject: (e) => isStr(e.id),
+  resolve: (e) => isStr(e.conflict) && isStr(e.winner)
+};
 function validateEvent(event) {
   if (event === null || typeof event !== "object" || Array.isArray(event)) throw new Error("log event must be an object");
   if (!EVENT_TYPES.has(event.type)) throw new Error("log event has unknown type: " + JSON.stringify(event.type));
   if ("seq" in event || "ic" in event) throw new Error("log event must not set `seq`/`ic` (assigned by the log)");
+  if (!REQUIRED[event.type](event)) throw new Error("malformed " + event.type + " event (missing/invalid required fields): " + canonicalJSON(event, 0));
 }
-function appendEvent(logFile, event) {
-  validateEvent(event);
+var STALE_LOCK_MS = 3e4;
+function withLock(logFile, fn) {
+  const lock = logFile + ".lock";
+  let fd = null;
+  for (let i = 0; i < 200 && fd == null; i++) {
+    try {
+      fd = openSync(lock, "wx");
+    } catch (e) {
+      if (e.code !== "EEXIST") throw e;
+      try {
+        if (Date.now() - statSync(lock).mtimeMs > STALE_LOCK_MS) {
+          unlinkSync2(lock);
+          continue;
+        }
+      } catch {
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15);
+    }
+  }
+  if (fd == null) throw new Error("could not acquire decision-log lock (held > " + 200 * 15 + "ms): " + lock);
+  try {
+    return fn();
+  } finally {
+    try {
+      closeSync(fd);
+    } catch {
+    }
+    try {
+      unlinkSync2(lock);
+    } catch {
+    }
+  }
+}
+function appendLocked(logFile, event) {
   const h = head(logFile);
   const stored = { seq: h.seq + 1, ...event };
   stored.ic = linkIc(h.ic, stored);
   appendFileSync(logFile, canonicalJSON(stored, 0) + "\n");
   return stored;
+}
+function appendEvent(logFile, event) {
+  validateEvent(event);
+  return withLock(logFile, () => appendLocked(logFile, event));
+}
+function appendBatch(logFile, produce) {
+  return withLock(logFile, () => {
+    const current = readLog(logFile);
+    const toAppend = produce(current) || [];
+    const stored = [];
+    for (const ev of toAppend) {
+      validateEvent(ev);
+      stored.push(appendLocked(logFile, ev));
+    }
+    return stored;
+  });
 }
 
 // src/engine/revisions.mjs
@@ -23776,17 +23889,16 @@ function verdictKey({ targetUid, targetSpan, targetRev, depUid, depSpan, depRev,
 function projectRevisions(events) {
   const spans = /* @__PURE__ */ new Map();
   for (const ev of events) {
-    if (ev.type === "introduce") spans.set(spanKey(ev.id, ev.span), { uid: ev.id, span: ev.span, revision: 1, hash: ev.hash, alive: true });
-    else if (ev.type === "edit") {
-      const s = spans.get(spanKey(ev.id, ev.span)) || { uid: ev.id, span: ev.span, revision: 0, hash: null, alive: true };
-      spans.set(spanKey(ev.id, ev.span), { uid: ev.id, span: ev.span, revision: s.revision + 1, hash: ev.hash, alive: true });
+    if (ev.type === "introduce" || ev.type === "edit") {
+      const s = spans.get(spanKey(ev.id, ev.span));
+      spans.set(spanKey(ev.id, ev.span), { uid: ev.id, span: ev.span, revision: (s ? s.revision : 0) + 1, hash: ev.hash, alive: true });
     } else if (ev.type === "delete") {
       const s = spans.get(spanKey(ev.id, ev.span));
       if (s) s.alive = false;
     } else if (ev.type === "split") {
       const s = spans.get(spanKey(ev.id, ev.from));
       if (s) s.alive = false;
-      for (const a of ev.into || []) if (!spans.has(spanKey(ev.id, a))) spans.set(spanKey(ev.id, a), { uid: ev.id, span: a, revision: 1, hash: null, alive: true });
+      for (const a of ev.into || []) if (!spans.has(spanKey(ev.id, a))) spans.set(spanKey(ev.id, a), { uid: ev.id, span: a, revision: 0, hash: null, alive: true });
     }
   }
   return spans;
@@ -23797,10 +23909,7 @@ function spanRevision(spans, uid, span) {
 }
 
 // src/engine/scan.mjs
-function scan({ docsDir, corpus, apply = true } = {}) {
-  const c = corpus || loadCorpus({ docsDir });
-  const lf = logPath(docsDir || c.docsDir);
-  const events = readLog(lf);
+function computeDiff(c, events) {
   const state = projectRevisions(events);
   const planned = [];
   const seen = /* @__PURE__ */ new Set();
@@ -23818,8 +23927,20 @@ function scan({ docsDir, corpus, apply = true } = {}) {
     if (!s.alive || seen.has(k)) continue;
     planned.push({ type: "delete", id: s.uid, span: s.span });
   }
-  const appended = [];
-  if (apply) for (const ev of planned) appended.push(appendEvent(lf, ev));
+  return planned;
+}
+function scan({ docsDir, corpus, apply = true, events } = {}) {
+  const c = corpus || loadCorpus({ docsDir });
+  const dir = docsDir || c && c.docsDir;
+  if (!dir) throw new Error("scan needs a docsDir (passed explicitly or carried on the corpus)");
+  const lf = logPath(dir);
+  let planned, appended = [];
+  if (apply) {
+    appended = appendBatch(lf, (current) => computeDiff(c, current));
+    planned = appended;
+  } else {
+    planned = computeDiff(c, Array.isArray(events) ? events : readLog(lf));
+  }
   const summary = { introduced: 0, edited: 0, deleted: 0 };
   for (const ev of planned) summary[ev.type === "introduce" ? "introduced" : ev.type === "edit" ? "edited" : "deleted"]++;
   return { planned, appended, summary };
@@ -23835,7 +23956,10 @@ function lastConfirmations(events) {
 function depSpanOf(node) {
   return node && node.spans && node.spans[0] ? "^" + node.spans[0].anchor : null;
 }
-function computeGate({ model, events, schemaVersion = 1 }) {
+function depClaimRev(spans, node) {
+  return (node && node.spans ? node.spans : []).reduce((sum2, s) => sum2 + spanRevision(spans, node.uid, "^" + s.anchor), 0);
+}
+function computeGate({ model, events, schemaVersion = SCHEMA_VERSION }) {
   const spans = projectRevisions(events);
   const confirmed = lastConfirmations(events);
   const byTitle = model.nodes;
@@ -23852,13 +23976,19 @@ function computeGate({ model, events, schemaVersion = 1 }) {
     const depUid = e.sourceUid;
     const depNode = byTitle[e.source];
     const depSpan = depSpanOf(depNode);
-    const depRev = depSpan ? spanRevision(spans, depUid, depSpan) : 0;
     if (!e.tracked) {
       untracked++;
       bump(depUid, "needs-review");
       edges.push({ dep: depUid, target: e.target, tracked: false, open: true, reason: "untracked" });
       continue;
     }
+    if (!depSpan) {
+      untracked++;
+      bump(depUid, "needs-review");
+      edges.push({ dep: depUid, target: e.target, span: e.span, tracked: false, open: true, reason: "downstream-unanchored" });
+      continue;
+    }
+    const depRev = depClaimRev(spans, depNode);
     tracked++;
     const targetNode = byTitle[e.target];
     if (!targetNode) {
@@ -23891,11 +24021,15 @@ function computeGate({ model, events, schemaVersion = 1 }) {
 }
 
 // src/engine/fsck.mjs
-import { existsSync as existsSync6, readFileSync as readFileSync9, writeFileSync as writeFileSync4 } from "fs";
-import { join as join10 } from "path";
-import { createHash as createHash4 } from "crypto";
+import { existsSync as existsSync7, readFileSync as readFileSync10, writeFileSync as writeFileSync5 } from "fs";
+import { join as join11 } from "path";
+import { createHash as createHash5 } from "crypto";
 
 // src/engine/state.mjs
+var CONFLICT_SEP = " \xD7 ";
+function conflictKey(uidA, uidB) {
+  return [uidA, uidB].sort().join(CONFLICT_SEP);
+}
 function projectDecisions(events) {
   const approved = /* @__PURE__ */ new Map();
   const resolved = /* @__PURE__ */ new Map();
@@ -23906,85 +24040,248 @@ function projectDecisions(events) {
   }
   return { approved, resolved };
 }
+function resolveNodeState(node, decisions, conflictPartnerUids = []) {
+  const approvedTrust = decisions.approved.get(node.uid);
+  const authored = node.trust || null;
+  const trust = approvedTrust || authored;
+  const trustBacked = approvedTrust != null || authored !== "canonical";
+  let conflict = "none", resolutionId = null;
+  if (conflictPartnerUids.length) {
+    const keys = conflictPartnerUids.map((p) => conflictKey(node.uid, p));
+    const allResolved = keys.every((k) => decisions.resolved.has(k));
+    conflict = allResolved ? "resolved" : "contested";
+    if (allResolved) resolutionId = decisions.resolved.get(keys[0]) ?? null;
+  }
+  return { trust, trustBacked, conflict, resolutionId, freeze: node.freeze || null };
+}
+
+// src/engine/ledgers.mjs
+import { existsSync as existsSync6, readFileSync as readFileSync9, writeFileSync as writeFileSync4, renameSync as renameSync4, realpathSync as realpathSync3, lstatSync as lstatSync8, openSync as openSync2, closeSync as closeSync2, fstatSync, readSync, constants } from "fs";
+import { join as join10, resolve as resolve2, sep as sep4, isAbsolute } from "path";
+import { createHash as createHash4 } from "crypto";
+var VERIFY_BASENAME = "_verify.json";
+var COMPILE_BASENAME = "_compile-state.json";
+var DANGEROUS_KEY = /* @__PURE__ */ new Set(["__proto__", "prototype", "constructor"]);
+function toNullProtoMap(obj) {
+  const out = /* @__PURE__ */ Object.create(null);
+  for (const k of Object.keys(obj)) out[k] = obj[k];
+  return out;
+}
+function readJsonObject(file) {
+  if (!existsSync6(file)) return null;
+  let v;
+  try {
+    v = JSON.parse(readFileSync9(file, "utf8"));
+  } catch (e) {
+    throw new Error(file + " is not valid JSON: " + e.message);
+  }
+  if (v === null || typeof v !== "object" || Array.isArray(v)) throw new Error(file + " must be a JSON object, not " + (Array.isArray(v) ? "an array" : typeof v));
+  return v;
+}
+function writeJsonAtomic(file, obj) {
+  const tmp = file + ".tmp-" + process.pid;
+  writeFileSync4(tmp, canonicalJSON(obj, 2) + "\n");
+  renameSync4(tmp, file);
+}
+function hashJailed(realPath) {
+  const fd = openSync2(realPath, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    if (!fstatSync(fd).isFile()) throw new Error("artifact is not a regular file: " + realPath);
+    const h = createHash4("sha256");
+    const buf = Buffer.allocUnsafe(65536);
+    let n;
+    while ((n = readSync(fd, buf, 0, buf.length, null)) > 0) h.update(buf.subarray(0, n));
+    return h.digest("hex");
+  } finally {
+    closeSync2(fd);
+  }
+}
+function jailPath(root, rel) {
+  if (isAbsolute(rel) || rel.split(/[\\/]/).includes("..")) throw new Error("artifact path must be repo-relative with no `..`: " + rel);
+  const rootReal = realpathSync3(root);
+  const abs = resolve2(rootReal, rel);
+  if (!existsSync6(abs)) throw new Error("artifact not found: " + rel);
+  const real = realpathSync3(abs);
+  if (real !== rootReal && !real.startsWith(rootReal + sep4)) throw new Error("artifact path escapes the repo (symlink?): " + rel);
+  if (!lstatSync8(real).isFile()) throw new Error("artifact is not a regular file: " + rel);
+  return real;
+}
+function validateVerifyEntry(page, entry) {
+  if (entry === null || typeof entry !== "object" || Array.isArray(entry)) throw new Error(VERIFY_BASENAME + ': entry for "' + page + '" must be an object');
+  if (!Array.isArray(entry.checks)) throw new Error(VERIFY_BASENAME + ': entry for "' + page + '" must have a `checks` array');
+  for (const c of entry.checks) if (c === null || typeof c !== "object" || typeof c.artifact !== "string" || typeof c.hash !== "string") throw new Error(VERIFY_BASENAME + ': a check under "' + page + '" must have string `artifact` and `hash`');
+}
+function readVerify(workspaceDir) {
+  const raw = readJsonObject(join10(workspaceDir, VERIFY_BASENAME));
+  if (!raw) return /* @__PURE__ */ Object.create(null);
+  const db = toNullProtoMap(raw);
+  for (const page of Object.keys(db)) validateVerifyEntry(page, db[page]);
+  return db;
+}
+function recordVerification(workspaceDir, { root, page, artifact, claim, date }) {
+  if (typeof page !== "string" || !page) throw new Error("recordVerification needs a non-empty page title");
+  const hash = hashJailed(jailPath(root, artifact));
+  const file = join10(workspaceDir, VERIFY_BASENAME);
+  return withLock(file, () => {
+    const db = readVerify(workspaceDir);
+    const prior = Object.prototype.hasOwnProperty.call(db, page) && db[page] && typeof db[page] === "object" && !DANGEROUS_KEY.has(page) ? db[page] : null;
+    const entry = prior || { verifiedAt: date || null, checks: [] };
+    entry.verifiedAt = date || entry.verifiedAt || null;
+    entry.checks = (Array.isArray(entry.checks) ? entry.checks : []).filter((c) => c.artifact !== artifact);
+    entry.checks.push({ artifact, hash, claim: claim || null });
+    entry.checks.sort((a, b) => a.artifact < b.artifact ? -1 : 1);
+    db[page] = entry;
+    writeJsonAtomic(file, db);
+    return hash;
+  });
+}
+function recheckVerification(workspaceDir, { root, page }) {
+  const db = readVerify(workspaceDir);
+  const entry = Object.prototype.hasOwnProperty.call(db, page) ? db[page] : null;
+  if (!entry || !Array.isArray(entry.checks)) return [];
+  return entry.checks.map((c) => {
+    let now = null, ok = false;
+    try {
+      now = hashJailed(jailPath(root, c.artifact));
+      ok = now === c.hash;
+    } catch {
+      ok = false;
+    }
+    return { artifact: c.artifact, was: c.hash, now, ok };
+  });
+}
+function readCompiled(workspaceDir) {
+  const db = readJsonObject(join10(workspaceDir, COMPILE_BASENAME));
+  if (!db) return /* @__PURE__ */ new Set();
+  if (db.compiled != null && !Array.isArray(db.compiled)) throw new Error(COMPILE_BASENAME + ': "compiled" must be an array');
+  return new Set((db.compiled || []).map(String));
+}
+function markCompiled(workspaceDir, ids) {
+  const file = join10(workspaceDir, COMPILE_BASENAME);
+  return withLock(file, () => {
+    const set2 = readCompiled(workspaceDir);
+    let added = 0;
+    for (const id of Array.isArray(ids) ? ids : [ids]) if (!set2.has(String(id))) {
+      set2.add(String(id));
+      added++;
+    }
+    writeJsonAtomic(file, { compiled: [...set2].sort() });
+    return added;
+  });
+}
+function uncompiled(workspaceDir, allSessionIds) {
+  const set2 = readCompiled(workspaceDir);
+  return [...allSessionIds].map(String).filter((id) => !set2.has(id));
+}
 
 // src/engine/fsck.mjs
 var GATE_BASENAME = "_gate.json";
-var sha2563 = (s) => createHash4("sha256").update(String(s)).digest("hex");
-function buildDerived({ model, events, schemaVersion = 1 }) {
+var sha2563 = (s) => createHash5("sha256").update(String(s)).digest("hex");
+function conflictPartners(model) {
+  const partners = /* @__PURE__ */ new Map();
+  const add2 = (a, b) => {
+    if (!partners.has(a)) partners.set(a, []);
+    partners.get(a).push(b);
+  };
+  for (const e of model.edges) {
+    if (e.edgeType !== "contradicts") continue;
+    const s = model.nodes[e.source], t = model.nodes[e.target];
+    if (!s || !t) continue;
+    add2(s.uid, t.uid);
+    add2(t.uid, s.uid);
+  }
+  return partners;
+}
+function buildDerived({ model, events, schemaVersion = SCHEMA_VERSION }) {
   const spans = projectRevisions(events);
   const gate = computeGate({ model, events, schemaVersion });
+  const decisions = projectDecisions(events);
+  const partners = conflictPartners(model);
   const revisions = [...spans.values()].filter((s) => s.alive).map((s) => ({ uid: s.uid, span: s.span, revision: s.revision })).sort((a, b) => canonicalJSON([a.uid, a.span]) < canonicalJSON([b.uid, b.span]) ? -1 : 1);
   const edges = gate.edges.filter((e) => e.tracked && e.edgeId).map((e) => ({ edgeId: e.edgeId, dep: e.dep, target: e.target, span: e.span, verdictKey: e.verdictKey, open: e.open })).sort((a, b) => a.edgeId < b.edgeId ? -1 : 1);
+  const decided = Object.values(model.nodes).map((n) => {
+    const st = resolveNodeState(n, decisions, partners.get(n.uid) || []);
+    return { uid: n.uid, trust: st.trust, trustBacked: st.trustBacked, conflict: st.conflict, resolutionId: st.resolutionId ?? null, freeze: st.freeze };
+  }).sort((a, b) => a.uid < b.uid ? -1 : 1);
   return {
     schemaVersion,
     freshness: [...gate.freshness.entries()].map(([uid, level]) => ({ uid, level })).sort((a, b) => a.uid < b.uid ? -1 : 1),
     dirty: gate.dirty,
     counts: gate.counts,
     revisions,
-    edges
+    edges,
+    decided
   };
 }
 var derivedDigest = (derived) => sha2563(canonicalJSON(derived, 0));
-function fsck({ docsDir, schemaVersion = 1, write = true } = {}) {
-  const corpus = loadCorpus({ docsDir });
-  const model = buildModel({ corpus });
-  const events = readLog(logPath(docsDir));
-  const d1 = buildDerived({ model, events, schemaVersion });
-  const d2 = buildDerived({ model, events, schemaVersion });
+var ADVISORY = /* @__PURE__ */ new Set(["pending-scan"]);
+function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write = true } = {}) {
+  const c = corpus || loadCorpus({ docsDir });
+  const model = buildModel({ corpus: c });
+  const evs = events || readLog(logPath(docsDir));
+  const d1 = buildDerived({ model, events: evs, schemaVersion });
+  const d2 = buildDerived({ model, events: evs, schemaVersion });
   const digest1 = derivedDigest(d1), digest2 = derivedDigest(d2);
   const fixpointStable = digest1 === digest2;
   const findings = [];
-  const planned = scan({ docsDir, corpus, apply: false }).planned;
+  const planned = scan({ docsDir, corpus: c, apply: false, events: evs }).planned;
   if (planned.length) findings.push({ kind: "pending-scan", count: planned.length, detail: "run `gazette scan` - the log does not yet reflect the corpus" });
+  try {
+    readVerify(docsDir);
+    readCompiled(docsDir);
+  } catch (e) {
+    findings.push({ kind: "ledger-malformed", detail: e.message });
+  }
   const liveEdgeIds = new Set(d1.edges.map((e) => e.edgeId));
   const confirmedIds = /* @__PURE__ */ new Set();
-  for (const ev of events) if (ev.type === "confirm-edge") confirmedIds.add(ev.edge);
+  for (const ev of evs) if (ev.type === "confirm-edge") confirmedIds.add(ev.edge);
   for (const eid of confirmedIds) if (!liveEdgeIds.has(eid)) findings.push({ kind: "orphan-confirm", edge: eid });
-  const { approved } = projectDecisions(events);
+  const { approved } = projectDecisions(evs);
   for (const n of Object.values(model.nodes)) {
     if ((n.trust || n.status) === "canonical" && !approved.has(n.uid)) findings.push({ kind: "unbacked-canonical", uid: n.uid, title: n.title });
   }
   findings.sort((a, b) => canonicalJSON(a) < canonicalJSON(b) ? -1 : 1);
-  const gateFile = join10(docsDir, GATE_BASENAME);
-  const priorRaw = existsSync6(gateFile) ? readFileSync9(gateFile, "utf8") : null;
+  const gateFile = join11(docsDir, GATE_BASENAME);
+  const priorRaw = existsSync7(gateFile) ? readFileSync10(gateFile, "utf8") : null;
   const nextRaw = canonicalJSON(d1, 2) + "\n";
   const cacheDrift = priorRaw != null && priorRaw !== nextRaw;
-  if (write) writeFileSync4(gateFile, nextRaw);
-  return { ok: fixpointStable && findings.length === 0, fixpointStable, digest: digest1, cacheDrift, findings, derived: d1, nodeCount: model.nodeCount };
+  if (write) writeFileSync5(gateFile, nextRaw);
+  const blockingFindings = findings.filter((f) => !ADVISORY.has(f.kind));
+  return { ok: fixpointStable && blockingFindings.length === 0, fixpointStable, digest: digest1, cacheDrift, findings, blockingFindings, derived: d1, nodeCount: model.nodeCount };
 }
 
 // src/engine/mutation.mjs
 var MUTATION_NOTE = "measures gate WIRING adequacy only, NOT edge completeness (roadmap \xA74.13a)";
-function mutationGate({ docsDir, corpus } = {}) {
+function mutationGate({ docsDir, corpus, events } = {}) {
   const c = corpus || loadCorpus({ docsDir });
+  const dir = docsDir || c && c.docsDir;
   const model = buildModel({ corpus: c });
   const uidByTitle = new Map(Object.values(model.nodes).map((n) => [n.id, n.uid]));
-  let events = readLog(logPath(docsDir), { verify: false });
-  for (const p of scan({ docsDir, corpus: c, apply: false }).planned) events.push(p);
-  const base0 = computeGate({ model, events });
-  for (const e of base0.edges) if (e.tracked && e.open && e.edgeId) events.push({ type: "confirm-edge", edge: e.edgeId, verdict_key: e.verdictKey });
-  const base2 = computeGate({ model, events });
+  const evs = Array.isArray(events) ? events.slice() : readLog(logPath(dir), { verify: false });
+  for (const p of scan({ docsDir: dir, corpus: c, apply: false, events: evs }).planned) evs.push(p);
+  const base0 = computeGate({ model, events: evs });
+  for (const e of base0.edges) if (e.tracked && !e.broken && e.open && e.edgeId && e.verdictKey) evs.push({ type: "confirm-edge", edge: e.edgeId, verdict_key: e.verdictKey });
+  const base2 = computeGate({ model, events: evs });
   let gateable = 0, killed = 0, untracked = 0;
   const survivors = [];
   for (const e of base2.edges) {
     if (!e.tracked) {
       untracked++;
-      survivors.push({ dep: e.dep, target: e.target, reason: "untracked-not-gated" });
+      survivors.push({ dep: e.dep, target: e.target, reason: e.reason === "downstream-unanchored" ? "downstream-unanchored" : "untracked-not-gated" });
       continue;
     }
     if (e.broken) {
       survivors.push({ dep: e.dep, target: e.target, span: e.span, reason: "target-span-missing" });
       continue;
     }
-    if (base2.freshness.get(e.dep) !== "current") {
-      survivors.push({ dep: e.dep, target: e.target, span: e.span, reason: "dep-not-current-at-baseline" });
+    if (e.open) {
+      survivors.push({ dep: e.dep, target: e.target, span: e.span, reason: "not-closed-at-baseline" });
       continue;
     }
     gateable++;
-    const targetUid = uidByTitle.get(e.target);
-    const mutant = events.concat([{ type: "edit", id: targetUid, span: e.span, hash: "MUTANT:" + e.edgeId }]);
-    const gm = computeGate({ model, events: mutant });
-    if (gm.freshness.get(e.dep) === "needs-review") killed++;
+    const mutant = evs.concat([{ type: "edit", id: uidByTitle.get(e.target), span: e.span, hash: "MUTANT:" + e.edgeId }]);
+    const mrow = computeGate({ model, events: mutant }).edges.find((x) => x.edgeId === e.edgeId);
+    if (mrow && mrow.open) killed++;
     else survivors.push({ dep: e.dep, target: e.target, span: e.span, reason: "survived-mutation" });
   }
   survivors.sort((a, b) => JSON.stringify(a) < JSON.stringify(b) ? -1 : 1);
@@ -23992,13 +24289,14 @@ function mutationGate({ docsDir, corpus } = {}) {
 }
 
 // src/engine/metrics.mjs
-function report({ docsDir, schemaVersion = 1 } = {}) {
+function report({ docsDir, schemaVersion = SCHEMA_VERSION } = {}) {
   const corpus = loadCorpus({ docsDir });
   const model = buildModel({ corpus });
   const events = readLog(logPath(docsDir));
   const gate = computeGate({ model, events, schemaVersion });
-  const f = fsck({ docsDir, schemaVersion, write: false });
-  const m = mutationGate({ docsDir, corpus });
+  const f = fsck({ docsDir, corpus, events, schemaVersion, write: false });
+  const m = mutationGate({ docsDir, corpus, events });
+  const realSurvivors = m.survivors.filter((s) => s.reason === "survived-mutation").length;
   return {
     nodeCount: model.nodeCount,
     fixpoint: { stable: f.fixpointStable, digest: f.digest },
@@ -24012,9 +24310,13 @@ function report({ docsDir, schemaVersion = 1 } = {}) {
       // reported beside trackedEdges + dirty - never in isolation
       dirtyPages: gate.dirty.length
     },
-    wiring: { gateable: m.gateable, killed: m.killed, killRate: m.killRate, survivors: m.survivors.length, note: MUTATION_NOTE },
+    wiring: { gateable: m.gateable, killed: m.killed, killRate: m.killRate, survivors: m.survivors.length, realSurvivors, note: MUTATION_NOTE },
     findings: f.findings,
-    ok: f.ok && (m.killRate === null || m.killRate === 1)
+    // OK requires: fixpoint stable + no blocking fsck findings + no broken (dangling) edges + no
+    // edge that survived mutation (a real wiring bug). Untracked edges are a known CONSERVATIVE
+    // limitation (they force needs-review), not a failure — so a fully-untracked graph is ok:true by
+    // design; broken (dangling) edges, which ARE a defect, are what fail here.
+    ok: f.ok && gate.counts.broken === 0 && realSurvivors === 0
   };
 }
 var pct = (r) => r == null ? "n/a" : (r * 100).toFixed(1) + "%";
@@ -24024,90 +24326,14 @@ function renderMetricsText(r) {
   L.push("  pages: " + r.nodeCount);
   L.push("  fixpoint: " + (r.fixpoint.stable ? "stable \u2705" : "UNSTABLE \u2717") + "  digest " + r.fixpoint.digest.slice(0, 12));
   L.push("  gate: " + r.gate.trackedEdges + " tracked edges \xB7 " + r.gate.dirtyPages + " dirty pages \xB7 cutoff ratio " + pct(r.gate.cutoffRatio) + " (beside edge-count, never alone) \xB7 " + r.gate.untrackedEdges + " untracked \xB7 " + r.gate.brokenEdges + " broken");
-  L.push("  wiring kill rate: " + pct(r.wiring.killRate) + " (" + r.wiring.killed + "/" + r.wiring.gateable + ") \u2014 " + r.wiring.note);
+  L.push("  wiring kill rate: " + pct(r.wiring.killRate) + " (" + r.wiring.killed + "/" + r.wiring.gateable + ")" + (r.wiring.realSurvivors ? " \xB7 " + r.wiring.realSurvivors + " SURVIVED mutation \u2717" : "") + " \u2014 " + r.wiring.note);
+  if (r.gate.brokenEdges) L.push("  broken (dangling) edges: " + r.gate.brokenEdges + " \u2717");
   if (r.findings.length) {
     L.push("  findings:");
     for (const f of r.findings) L.push("    \xB7 " + f.kind + (f.uid ? " " + f.uid : "") + (f.count ? " \xD7" + f.count : ""));
   }
   L.push(r.ok ? "  status: OK \u2705" : "  status: needs attention \u26A0");
   return L.join("\n");
-}
-
-// src/engine/ledgers.mjs
-import { existsSync as existsSync7, readFileSync as readFileSync10, writeFileSync as writeFileSync5, realpathSync as realpathSync3, lstatSync as lstatSync8 } from "fs";
-import { join as join11, resolve as resolve2, sep as sep4, isAbsolute } from "path";
-import { createHash as createHash5 } from "crypto";
-var VERIFY_BASENAME = "_verify.json";
-var COMPILE_BASENAME = "_compile-state.json";
-var sha256File = (abs) => createHash5("sha256").update(readFileSync10(abs)).digest("hex");
-function readJson(file, fallback) {
-  if (!existsSync7(file)) return fallback;
-  try {
-    const v = JSON.parse(readFileSync10(file, "utf8"));
-    return v && typeof v === "object" ? v : fallback;
-  } catch (e) {
-    throw new Error(file + " is not valid JSON: " + e.message);
-  }
-}
-var writeJson = (file, obj) => writeFileSync5(file, canonicalJSON(obj, 2) + "\n");
-function jailPath(root, rel) {
-  if (isAbsolute(rel) || rel.split(/[\\/]/).includes("..")) throw new Error("artifact path must be repo-relative with no `..`: " + rel);
-  const rootReal = realpathSync3(root);
-  const abs = resolve2(rootReal, rel);
-  if (!existsSync7(abs)) throw new Error("artifact not found: " + rel);
-  const real = realpathSync3(abs);
-  if (real !== rootReal && !real.startsWith(rootReal + sep4)) throw new Error("artifact path escapes the repo (symlink?): " + rel);
-  if (!lstatSync8(real).isFile()) throw new Error("artifact is not a regular file: " + rel);
-  return real;
-}
-function readVerify(workspaceDir) {
-  return readJson(join11(workspaceDir, VERIFY_BASENAME), {});
-}
-function recordVerification(workspaceDir, { root, page, artifact, claim, date }) {
-  const abs = jailPath(root, artifact);
-  const hash = sha256File(abs);
-  const db = readVerify(workspaceDir);
-  const entry = db[page] && typeof db[page] === "object" ? db[page] : { verifiedAt: date || null, checks: [] };
-  entry.verifiedAt = date || entry.verifiedAt || null;
-  entry.checks = (entry.checks || []).filter((c) => c.artifact !== artifact);
-  entry.checks.push({ artifact, hash, claim: claim || null });
-  entry.checks.sort((a, b) => a.artifact < b.artifact ? -1 : 1);
-  db[page] = entry;
-  writeJson(join11(workspaceDir, VERIFY_BASENAME), db);
-  return hash;
-}
-function recheckVerification(workspaceDir, { root, page }) {
-  const db = readVerify(workspaceDir);
-  const entry = db[page];
-  if (!entry || !Array.isArray(entry.checks)) return [];
-  return entry.checks.map((c) => {
-    let now = null, ok = false;
-    try {
-      now = sha256File(jailPath(root, c.artifact));
-      ok = now === c.hash;
-    } catch {
-      ok = false;
-    }
-    return { artifact: c.artifact, was: c.hash, now, ok };
-  });
-}
-function readCompiled(workspaceDir) {
-  const db = readJson(join11(workspaceDir, COMPILE_BASENAME), { compiled: [] });
-  return new Set(Array.isArray(db.compiled) ? db.compiled.map(String) : []);
-}
-function markCompiled(workspaceDir, ids) {
-  const set2 = readCompiled(workspaceDir);
-  let added = 0;
-  for (const id of Array.isArray(ids) ? ids : [ids]) if (!set2.has(String(id))) {
-    set2.add(String(id));
-    added++;
-  }
-  writeJson(join11(workspaceDir, COMPILE_BASENAME), { compiled: [...set2].sort() });
-  return added;
-}
-function uncompiled(workspaceDir, allSessionIds) {
-  const set2 = readCompiled(workspaceDir);
-  return [...allSessionIds].map(String).filter((id) => !set2.has(id));
 }
 
 // bin/cli.mjs
@@ -24406,7 +24632,7 @@ function runServe() {
     try {
       if (p === "/" || p.endsWith("/")) p += "index.html";
       const fp = resolve3(out, "." + p);
-      if (!within(fp, out) || !existsSync8(fp) || statSync(fp).isDirectory()) {
+      if (!within(fp, out) || !existsSync8(fp) || statSync2(fp).isDirectory()) {
         res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
         res.end("404 " + p);
         return;
@@ -24417,7 +24643,7 @@ function runServe() {
         res.end("403");
         return;
       }
-      if (!statSync(real).isFile()) {
+      if (!statSync2(real).isFile()) {
         res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
         res.end("404 " + p);
         return;
@@ -24490,8 +24716,8 @@ function runFsck() {
     const docsDir = engineDir();
     const r = fsck({ docsDir, write: !argv.includes("--check") });
     console.log("fsck: " + r.nodeCount + " pages \xB7 fixpoint " + (r.fixpointStable ? "stable \u2705" : "UNSTABLE \u2717") + " \xB7 digest " + r.digest.slice(0, 12) + " \xB7 " + r.findings.length + " finding(s)");
-    for (const f of r.findings) console.log("  \xB7 " + f.kind + (f.uid ? " " + f.uid : "") + (f.detail ? " \u2014 " + f.detail : "") + (f.count ? " \xD7" + f.count : ""));
-    process.exit(r.fixpointStable ? 0 : 1);
+    for (const f of r.findings) console.log("  " + (r.blockingFindings.includes(f) ? "\u2717" : "\xB7") + " " + f.kind + (f.uid ? " " + f.uid : "") + (f.detail ? " \u2014 " + f.detail : "") + (f.count ? " \xD7" + f.count : ""));
+    process.exit(r.ok ? 0 : 1);
   } catch (e) {
     die(e.message);
   }
@@ -24500,8 +24726,7 @@ function runReport() {
   try {
     const r = report({ docsDir: engineDir() });
     console.log(renderMetricsText(r));
-    const wiringOk = r.wiring.killRate === null || r.wiring.killRate === 1;
-    process.exit(r.fixpoint.stable && wiringOk ? 0 : 1);
+    process.exit(r.ok ? 0 : 1);
   } catch (e) {
     die(e.message);
   }
@@ -24543,12 +24768,37 @@ function runConfirm() {
     const docsDir = engineDir();
     const { node, model } = resolvePage(docsDir, title);
     const g = computeGate({ model, events: readLog(logPath(docsDir)) });
-    let n = 0;
-    for (const e of g.edges) if (e.tracked && e.open && e.edgeId && e.dep === node.uid) {
+    let n = 0, skippedBroken = 0;
+    for (const e of g.edges) {
+      if (!e.tracked || !e.open || e.dep !== node.uid) continue;
+      if (e.broken || !e.edgeId || !e.verdictKey) {
+        skippedBroken++;
+        continue;
+      }
       appendEvent(logPath(docsDir), { type: "confirm-edge", edge: e.edgeId, verdict_key: e.verdictKey, by: opt("by", "human") });
       n++;
     }
-    console.log(n ? "\u2713 confirmed " + n + " edge(s) for [" + node.title + "]" : "no open tracked edges for [" + node.title + "]");
+    const note = skippedBroken ? " (skipped " + skippedBroken + " broken edge(s) \u2014 fix the target/span first)" : "";
+    console.log((n ? "\u2713 confirmed " + n + " edge(s) for [" + node.title + "]" : "no confirmable open edges for [" + node.title + "]") + note);
+  } catch (e) {
+    die(e.message);
+  }
+}
+function runResolve() {
+  try {
+    const a = argv[1], b = argv[2];
+    if (!a || !b || a.startsWith("--") || b.startsWith("--")) die('usage: gazette resolve "<page A>" "<page B>" --winner "<title>"');
+    const docsDir = engineDir();
+    const model = buildModel({ corpus: loadCorpus({ docsDir }) });
+    const na = model.nodes[nfc(String(a))], nb = model.nodes[nfc(String(b))];
+    if (!na) die("no page titled [" + a + "]");
+    if (!nb) die("no page titled [" + b + "]");
+    const winner = opt("winner");
+    if (!winner) die('resolve needs --winner "<title>"');
+    const wn = model.nodes[nfc(String(winner))];
+    if (!wn || wn.uid !== na.uid && wn.uid !== nb.uid) die("--winner must be one of the two named pages");
+    const ev = appendEvent(logPath(docsDir), { type: "resolve", conflict: conflictKey(na.uid, nb.uid), winner: wn.uid });
+    console.log("\u2713 resolved [" + na.title + "] \xD7 [" + nb.title + "] \u2192 winner [" + wn.title + "] (resolution_id " + ev.seq + ")");
   } catch (e) {
     die(e.message);
   }
@@ -24641,6 +24891,9 @@ switch (cmd) {
   case "confirm":
     runConfirm();
     break;
+  case "resolve":
+    runResolve();
+    break;
   default:
     console.log([
       "gazette \u2014 offline board from a folder of HTML docs (default: gazette/)",
@@ -24667,6 +24920,7 @@ switch (cmd) {
       "  gazette report                     deterministic auditable metrics (kill rate, fixpoint, cutoff)",
       '  gazette approve "<title>"          log a human approval \u2192 trust: canonical (backs the projection)',
       `  gazette confirm "<title>"          vouch a dependent page's open rests_on edges (gate cutoff)`,
+      '  gazette resolve "<A>" "<B>" --winner "<title>"   record a contradicts resolution',
       "  gazette ledger <verify|recheck|mark-compiled|uncompiled> \u2026   the code-owned trust ledgers",
       "",
       "  common flags: --dir <dir> (content dir, default gazette/)  --data <dir>  --out <dir>  --now YYYY-MM-DD"

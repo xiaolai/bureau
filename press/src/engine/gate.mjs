@@ -7,6 +7,7 @@
 // Honesty: an UNTRACKED rests_on edge (bare string, no span) cannot be gated, so its dependent is
 // conservatively needs-review and is EXCLUDED from the sound-gate guarantee / cutoff ratio.
 import { projectRevisions, spanRevision, verdictKey, becauseDigest, edgeId } from "./revisions.mjs";
+import { SCHEMA_VERSION } from "../core/model.mjs";
 
 const RANK = { current: 0, "needs-review": 1, stale: 2 }; // stale (broken dep) outranks needs-review
 
@@ -17,12 +18,18 @@ export function lastConfirmations(events) {
   return m;
 }
 
-// the dependent's representative claim span = its FIRST author-anchored span (document order), or
-// null if it anchors none. Editing that claim bumps its revision -> changes the verdict key ->
-// re-opens the edge (roadmap: "editing the downstream claim invalidates the verdict").
+// the dependent's representative claim span id = its FIRST author-anchored span (document order),
+// or null if it anchors none. This is a STABLE id for the edge/verdict key (so it never churns).
 function depSpanOf(node) { return node && node.spans && node.spans[0] ? "^" + node.spans[0].anchor : null; }
+// the dependent's claim revision = the SUM of ALL its span revisions. Editing ANY claim on the
+// dependent bumps the sum -> changes the verdict key -> re-opens the edge, so the gate never misses
+// a change to a non-first claim on a multi-claim page. For a one-claim page (the atomic-page norm)
+// the sum equals the single span's revision, so single-span edges keep identical verdict keys.
+function depClaimRev(spans, node) {
+  return (node && node.spans ? node.spans : []).reduce((sum, s) => sum + spanRevision(spans, node.uid, "^" + s.anchor), 0);
+}
 
-export function computeGate({ model, events, schemaVersion = 1 }) {
+export function computeGate({ model, events, schemaVersion = SCHEMA_VERSION }) {
   const spans = projectRevisions(events);
   const confirmed = lastConfirmations(events);
   const byTitle = model.nodes;
@@ -37,13 +44,22 @@ export function computeGate({ model, events, schemaVersion = 1 }) {
     const depUid = e.sourceUid;
     const depNode = byTitle[e.source];
     const depSpan = depSpanOf(depNode);
-    const depRev = depSpan ? spanRevision(spans, depUid, depSpan) : 0;
 
     if (!e.tracked) { // no span to anchor a verdict on
       untracked++; bump(depUid, "needs-review");
       edges.push({ dep: depUid, target: e.target, tracked: false, open: true, reason: "untracked" });
       continue;
     }
+    // A tracked edge whose DEPENDENT anchors no claim span can't be gated on the downstream side —
+    // an edit to the downstream claim would never bump a (nonexistent) dep_span_revision, so a
+    // confirmed verdict could mask a changed claim. Treat it like untracked: conservatively
+    // needs-review, and OUT of the sound-gate accounting (never cut off).
+    if (!depSpan) {
+      untracked++; bump(depUid, "needs-review");
+      edges.push({ dep: depUid, target: e.target, span: e.span, tracked: false, open: true, reason: "downstream-unanchored" });
+      continue;
+    }
+    const depRev = depClaimRev(spans, depNode); // sum over ALL the dependent's claim spans (#7)
     tracked++;
     const targetNode = byTitle[e.target];
     if (!targetNode) { broken++; bump(depUid, "stale"); edges.push({ dep: depUid, target: e.target, span: e.span, tracked: true, open: true, broken: true, reason: "missing-target" }); continue; }
@@ -77,7 +93,9 @@ export function blastRadius(model, rootUid) {
     if (!rev.has(t.uid)) rev.set(t.uid, []);
     rev.get(t.uid).push(e.sourceUid);
   }
-  const visited = new Set(), order = [];
+  // Seed visited with the root so a cycle back to root never re-adds or re-processes it — the
+  // (node) visited token guarantees at-most-once, and the root is not a dependent of itself.
+  const visited = new Set([rootUid]), order = [];
   let processed = 0;
   const stack = [rootUid];
   while (stack.length) {
