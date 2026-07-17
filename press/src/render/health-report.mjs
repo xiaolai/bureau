@@ -12,13 +12,36 @@ import { escapeHtml, escapeAttr } from "../shared/escape.mjs";
 const wl = (id) => '<a data-wiki="' + escapeAttr(String(id == null ? "" : id)) + '">' + escapeHtml(String(id == null ? "" : id)) + "</a>";
 const esc = (s) => escapeHtml(String(s == null ? "" : s));
 
-export function renderHealthHtml(health) {
+// The live recursion-engine "Drift" section (ADR-0001): dependency-aware freshness against the
+// working tree, distinct from the coarse timestamp `Stale` lane below. Rendered first because it is
+// the dynamic signal a live board exists to show.
+function renderDrift(fresh) {
+  if (!fresh) return "";
+  if (fresh.integrity) return '<h2>Drift · engine</h2><blockquote><p>⚠ The decision log failed its integrity check' +
+    (fresh.integrity.reason ? " (" + esc(fresh.integrity.reason) + ")" : "") + " — freshness badges are suppressed. Run <code>gazette fsck</code>.</p></blockquote>";
+  const { counts, drift, pending } = fresh;
+  const total = counts.needsReview + counts.stale + counts.modified;
+  if (!total) return '<h2>Drift · engine</h2><blockquote><p>✅ Every page is current — no page sits on a changed upstream, and nothing is unscanned.</p></blockquote>';
+  let s = "<h2>Drift · engine · " + total + "</h2><blockquote><p>Dependency-aware freshness (the deterministic gate, not the timestamp heuristic): " +
+    counts.needsReview + " need review · " + counts.stale + " stale · " + counts.modified + " modified" +
+    (pending ? " · " + pending + " uncommitted span change" + (pending === 1 ? "" : "s") + " (run <code>gazette scan</code> to record)" : "") + ".</p></blockquote>";
+  if (drift.length) {
+    s += '<table class="wb-table"><thead><tr><th>Page</th><th>Rests on</th><th>Why</th></tr></thead><tbody>' +
+      drift.map((d) => "<tr><td>" + wl(d.page) + "</td><td>" + wl(d.on) + (d.span ? " <code>" + esc(d.span) + "</code>" : "") +
+        '</td><td><span class="meta-chip meta-chip--fresh-' + esc(d.level) + '">' + esc(d.level) + "</span> " + esc(d.reason) + "</td></tr>").join("") +
+      "</tbody></table>";
+  }
+  return s;
+}
+
+export function renderHealthHtml(health, fresh = null) {
   const c = health.counts;
   const clean = healthTotal(health) === 0;
   let b = '<article data-generated="health"><h1>Health</h1>';
   b += "<blockquote><p>Automatic, deterministic check (no LLM) of the read-only projection — it watches for what the writing side hasn't caught up on.";
   if (health.now) b += "<br>Baseline <code>" + esc(health.now) + "</code>, stale window " + health.staleWindowDays + " days.";
   b += "</p></blockquote>";
+  b += renderDrift(fresh); // live engine freshness, before the structural counts
 
   const rows = [
     ["Dangling links (likely rename/typo)", c.dangling],
@@ -34,7 +57,10 @@ export function renderHealthHtml(health) {
     rows.map(([k, v]) => "<tr><td>" + k + '</td><td class="num">' + v + "</td></tr>").join("") +
     "</tbody></table>";
 
-  if (clean) return b + "<blockquote><p>✅ No findings. The knowledge base is consistent.</p></blockquote></article>";
+  // "clean" is STRUCTURAL only — the Drift section above carries dependency-aware freshness, which
+  // can flag needs-review/stale/integrity even when the structural checks pass. Qualify accordingly.
+  if (clean) return b + "<blockquote><p>✅ No <em>structural</em> findings — the knowledge base is structurally consistent." +
+    (fresh ? " (Dependency-aware freshness is in the <strong>Drift</strong> section above.)" : "") + "</p></blockquote></article>";
 
   const section = (title, n, note, inner) =>
     "<h2>" + esc(title) + " · " + n + "</h2><blockquote><p>" + note + "</p></blockquote>" + inner;

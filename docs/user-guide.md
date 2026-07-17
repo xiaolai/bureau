@@ -174,8 +174,11 @@ your-repo/
   canon/               the workspace (committed — this IS your memory; default name)
     decisions/ …       cabinet drawers (the canon)
     logbook/           append-only session history
+    _config.json       render config (title/home/provenance + sidebar order — see below)
+    _log.jsonl         the decision log (committed — source of truth for the freshness engine)
   bureau/crew/         the crew you enabled/authored — bureau's control dir, never rendered
   gazette/             the rendered gazette (gitignored — derived, rebuild any time)
+  .bureau-cache/       the engine's derived gate cache (gitignored — regenerable by `gazette fsck`)
   BUREAU.md            the instructions init writes (trust gate + how to use the canon)
   CLAUDE.md            imports BUREAU.md (@BUREAU.md), so every session loads it
   .claude/agents/      crew agents, materialized by bureau:crew (generated — edit the source)
@@ -183,6 +186,31 @@ your-repo/
 
 `canon/` is the content (rename-able via `--workspace`, just not to a reserved name like `bureau`
 or `crew`); `bureau/` is reserved for bureau's machinery — the two are always separate directories.
+The workspace holds only **source + committed decisions** (pages, `_log.jsonl`, the ledgers,
+`_config.json`); every **derived** artifact lives *outside* it — the rendered board in `gazette/`,
+the engine's gate cache in `.bureau-cache/`, both gitignored and rebuildable any time.
+
+### Sidebar order
+
+By default the left sidebar orders sections by top-level folder name (use `NN-` prefixes like
+`00-`, `10-` to control it) and appends generated sections (Timeline, Graph, Health) last. To set
+the order **explicitly**, list section ids in `_config.json`'s `groups[]` — the array order is the
+sidebar order, and it can position generated sections too:
+
+```json
+{
+  "meta": { "title": "…" },
+  "groups": [
+    { "id": "", "label": "Overview" },
+    { "id": "decisions" },
+    { "id": "logbook" },
+    { "id": "health" }
+  ]
+}
+```
+
+Listed sections render in that order; anything unlisted keeps its folder/append order after. An
+absent or empty `groups` = the default folder order (fully backward-compatible).
 
 The workspace is plain markdown in your repo — diff it, review it in PRs, edit a typo by hand.
 bureau just keeps it consistent and gated.

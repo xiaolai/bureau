@@ -8,5 +8,12 @@
       "sourceGroup": "logbook",
       "exclude": ["Logbook"]
     }
-  }
+  },
+  "groups": [
+    { "id": "", "label": "Overview" },
+    { "id": "decisions", "label": "Decisions" },
+    { "id": "logbook", "label": "Logbook" },
+    { "id": "graph", "label": "Graph" },
+    { "id": "health", "label": "Health" }
+  ]
 }

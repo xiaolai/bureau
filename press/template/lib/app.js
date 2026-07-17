@@ -88,10 +88,14 @@ function injectStyle(code, palette) {
 
 function metaRow(meta) {
   if (!meta) return "";
-  return '<div class="doc-meta">' +
-    ["type", "status", "words", "age"].filter((k) => meta[k])
-      .map((k) => '<span class="meta-chip meta-chip--' + k + '">' + escapeHtml(meta[k]) + "</span>").join("") +
-    "</div>";
+  // `freshness` (current/needs-review/stale/modified) is the recursion-engine live badge — it rides
+  // the same chip row but gets its own value class (meta-chip--fresh-<level>) for distinct colour.
+  const base = ["type", "status", "words", "age"].filter((k) => meta[k])
+    .map((k) => '<span class="meta-chip meta-chip--' + k + '">' + escapeHtml(meta[k]) + "</span>").join("");
+  const fresh = meta.freshness
+    ? '<span class="meta-chip meta-chip--freshness meta-chip--fresh-' + escapeHtml(String(meta.freshness)) + '">' + escapeHtml(String(meta.freshness)) + "</span>"
+    : "";
+  return base || fresh ? '<div class="doc-meta">' + base + fresh + "</div>" : "";
 }
 
 const ICONS = {

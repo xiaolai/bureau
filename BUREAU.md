@@ -87,8 +87,15 @@ dependency gate (`docs/adr-0001-engine-data-model.md`):
   `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" <verb> --dir canon`:
   `scan` (record span-revision events after edits), `gate` (the eager dirty index — a page's real
   freshness), `fsck` (rebuild derived state to a byte-fixpoint; a CI gate), `report` (auditable
-  metrics), `approve`/`confirm "<title>"` (the human side of the log), and
+  metrics), `approve`/`confirm`/`resolve "<title>"` (the human side of the log), and
   `ledger …` (the `_verify.json` / `_compile-state.json` trust ledgers).
+- **Live board.** `gazette serve --dir canon` renders the gate's freshness onto the board and
+  hot-reloads on every save — a page that sits on a changed upstream span shows a `needs-review`
+  badge (and a "Drift" section on the Health page) *before* you `scan`, reflecting the working tree.
+- **Versioned board (git-backed).** A git commit bundles `{pages + _log.jsonl + ledgers}`, so it is
+  the snapshot unit: `gazette build --at <ref|snapshot>` renders any past board, `gazette diff <A>
+  <B>` reports what changed from the decision-log slice, `gazette snapshot create <name>` pins a
+  named `{commit, log-seq, digest}` (committed in `_snapshots.json`).
 
 <!-- bureau:crew -->
 @bureau/crew/auditor/brief.md
