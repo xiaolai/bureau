@@ -26,7 +26,8 @@ function stripComments(src) {
 }
 
 function walk(dir, root, out) {
-  for (const name of readdirSync(dir).sort()) {
+  let names; try { names = readdirSync(dir).sort(); } catch { return; } // unreadable subdir → skip, don't crash the scan
+  for (const name of names) {
     if (out.length >= MAX_FILES) return;                   // cap total discovery (DoS guard)
     if (SKIP_DIR.has(name) || name.startsWith(".")) continue;
     const p = join(dir, name);

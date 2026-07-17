@@ -195,3 +195,10 @@ test("parse: a frontmatter multi-line sources list of wiki-links yields edge tar
   const srcEdges = d.edges.filter((e) => e.edgeType === "sources").map((e) => e.target).sort();
   assert.deepEqual(srcEdges, ["session a · 2026-06-10", "session b · 2026-06-11"]);
 });
+
+test("parse (md): a real [[link]] in prose containing < and > is NOT over-stripped", () => {
+  // the tag-strip must target only real HTML tags (a `<` followed by a letter), never bare `<`/`>`
+  // in text — else `2 < 3 and [[Body]] > 1` would lose the link the renderer actually draws.
+  const d = parseMarkdownDoc("---\ntitle: T\n---\n\n# T\n\n2 < 3 and [[Body]] > 1, also [[Real]]\n");
+  assert.deepEqual(d.bodyLinks.sort(), ["Body", "Real"]);
+});

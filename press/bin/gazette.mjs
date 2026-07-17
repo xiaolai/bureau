@@ -21577,7 +21577,7 @@ function stripMdCode(s) {
   return out.join("\n");
 }
 function stripMdLiteral(s) {
-  return stripMdCode(s).replace(RAW_BLOCK, " ").replace(/<[^>]*>/g, " ");
+  return stripMdCode(s).replace(RAW_BLOCK, " ").replace(/<\/?[a-zA-Z][^>]*>/g, " ");
 }
 function parseMarkdownDoc(raw) {
   const { frontmatter, body } = splitFrontmatter(raw);
@@ -21819,11 +21819,9 @@ function readConfig(docsDir) {
   const seenId = /* @__PURE__ */ new Set();
   for (const g of groups) {
     if (g === null || typeof g !== "object" || Array.isArray(g)) throw new Error('_config.json: every "groups" entry must be an object' + where);
-    if (g.id != null) {
-      if (typeof g.id !== "string") throw new Error('_config.json: group "id" must be a string' + where);
-      if (seenId.has(g.id)) throw new Error('_config.json: duplicate group id "' + g.id + '"' + where);
-      seenId.add(g.id);
-    }
+    if (typeof g.id !== "string") throw new Error('_config.json: every "groups" entry needs a string "id"' + where);
+    if (seenId.has(g.id)) throw new Error('_config.json: duplicate group id "' + g.id + '"' + where);
+    seenId.add(g.id);
   }
   return { meta, groups };
 }
@@ -22542,7 +22540,13 @@ function stripComments(src) {
   return String(src).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
 }
 function walk2(dir, root, out) {
-  for (const name of readdirSync2(dir).sort()) {
+  let names;
+  try {
+    names = readdirSync2(dir).sort();
+  } catch {
+    return;
+  }
+  for (const name of names) {
     if (out.length >= MAX_FILES) return;
     if (SKIP_DIR.has(name) || name.startsWith(".")) continue;
     const p = join5(dir, name);
@@ -23157,8 +23161,13 @@ function hashInputs({ root, docsDir, dataDir, now }) {
   if (meta.code && meta.code.dir) {
     const SKIP = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "coverage", ".next", "vendor"]);
     const statDir = (dir) => {
-      if (!existsSync4(dir)) return;
-      for (const name of readdirSync4(dir).sort()) {
+      let names;
+      try {
+        names = readdirSync4(dir).sort();
+      } catch {
+        return;
+      }
+      for (const name of names) {
         if (SKIP.has(name) || name.startsWith(".")) continue;
         const p = join7(dir, name);
         let st;
@@ -23191,7 +23200,14 @@ function computeHealth({ docsDir, dataDir, now = null }) {
   const knownTargets = new Set(Object.keys(timeline.docs).map((t) => nfc(t)));
   knownTargets.add(nfc(HEALTH_TITLE));
   if (corpus.meta?.graph?.enabled !== false && model.nodeCount > 0) knownTargets.add(nfc("Graph"));
-  for (const cf of corpus.canvasFiles || []) knownTargets.add(nfc("Canvas \xB7 " + cf.replace(/\.canvas$/, "")));
+  for (const cf of corpus.canvasFiles || []) {
+    try {
+      JSON.parse(readFileSync5(join7(docsDir, cf), "utf8"));
+    } catch {
+      continue;
+    }
+    knownTargets.add(nfc("Canvas \xB7 " + cf.replace(/\.canvas$/, "")));
+  }
   if (corpus.meta?.code?.dir) {
     knownTargets.add(nfc("Code \xB7 Module map"));
     knownTargets.add(nfc("Code \xB7 Dependencies"));

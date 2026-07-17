@@ -198,8 +198,8 @@ function hashInputs({ root, docsDir, dataDir, now }) {
     const SKIP = new Set(["node_modules", ".git", "dist", "build", "coverage", ".next", "vendor"]);
     // stat-based (size+mtime) — cheap on a large code tree, no content reads
     const statDir = (dir) => {
-      if (!existsSync(dir)) return;
-      for (const name of readdirSync(dir).sort()) {
+      let names; try { names = readdirSync(dir).sort(); } catch { return; } // absent / a file / unreadable → nothing to hash, don't crash the cache key
+      for (const name of names) {
         if (SKIP.has(name) || name.startsWith(".")) continue;
         const p = join(dir, name);
         let st; try { st = lstatSync(p); } catch { continue; } // unreadable/removed → skip
@@ -229,7 +229,18 @@ export function computeHealth({ docsDir, dataDir, now = null }) {
   const knownTargets = new Set(Object.keys(timeline.docs).map((t) => nfc(t)));
   knownTargets.add(nfc(HEALTH_TITLE));
   if (corpus.meta?.graph?.enabled !== false && model.nodeCount > 0) knownTargets.add(nfc("Graph"));
-  for (const cf of corpus.canvasFiles || []) knownTargets.add(nfc("Canvas · " + cf.replace(/\.canvas$/, "")));
+  // Canvas docs are emitted only for VALID .canvas JSON (buildSite skips a malformed one) — mirror
+  // that here, else a link to a broken canvas would be wrongly suppressed from the dangling report.
+  for (const cf of corpus.canvasFiles || []) {
+    try { JSON.parse(readFileSync(join(docsDir, cf), "utf8")); } catch { continue; }
+    knownTargets.add(nfc("Canvas · " + cf.replace(/\.canvas$/, "")));
+  }
+  // Code docs are emitted when meta.code.dir is configured. (Edge: if that dir holds no scannable
+  // code, scanCode yields nothing and the pages aren't emitted — a link to them would then be
+  // wrongly suppressed. Re-running scanCode here to be exact would double the walk AND resolve the
+  // path against the wrong base — computeHealth has no `root`, buildSite does — so we accept the
+  // narrow false-negative over a costly, possibly-wrong re-scan. A configured-but-empty code.dir
+  // is exotic; a doc that legitimately links [[Code · Module map]] is the case that matters.)
   if (corpus.meta?.code?.dir) { knownTargets.add(nfc("Code · Module map")); knownTargets.add(nfc("Code · Dependencies")); }
   const health = deriveHealth(model, backlinks, { now, knownTargets });
   return { corpus, model, backlinks, health, timeline };

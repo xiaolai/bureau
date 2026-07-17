@@ -38,13 +38,12 @@ function readConfig(docsDir) {
   const seenId = new Set();
   for (const g of groups) {
     if (g === null || typeof g !== "object" || Array.isArray(g)) throw new Error('_config.json: every "groups" entry must be an object' + where);
-    // an id is how a group is keyed (cfgById); a non-string or duplicate silently drops or
-    // shadows a group's label/icon override, so reject both instead of failing quietly later.
-    if (g.id != null) {
-      if (typeof g.id !== "string") throw new Error('_config.json: group "id" must be a string' + where);
-      if (seenId.has(g.id)) throw new Error('_config.json: duplicate group id "' + g.id + '"' + where);
-      seenId.add(g.id);
-    }
+    // an id is how a group is keyed (cfgById); a missing/non-string/duplicate id silently drops or
+    // shadows a group's label/icon override (a no-id entry can target nothing), so reject it loudly.
+    // "" is a valid id — it names the root/Overview section — so require a STRING, not truthiness.
+    if (typeof g.id !== "string") throw new Error('_config.json: every "groups" entry needs a string "id"' + where);
+    if (seenId.has(g.id)) throw new Error('_config.json: duplicate group id "' + g.id + '"' + where);
+    seenId.add(g.id);
   }
   return { meta, groups };
 }

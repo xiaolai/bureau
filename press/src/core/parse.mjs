@@ -440,8 +440,12 @@ function stripMdCode(s) {
 // title extraction; the real body is rendered separately by markdownToHtml.
 function stripMdLiteral(s) {
   return stripMdCode(s)
-    .replace(RAW_BLOCK, " ")   // <pre>/<code>/comment BLOCKS (content and all)
-    .replace(/<[^>]*>/g, " "); // any remaining tag MARKUP — drops attribute text, keeps element text
+    .replace(RAW_BLOCK, " ")                  // <pre>/<code>/comment BLOCKS (content and all)
+    .replace(/<\/?[a-zA-Z][^>]*>/g, " ");     // real HTML tag MARKUP only — a `<` that opens an actual
+                                              // tag (letter or /letter after it). This drops attribute
+                                              // text like `title="[[X]]"` while KEEPING prose links: in
+                                              // `2 < 3 and [[Body]] > 1` the `<` isn't a tag, so [[Body]]
+                                              // survives (markdown-it renders it as a link there too).
 }
 
 // Parse one markdown/Obsidian doc → the SAME shape as parseHtmlDoc. Metadata comes
