@@ -12,29 +12,38 @@ the answer so an unverified claim can never masquerade as fact.
 
 ## Steps
 
-1. **Locate the workspace** (`bureau.json`; default `bureau`). If none, tell the user to run
+1. **Locate the workspace** (`bureau.json`; default `canon`). If none, tell the user to run
    `bureau:init` first and stop.
 2. **Find the pages that bear on it.** Search the cabinet drawers for pages on the question — by
    title, by drawer topic, and by following `[[links]]` between pages. EXCLUDE `logbook/`,
    `board/`, `lint/`, and every `_`-prefixed entry (those are history, output, or state, not
    canon).
-3. **Answer only from those pages.** Synthesize a direct answer. Do NOT add knowledge the canon
+3. **Check freshness (the recursion engine).** Run
+   `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" gate --dir <workspace>` and note which of the
+   pages you're about to use are `needs-review` (they rest on a changed upstream claim) or `stale`
+   (a broken dependency). Freshness is a SECOND axis, independent of trust: a page can be `canonical`
+   yet `needs-review`. If the command isn't available, note that freshness is unverified and continue.
+4. **Answer only from those pages.** Synthesize a direct answer. Do NOT add knowledge the canon
    does not contain; if you must reason beyond it, mark that clearly as inference.
-4. **Cite with tiers.** For each claim used, name the page, its `status:` (`canonical` /
-   `verified` / `proposed` / `stale` / `contested`), and the `[[session …]]` provenance.
-5. **Never state non-`canonical` as fact.** `canonical` is fact; `verified` is "checked, not
-   approved"; `proposed`/`stale`/`contested` are claims to confirm — flag them in the answer.
-6. **Name gaps.** If the canon does not cover the question, say so; do not fabricate. Suggest
+5. **Cite with tier AND freshness.** For each claim used, name the page, its `trust`/`status:`
+   (`canonical` / `verified` / `proposed` / `stale` / `contested`), its **freshness** if not
+   `current`, and the `[[session …]]` provenance.
+6. **Never state a non-`canonical` OR non-`current` claim as fact.** Fact requires *both*:
+   `trust: canonical` **and** freshness `current`. `verified` is "checked, not approved";
+   `proposed`/`contested` are claims to confirm; a `needs-review`/`stale` page is **not current
+   fact even if it was approved** — its foundation moved. Flag it and route it to `bureau:review`.
+7. **Name gaps.** If the canon does not cover the question, say so; do not fabricate. Suggest
    the next step (file a session, run `bureau:lint`).
-7. **Offer to keep it.** If the synthesis reaches a conclusion worth remembering, offer to
+8. **Offer to keep it.** If the synthesis reaches a conclusion worth remembering, offer to
    capture it (`bureau:note`) so it enters capture → compile → review, never straight to canon.
 
 ## Rules
 
 1. **Compiled canon only.** Read dossiers; never re-derive an answer from raw sources or
    the logbook prose — that is what compile is for.
-2. **Tier travels.** Every cited claim carries its `status:`; the answer's confidence is capped
-   by its weakest load-bearing tier.
+2. **Tier AND freshness travel.** Every cited claim carries its trust tier AND its freshness; the
+   answer's confidence is capped by the weaker of the two on its weakest load-bearing claim. A
+   `canonical` page that is `needs-review`/`stale` is not current fact.
 3. **No invention.** A gap is reported as a gap, not filled with a guess.
 4. **Read-only.** Recall never edits cabinets; capturing a new conclusion goes through the gate.
 
@@ -52,6 +61,13 @@ Context: the page that answers it is unreviewed.
 user: "What did we decide about the queue retry policy?"
 assistant: "The canon has **Queue retry** but it's `proposed` (unreviewed, from session d4e5f6) — so treat this as unverified: it says 3 retries with backoff. Want me to put it through bureau:review before you rely on it?"
 <commentary>A non-canonical claim is answered WITH its tier and an explicit 'not fact yet' flag — never presented as settled.</commentary>
+</example>
+
+<example>
+Context: the answering page is approved but sits on a changed upstream.
+user: "bureau:query \"is the wiki the source of truth for current state?\""
+assistant: "**SSOT model** says yes — and it's `canonical` (approved). But the gate shows it `needs-review`: the **Logbook model** claim it rests on changed since it was confirmed. So treat this as *approved-but-not-current* — the foundation moved. I'd re-confirm it via bureau:review before relying on it."
+<commentary>Freshness is orthogonal to trust: a canonical page that needs-review is flagged as not-current, not stated as fact.</commentary>
 </example>
 
 ## Scope note

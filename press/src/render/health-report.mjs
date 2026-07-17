@@ -50,7 +50,7 @@ export function renderHealthHtml(health, fresh = null) {
     ["Invalid dates (bad <code>updated</code>)", c.invalidDate],
     ["<code>_types</code> schema violations", c.schema],
     ["Ledger drift (declared ≠ actual)", c.drift],
-    ["Stale (neighbors moved, this didn't)", c.stale],
+    ["Stale — timestamp heuristic (neighbors moved, this didn't)", c.stale],
     ["Unsourced (a claim with no provenance)", c.unsourced],
   ];
   b += '<table class="wb-table"><thead><tr><th>Check</th><th class="num">Count</th></tr></thead><tbody>' +
@@ -92,7 +92,7 @@ export function renderHealthHtml(health, fresh = null) {
       "<ul>" + health.drift.map((d) => "<li>declared " + d.declared + ", actual " + d.actual + "</li>").join("") + "</ul>");
   }
   if (c.stale) {
-    b += section("Stale", c.stale, "Hasn't changed in a while, but a doc it links to was updated more recently — may need a revisit.",
+    b += section("Stale (timestamp heuristic)", c.stale, "A coarse signal: this page's <code>updated:</code> is older than a doc it links to. For <em>precise</em>, dependency-aware freshness (which upstream claim actually changed), see the <strong>Drift · engine</strong> section above — that's the recursion engine; this lane is the fallback for docs that declare no <code>rests_on</code> edges.",
       tbl(["Document", "Updated", "Newer neighbor"], health.stale.map((s) => "<tr><td>" + wl(s.node) + "</td><td>" + esc(s.updated) + "</td><td>" + wl(s.newerNeighbor) + "</td></tr>").join("")));
   }
   if (c.unsourced) {

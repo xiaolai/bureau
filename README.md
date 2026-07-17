@@ -101,6 +101,7 @@ section ids in `_config.json`'s `groups[]`.
 | `bureau:lint` | semantic consistency sweep across the cabinets |
 | `bureau:query` | answer from the canon — cited, tier- and freshness-aware, never stating an unverified/stale claim as fact |
 | `bureau:status` | uncompiled sessions · pages by tier · **needs-review / stale (the gate)** |
+| `bureau:impact` | pre-change blast radius — which pages rest on a claim before you change it |
 | `bureau:inspect` | build + open the gazette |
 | `bureau:serve` | the interactive chamber + the **live freshness board** |
 | `bureau:snapshot` | render any past board · diff two versions · pin named snapshots |

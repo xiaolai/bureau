@@ -84,6 +84,7 @@ route it back through `bureau:review`.
 | Promote vetted claims to `canonical`; confirm dependencies; resolve conflicts (human gate) | `bureau:review` | `review` |
 | Run the whole lifecycle in one pass (compile → scan → lint → review → inspect) | `bureau:cycle` | orchestrates `compile`/`lint`/`review` |
 | See uncompiled sessions + pages by tier **and freshness (needs-review/stale)** | `bureau:status` | — |
+| See what rests on a claim before changing it (blast radius) | `bureau:impact` | — |
 | Build and open the gazette | `bureau:inspect` | — |
 | Open the interactive chamber + the live freshness board | `bureau:serve` | — |
 | Version the canon — pin a snapshot, diff two versions, view a past board | `bureau:snapshot` | — |

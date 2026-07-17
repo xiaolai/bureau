@@ -37,19 +37,35 @@ review. `gazette health` reports any tiered page with no provenance link as **un
 
 ```markdown
 ---
+id: 01J9Z8QKQ7ULIDEXAMPLE
 title: SSOT model
 updated: 2026-06-10
 status: proposed
+rests_on:
+  - { page: "[[Logbook model]]", span: "^authority", because: "the SSOT split assumes the logbook is low-authority" }
 ---
 
 # SSOT model
 
-The wiki is authoritative for current truth; the logbook is low-authority provenance.
+The wiki is authoritative for current truth; the logbook is low-authority provenance. ^ssot-claim
 See [[Logbook model]].
 
 **Sources.** [[session a1b2c3d4 · 2026-06-10]]
 ```
 
+- **`id`** is an opaque, immutable identifier — stamp one on **every** dossier (a ULID, or any
+  unique token; e.g. `pg-<slug>-NNNN`). It is the page's identity, so a later rename never breaks a
+  dependency that points at it. A page with no `id` falls back to a title-derived shim that *does*
+  break on rename — so always author one.
+- **The claim carries a `^span`** — a `^anchor` at the end of the claim line (`^ssot-claim` above).
+  This is what a dependent page points at. Anchor exactly the sentence(s) another page could depend
+  on; keep it stable so cosmetic edits elsewhere don't churn it.
+- **`rests_on`** declares a dependency: when *this* dossier's claim relies on *another* dossier's
+  claim, add an object edge naming the target `[[page]]`, its `^span`, and a `because`. The
+  recursion engine then flags this page `needs-review` whenever that upstream span changes. These
+  edges are **proposed** by compile and **confirmed by the human at review** — declare them
+  generously (under-scoping is the silent killer; over-scoping only annoys). Omit `rests_on` for a
+  standalone claim.
 - `status` is the trust tier (defined in the `review` skill). Compile writes only `proposed`
   (an AI claim, unchecked) or `verified` (a fact it confirmed against the repo). It **never**
   writes `canonical` — that tier is reached only through `bureau:review`, the human gate. A
@@ -61,7 +77,7 @@ See [[Logbook model]].
 
 ## Steps
 
-1. **Locate the workspace** (`bureau.json`; default `bureau`). If none, tell the user to run
+1. **Locate the workspace** (`bureau.json`; default `canon`). If none, tell the user to run
    `bureau:init` first and stop.
 2. **Select entries.** List minutes not in `<workspace>/_compile-state.json` (apply
    `--since`). If none remain, report "cabinets already current" and stop.
@@ -73,9 +89,19 @@ See [[Logbook model]].
    the page by title; if absent, create it in the drawer matching its topic (use the
    `bureau.json` profiles). Keep distinct claims on distinct pages so each page has a single,
    unambiguous trust tier.
-5. **Write provenance.** Add the source minute to the page's body `**Sources.**` line
+5. **Stamp identity + anchor the claim (the recursion engine).** Ensure every page you touch —
+   created OR updated — carries an opaque `id:` (mint one if absent; never change an existing one),
+   and anchor its claim sentence with a `^span` (e.g. `^ssot-claim`). This makes the page
+   rename-safe and gives dependents something stable to point at. A page you update that predates
+   the engine (no `id`/`^span`) is **retrofitted here** — add both.
+6. **Declare dependencies — propose `rests_on`.** For each page, ask: does its claim *rest on*
+   another dossier's claim (it assumes it, builds on it, cites it as its basis)? If so, add a
+   `rests_on` object edge naming that `[[page]]`, its `^span`, and a one-line `because`. Declare
+   generously — a missing edge is silent staleness the gate can never catch; a spurious one only
+   costs a review click. These are **proposals**; the human confirms them at `bureau:review`.
+7. **Write provenance.** Add the source minute to the page's body `**Sources.**` line
    (a `[[session …]]` link). Never drop an existing source. Set `updated:` to today.
-6. **Set the trust tier.** A claim about a checkable artifact (a path, a build command, a
+8. **Set the trust tier.** A claim about a checkable artifact (a path, a build command, a
    function signature, a config value, a dependency version, a commit) is confirmed against the
    live repo. **Before reading any path from a claim, resolve it and confirm it stays inside
    the repo/workspace** — reject absolute paths, `..` escapes, and symlinks that point outside;
@@ -86,17 +112,34 @@ See [[Logbook model]].
    (it writes `<workspace>/_verify.json` in code — **never hand-edit it**; the schema below is for
    reference). Everything else — judgments, rationale, anything not mechanically checkable —
    stays `status: proposed`. Never write `canonical` (that is `bureau:review`).
-7. **Apply the conflict policy** (below) whenever a new claim disagrees with a page's current
+9. **Apply the conflict policy** (below) whenever a new claim disagrees with a page's current
    claim.
-8. **Structural check.** Run `bureau:inspect` (press build + health). Report the dossier
-   count and any dangling links, orphans, or contradictions it surfaces.
-9. **Mark compiled — only on success.** ONLY after the writes and the structural check succeed,
-   record each processed session id by running
-   `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" ledger mark-compiled <session-id> … --dir <workspace>`
-   (it writes `<workspace>/_compile-state.json` in code, idempotently — **do not hand-edit it**). A
-   failed inspect must leave the session un-compiled so the next run retries it, not skips broken output.
-10. **Report.** List pages created, pages updated, pages left `proposed` (awaiting
-    `bureau:review`), and any set to `contested`, with the command to inspect them.
+10. **Scan + structural check.** First record the new/changed claim spans into the decision log so
+    the gate can flag downstream drift:
+    `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" scan --dir <workspace>`. Then run
+    `bureau:inspect` (press build + health) and
+    `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" gate --dir <workspace>`. Report the dossier
+    count, any dangling/orphan/contradiction findings, AND any pages the gate now marks
+    `needs-review` (they rested on a claim this compile changed) — those go to `bureau:review`.
+11. **Mark compiled — only on success.** ONLY after the writes and the structural check succeed,
+    record each processed session id by running
+    `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" ledger mark-compiled <session-id> … --dir <workspace>`
+    (it writes `<workspace>/_compile-state.json` in code, idempotently — **do not hand-edit it**). A
+    failed inspect must leave the session un-compiled so the next run retries it, not skips broken output.
+12. **Report.** List pages created, pages updated, `rests_on` edges proposed, pages left `proposed`
+    (awaiting `bureau:review`), any set to `contested`, and any newly `needs-review`, with the
+    command to inspect them.
+
+### Retrofitting an existing canon (one-time)
+
+A canon created before the engine has dossiers with no `id`, no `^span`, and no `rests_on`. To adopt
+the engine, do a **one-time sweep** the first time you compile it (in addition to the per-minute work
+above): for **every** existing dossier, stamp an opaque `id:` and anchor its claim with a `^span`;
+then read the prose for dependencies the author already implied (a page that links `[[Other]]` and
+*builds on* its claim `rests_on` it) and propose those edges with a `because`. Finish with a `scan`.
+This is incremental and safe — nothing is promoted; the human confirms the proposed edges at
+`bureau:review`. Declare edges generously: the sweep is your one chance to capture the dependency
+structure the prose already encodes.
 
 ### `_verify.json` schema (code-owned)
 

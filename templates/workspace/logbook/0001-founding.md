@@ -1,4 +1,5 @@
 ---
+id: pg-min-0001
 title: session init · {{DATE}}
 updated: {{DATE}}
 status: logbook

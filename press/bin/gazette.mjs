@@ -22858,7 +22858,7 @@ function renderHealthHtml(health, fresh = null) {
     ["Invalid dates (bad <code>updated</code>)", c.invalidDate],
     ["<code>_types</code> schema violations", c.schema],
     ["Ledger drift (declared \u2260 actual)", c.drift],
-    ["Stale (neighbors moved, this didn't)", c.stale],
+    ["Stale \u2014 timestamp heuristic (neighbors moved, this didn't)", c.stale],
     ["Unsourced (a claim with no provenance)", c.unsourced]
   ];
   b += '<table class="wb-table"><thead><tr><th>Check</th><th class="num">Count</th></tr></thead><tbody>' + rows.map(([k, v]) => "<tr><td>" + k + '</td><td class="num">' + v + "</td></tr>").join("") + "</tbody></table>";
@@ -22916,9 +22916,9 @@ function renderHealthHtml(health, fresh = null) {
   }
   if (c.stale) {
     b += section(
-      "Stale",
+      "Stale (timestamp heuristic)",
       c.stale,
-      "Hasn't changed in a while, but a doc it links to was updated more recently \u2014 may need a revisit.",
+      "A coarse signal: this page's <code>updated:</code> is older than a doc it links to. For <em>precise</em>, dependency-aware freshness (which upstream claim actually changed), see the <strong>Drift \xB7 engine</strong> section above \u2014 that's the recursion engine; this lane is the fallback for docs that declare no <code>rests_on</code> edges.",
       tbl(["Document", "Updated", "Newer neighbor"], health.stale.map((s) => "<tr><td>" + wl(s.node) + "</td><td>" + esc3(s.updated) + "</td><td>" + wl(s.newerNeighbor) + "</td></tr>").join(""))
     );
   }
@@ -23198,6 +23198,29 @@ function computeGate({ model, events, schemaVersion = SCHEMA_VERSION }) {
   const dirty = [...freshness.entries()].filter(([, v]) => v !== "current").map(([uid, v]) => ({ uid, freshness: v })).sort((a, b) => a.uid < b.uid ? -1 : 1);
   const cutoffRatio = tracked ? cutoff / tracked : null;
   return { freshness, edges, dirty, counts: { tracked, untracked, cutoff, open, broken }, cutoffRatio };
+}
+function blastRadius(model, rootUid) {
+  const rev = /* @__PURE__ */ new Map();
+  for (const e of model.edges) {
+    if (e.edgeType !== "rests_on") continue;
+    const t = model.nodes[e.target];
+    if (!t) continue;
+    if (!rev.has(t.uid)) rev.set(t.uid, []);
+    rev.get(t.uid).push(e.sourceUid);
+  }
+  const visited = /* @__PURE__ */ new Set([rootUid]), order = [];
+  let processed = 0;
+  const stack = [rootUid];
+  while (stack.length) {
+    const u = stack.pop();
+    processed++;
+    for (const dep of rev.get(u) || []) if (!visited.has(dep)) {
+      visited.add(dep);
+      order.push(dep);
+      stack.push(dep);
+    }
+  }
+  return { affected: order.sort(), processed };
 }
 
 // src/engine/scan.mjs
@@ -25037,6 +25060,24 @@ function runScan() {
     die(e.message);
   }
 }
+function runImpact() {
+  try {
+    const title = argv[1] && !argv[1].startsWith("--") ? argv[1] : opt("page");
+    if (!title) die('usage: gazette impact "<page title>"');
+    const docsDir = engineDir();
+    const { node, model } = resolvePage(docsDir, title);
+    const { affected } = blastRadius(model, node.uid);
+    const titleOf = new Map(Object.values(model.nodes).map((n) => [n.uid, n.title]));
+    if (!affected.length) {
+      console.log("impact of [" + node.title + "]: nothing rests on it \u2014 safe to change");
+      return;
+    }
+    console.log("impact of [" + node.title + "]: " + affected.length + " page(s) rest on it (transitively) \u2014 review after changing its claim:");
+    for (const uid of affected) console.log("  \xB7 " + (titleOf.get(uid) || uid));
+  } catch (e) {
+    die(e.message);
+  }
+}
 function runGate() {
   try {
     const docsDir = engineDir();
@@ -25212,6 +25253,9 @@ switch (cmd) {
   case "gate":
     runGate();
     break;
+  case "impact":
+    runImpact();
+    break;
   case "fsck":
     runFsck();
     break;
@@ -25261,6 +25305,7 @@ switch (cmd) {
       "  recursion engine (ADR-0001):",
       "  gazette scan [--dry]               reconcile the decision log with the corpus (span-revision events)",
       "  gazette gate                       show the eager dirty index (needs-review/stale) + cutoff ratio",
+      '  gazette impact "<title>"           pre-change blast radius: which pages rest on this one',
       "  gazette fsck [--check]             rebuild mechanical-derived state to a byte-fixpoint (CI gate)",
       "  gazette report                     deterministic auditable metrics (kill rate, fixpoint, cutoff)",
       '  gazette approve "<title>"          log a human approval \u2192 trust: canonical (backs the projection)',

@@ -1,4 +1,5 @@
 ---
+id: pg-logbook
 title: Logbook
 updated: {{DATE}}
 status: logbook

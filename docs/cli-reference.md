@@ -53,6 +53,7 @@ See [`recursion-engine.md`](recursion-engine.md) for the model.
 |---|---|
 | `gazette scan [--dry]` | reconcile the decision log with the corpus — append introduce/edit/delete span events. `--dry` computes without writing. |
 | `gazette gate` | the eager dirty index: `needs-review`/`stale` pages + the cutoff ratio *beside* the edge count |
+| `gazette impact "<title>"` | pre-change blast radius — which pages (transitively) rest on this one, so you see the review cost before editing its claim |
 | `gazette fsck [--check]` | rebuild the derived tier to a byte-fixpoint; non-zero exit on a broken fixpoint, tampered log, or a blocking finding (unbacked-canonical, orphan-confirm, malformed ledger). `--check` doesn't write the cache. |
 | `gazette report` | deterministic auditable metrics: fixpoint digest, gate accounting (cutoff ratio beside edge count), wiring kill rate |
 | `gazette approve "<title>" [--by <who>]` | log a human approval → backs `trust: canonical` |

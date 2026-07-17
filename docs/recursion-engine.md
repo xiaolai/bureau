@@ -17,9 +17,13 @@ full spec); this guide is the practical how-to.
 
 ---
 
-## The three things you author
+## The three things (compile authors them; you confirm)
 
-Everything the engine does rests on three additions to an ordinary cabinet page:
+Everything the engine does rests on three additions to an ordinary cabinet page. You *can* write them
+by hand, but you rarely need to: **`bureau:compile` stamps the `id`, anchors the claim with a
+`^span`, and proposes `rests_on` edges** as it distils minutes into dossiers — and **`bureau:review`
+is where a human confirms those proposed edges.** (A canon created before the engine is retrofitted
+the same way — see the compile skill's one-time sweep.) Here's what those three things are:
 
 ### 1. An opaque `id:`
 
@@ -161,6 +165,7 @@ bureau repo the workspace is auto-detected, so `--dir` is optional). See
 |---|---|
 | `scan` | record span-revision events for anything that changed since the last scan |
 | `gate` | show the eager dirty index — which pages are `needs-review`/`stale`, and why |
+| `impact "<title>"` | pre-change blast radius — which pages rest on this one (so you weigh the cost before editing) |
 | `report` | deterministic, auditable metrics (kill rate, cutoff ratio *beside* edge count, fixpoint digest) |
 | `fsck` | rebuild all derived state to a byte-fixpoint; a CI gate (fails on drift/tamper/unbacked-canonical) |
 | `approve "<title>"` | log a human approval → backs `trust: canonical` |

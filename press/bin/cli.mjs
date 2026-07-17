@@ -18,7 +18,7 @@ import { escapeHtml } from "../src/shared/escape.mjs";
 import { prettify } from "../src/shared/prettify.mjs";
 // recursion engine (ADR-0001): scan → gate → fsck → report + ledgers
 import { scan as engineScan } from "../src/engine/scan.mjs";
-import { computeGate } from "../src/engine/gate.mjs";
+import { computeGate, blastRadius } from "../src/engine/gate.mjs";
 import { fsck as engineFsck } from "../src/engine/fsck.mjs";
 import { report as engineReport, renderMetricsText } from "../src/engine/metrics.mjs";
 import { recordVerification, recheckVerification, markCompiled, uncompiled } from "../src/engine/ledgers.mjs";
@@ -425,6 +425,22 @@ function runScan() {
   } catch (e) { die(e.message); }
 }
 
+// impact: pre-change blast radius — which pages (transitively) rest on this one, so you can see the
+// cost before you touch its claim. Reverse rests_on closure; cycle-safe (each node at most once).
+function runImpact() {
+  try {
+    const title = argv[1] && !argv[1].startsWith("--") ? argv[1] : opt("page");
+    if (!title) die('usage: gazette impact "<page title>"');
+    const docsDir = engineDir();
+    const { node, model } = resolvePage(docsDir, title);
+    const { affected } = blastRadius(model, node.uid);
+    const titleOf = new Map(Object.values(model.nodes).map((n) => [n.uid, n.title]));
+    if (!affected.length) { console.log("impact of [" + node.title + "]: nothing rests on it — safe to change"); return; }
+    console.log("impact of [" + node.title + "]: " + affected.length + " page(s) rest on it (transitively) — review after changing its claim:");
+    for (const uid of affected) console.log("  · " + (titleOf.get(uid) || uid));
+  } catch (e) { die(e.message); }
+}
+
 // gate: print the eager dirty index + cutoff ratio BESIDE edge count (never alone).
 function runGate() {
   try {
@@ -575,6 +591,7 @@ switch (cmd) {
   case "rename": runRename(); break;
   case "scan": runScan(); break;
   case "gate": runGate(); break;
+  case "impact": runImpact(); break;
   case "fsck": runFsck(); break;
   case "report": runReport(); break;
   case "ledger": runLedger(); break;
@@ -606,6 +623,7 @@ switch (cmd) {
       "  recursion engine (ADR-0001):",
       "  gazette scan [--dry]               reconcile the decision log with the corpus (span-revision events)",
       "  gazette gate                       show the eager dirty index (needs-review/stale) + cutoff ratio",
+      '  gazette impact "<title>"           pre-change blast radius: which pages rest on this one',
       "  gazette fsck [--check]             rebuild mechanical-derived state to a byte-fixpoint (CI gate)",
       "  gazette report                     deterministic auditable metrics (kill rate, fixpoint, cutoff)",
       '  gazette approve "<title>"          log a human approval → trust: canonical (backs the projection)',

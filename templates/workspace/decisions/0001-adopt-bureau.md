@@ -1,4 +1,5 @@
 ---
+id: pg-adr-0001
 title: ADR 0001 — Adopt bureau
 updated: {{DATE}}
 status: canonical

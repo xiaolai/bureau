@@ -117,7 +117,10 @@ upstream claim changes, the downstream dossier drops out of `current` and is fla
 — even if a human had already approved it (`canonical`). A page that sits on a changed upstream is
 not current fact until re-reviewed.
 
-You opt a dossier into this by anchoring the claim it depends on and declaring the edge:
+You don't have to wire this by hand: **`bureau:compile` stamps the `id`, anchors each claim with a
+`^span`, and proposes the `rests_on` edges** as it distils minutes into dossiers, and **`bureau:review`
+is where you confirm them.** (An older canon is retrofitted the same way on its first engine-aware
+compile.) A dossier ends up looking like this:
 
 ```yaml
 ---
