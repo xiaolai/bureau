@@ -61,6 +61,13 @@ body {
 .meta-chip { font-size: 11.5px; letter-spacing: .04em; padding: 4px 11px; border-radius: 999px; background: var(--paper-2); border: 1px solid var(--line-strong); color: var(--muted); white-space: nowrap; }
 .meta-chip--type { background: rgba(74,93,110,.1); border-color: rgba(74,93,110,.26); color: var(--accent-deep); font-weight: 500; }
 .meta-chip--status { background: rgba(168,50,42,.08); border-color: rgba(168,50,42,.22); color: var(--rust-deep); }
+/* recursion-engine live freshness badge (current is never rendered) */
+.meta-chip--freshness { font-weight: 600; }
+.meta-chip--fresh-needs-review { background: rgba(181,124,20,.13); border-color: rgba(181,124,20,.34); color: #8a5d0b; }
+.meta-chip--fresh-stale { background: rgba(168,50,42,.13); border-color: rgba(168,50,42,.36); color: var(--rust-deep); }
+.meta-chip--fresh-modified { background: rgba(74,93,110,.13); border-color: rgba(74,93,110,.32); color: var(--accent-deep); }
+@media (prefers-color-scheme: dark) { .meta-chip--fresh-needs-review { color: #e0b357; } }
+:root[data-theme="dark"] .meta-chip--fresh-needs-review { color: #e0b357; }
 
 /* ── Markdown body ── */
 .markdown { font-family: var(--serif); color: var(--ink); line-height: 1.85; font-size: 16px; }

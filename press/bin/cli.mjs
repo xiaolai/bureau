@@ -25,6 +25,7 @@ import { recordVerification, recheckVerification, markCompiled, uncompiled } fro
 import { loadCorpus, buildModel } from "../src/core/model.mjs";
 import { logPath, readLog, appendEvent } from "../src/engine/log.mjs";
 import { conflictKey } from "../src/engine/state.mjs";
+import { buildAtRef, logDiff, snapshotCreate, readSnapshots } from "../src/engine/versions.mjs";
 import { nfc } from "../src/services/i18n.mjs";
 
 const argv = process.argv.slice(2);
@@ -59,6 +60,7 @@ function nowArg() {
 }
 
 function runBuild() {
+  if (opt("at")) return runBuildAt(opt("at"));
   try {
     const r = buildSite({ docsDir: dirArg(), dataDir: dataArg(), outDir: opt("out"), now: nowArg() });
     const bits = [r.fileDocCount + " documents"];
@@ -67,11 +69,25 @@ function runBuild() {
     if (r.assetsCopied) bits.push("assets/ copied");
     const total = countsTotal(r.health); // r.health is the counts object (build.mjs); hand-summing it drops new lanes
     bits.push("health " + (r.healthClean ? "✅" : "⚠ " + total + (total === 1 ? " item" : " items")));
+    bits.push("drift " + freshnessBit(r));
     console.log("✓ build: " + bits.join(", ") + " (" + r.totalDocs + " pages) -> " + r.outDir);
     return r;
   } catch (e) {
     die(e.message);
   }
+}
+
+// live engine freshness, one-line: ✅ when every page is current, else the needs-review/stale/modified tally.
+function freshnessBit(r) {
+  const f = r.freshness || { needsReview: 0, stale: 0, modified: 0 };
+  const n = (f.needsReview || 0) + (f.stale || 0) + (f.modified || 0);
+  if (!n) return "✅";
+  const parts = [];
+  if (f.needsReview) parts.push(f.needsReview + " need review");
+  if (f.stale) parts.push(f.stale + " stale");
+  if (f.modified) parts.push(f.modified + " modified");
+  if (r.freshnessPending) parts.push(r.freshnessPending + " unscanned");
+  return "⚠ " + parts.join(" · ");
 }
 
 // recursive fs.watch isn't supported on Linux before Node 20 (throws
@@ -315,7 +331,7 @@ function runServe() {
     timer = setTimeout(() => {
       const r = doBuild();
       if (!r) return;
-      console.log("✓ rebuilt · " + r.totalDocs + " pages · health " + (r.healthClean ? "✅" : "⚠"));
+      console.log("✓ rebuilt · " + r.totalDocs + " pages · health " + (r.healthClean ? "✅" : "⚠") + " · drift " + freshnessBit(r));
       for (const c of clients) { try { c.write("data: reload\n\n"); } catch (_) { /* dropped */ } }
     }, 150);
   };
@@ -325,6 +341,57 @@ function runServe() {
 
 // ── recursion engine (ADR-0001) ────────────────────────────────────────────────
 function engineDir() { return resolve(process.cwd(), dirArg() || "gazette"); }
+
+// ── versioned board (git-backed): render a past board, diff two versions, pin named snapshots ──
+// build --at <ref|snapshot>: render the board AS OF a git commit (via a detached worktree).
+function runBuildAt(ref) {
+  try {
+    const root = process.cwd();
+    const docsDirAbs = engineDir();
+    // never clobber the live board by default — a ref build goes to its own dir unless --out is given
+    const sha = /* resolved inside buildAtRef, but pre-resolve for the default dir name */ ref.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 24);
+    const outDirAbs = resolve(root, opt("out") || ("dist-at-" + sha));
+    const r = buildAtRef({ root, ref, docsDirAbs, outDirAbs, now: nowArg(), buildSite });
+    console.log("✓ build @" + ref + " (" + r.commit.slice(0, 8) + "): " + r.fileDocCount + " documents (" + r.totalDocs + " pages) -> " + r.outDir);
+  } catch (e) { die(e.message); }
+}
+
+// diff <A> <B>: what changed between two versions, read from the decision-log slice + ledger drift.
+function runDiff() {
+  try {
+    const a = argv[1], b = argv[2];
+    if (!a || !b || a.startsWith("--") || b.startsWith("--")) die("usage: gazette diff <refA|snapshot> <refB|snapshot>");
+    const d = logDiff({ root: process.cwd(), refA: a, refB: b, docsDirAbs: engineDir() });
+    console.log("diff " + a + " (" + d.commitA.slice(0, 8) + ", seq " + d.fromSeq + ") → " + b + " (" + d.commitB.slice(0, 8) + ", seq " + d.toSeq + "): " + d.newEvents + " new log event(s)");
+    for (const t of ["introduce", "edit", "delete", "rename", "split", "confirm-edge", "approve", "reject", "resolve"]) {
+      const evs = d.by[t]; if (!evs || !evs.length) continue;
+      const label = (e) => e.id ? e.id + (e.span ? " " + e.span : "") : (e.edge ? "edge " + e.edge.slice(0, 8) : (e.conflict || ""));
+      console.log("  " + t + " ×" + evs.length + ": " + evs.slice(0, 8).map(label).join(", ") + (evs.length > 8 ? " …" : ""));
+    }
+    for (const ad of d.artifactDrift) console.log("  artifact-drift: [" + ad.page + "] → " + ad.artifact);
+    if (!d.newEvents && !d.artifactDrift.length) console.log("  (no decision-log changes between these versions)");
+  } catch (e) { die(e.message); }
+}
+
+// snapshot create <name> | list: pin a named, reproducible version {commit, log-seq, fsck digest}.
+function runSnapshot() {
+  try {
+    const action = argv[1];
+    const root = process.cwd(), docsDirAbs = engineDir();
+    if (action === "create") {
+      const name = argv[2];
+      if (!name || name.startsWith("--")) die('usage: gazette snapshot create <name> [--note "…"]');
+      let digest = null;
+      try { digest = engineFsck({ docsDir: docsDirAbs, write: false }).digest; } catch { /* no engine state yet → pin without a digest */ }
+      const e = snapshotCreate({ root, docsDirAbs, name, note: opt("note"), digest });
+      console.log('✓ snapshot "' + e.name + '" → commit ' + e.commit.slice(0, 8) + ", log seq " + e.seq + (e.digest ? ", digest " + e.digest.slice(0, 12) : "") + "  (commit + push to preserve)");
+    } else if (action === "list" || action == null) {
+      const snaps = readSnapshots(docsDirAbs);
+      if (!snaps.length) { console.log("no snapshots — create one with: gazette snapshot create <name>"); return; }
+      for (const s of snaps) console.log("  " + s.name + "  " + s.commit.slice(0, 8) + "  seq " + s.seq + (s.note ? "  — " + s.note : ""));
+    } else die("usage: gazette snapshot <create|list> …");
+  } catch (e) { die(e.message); }
+}
 
 // scan: reconcile the decision log with the current corpus (the mechanical event producer).
 function runScan() {
@@ -494,6 +561,8 @@ switch (cmd) {
   case "reject": runReject(); break;
   case "confirm": runConfirm(); break;
   case "resolve": runResolve(); break;
+  case "diff": runDiff(); break;
+  case "snapshot": runSnapshot(); break;
   default:
     console.log([
       "gazette — offline board from a folder of HTML docs (default: gazette/)",
@@ -522,6 +591,12 @@ switch (cmd) {
       '  gazette confirm "<title>"          vouch a dependent page\'s open rests_on edges (gate cutoff)',
       '  gazette resolve "<A>" "<B>" --winner "<title>"   record a contradicts resolution',
       "  gazette ledger <verify|recheck|mark-compiled|uncompiled> …   the code-owned trust ledgers",
+      "",
+      "  versioned board (git-backed):",
+      "  gazette build --at <ref|snapshot>  render the board AS OF a git commit (own out dir by default)",
+      "  gazette diff <A> <B>               what changed between two versions (decision-log slice + drift)",
+      "  gazette snapshot create <name>     pin a named version {commit, log-seq, digest}",
+      "  gazette snapshot list              list pinned snapshots",
       "",
       "  common flags: --dir <dir> (content dir, default gazette/)  --data <dir>  --out <dir>  --now YYYY-MM-DD",
     ].join("\n"));

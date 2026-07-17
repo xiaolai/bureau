@@ -16,6 +16,7 @@ import { deriveGit, renderTemporalHtml } from "./derive/git.mjs";
 import { scanCode, codeModel } from "./code/scan.mjs";
 import { renderTreemapSvg } from "./code/treemap.mjs";
 import { renderHealthHtml } from "./render/health-report.mjs";
+import { liveFreshness } from "./engine/live.mjs";
 import { canonicalJSON } from "./services/determinism.mjs";
 import { escapeHtml, cspMeta, sanitizeBody } from "./services/sanitize.mjs";
 import { resolveLinks, parseHtmlDoc, markdownToHtml, addHeadingIds, resolveImageEmbeds, replaceOutsideRaw } from "./core/parse.mjs";
@@ -265,12 +266,19 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
 
   const { corpus, model, health, timeline } = computeHealth({ docsDir, dataDir, now });
 
+  // recursion-engine LIVE freshness (ADR-0001): committed decision log + a working-tree overlay, so
+  // the board reflects uncommitted edits. Pure over (files + log); never writes. A broken log
+  // degrades to no badges (integrity surfaced on the Health page), never a failed build.
+  const fresh = liveFreshness({ corpus, docsDir, model });
+
   // ── board: project from corpus (same parse + NFC identity as the model)──
   // raw HTML bodies; wiki-link resolution + sanitization happen in one pass below.
   const docs = Object.create(null);      // keyed by user title — null proto blocks "__proto__" pollution
   const realLinks = Object.create(null); // id → body links the model already extracted (per-format, code-aware)
   for (const e of corpus.entries) {
-    docs[e.id] = { group: e.group, icon: e.icon, meta: e.metaChips, body: e.body, format: e.format };
+    const flvl = fresh.byKey.get(e.id); // current pages get no badge (undefined)
+    const meta = flvl ? { ...e.metaChips, freshness: flvl } : e.metaChips;
+    docs[e.id] = { group: e.group, icon: e.icon, meta, body: e.body, format: e.format };
     realLinks[e.id] = e.bodyLinks;
   }
   const realTitles = new Set(Object.keys(docs));
@@ -351,7 +359,7 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
   docs[healthId] = {
     group: "health", icon: "seal",
     meta: { type: "knowledge-base check", status: healthClean ? "OK" : "findings" },
-    body: renderHealthHtml(health),
+    body: renderHealthHtml(health, fresh), // fresh adds the live "Drift" section (needs-review/stale/modified + why)
   };
 
   // ── one render pass over every text body: resolve wiki-links ([[..]] + data-wiki)
@@ -461,6 +469,7 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
     outDir, fileDocCount: corpus.entries.length, coldCount,
     totalDocs: Object.keys(docs).length, themeOverride, assetsCopied,
     health: health.counts, healthClean, bundleBytes: bundle.totalBytes,
+    freshness: fresh.counts, freshnessPending: fresh.pending, // live engine badges: {needsReview, stale, modified}
   };
   writeFileSync(metaPath, JSON.stringify({ hash, summary }));
   return summary;
