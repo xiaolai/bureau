@@ -102,17 +102,25 @@ export function recordVerification(workspaceDir, { root, page, artifact, claim, 
   });
 }
 
+// Re-hash a checks array against the working tree from an ALREADY-READ ledger snapshot. Split out so a
+// caller iterating many pages reads (and validates) the ledger ONCE and re-hashes from that single
+// immutable object — never mixing two atomic snapshots mid-update, never re-parsing per page.
+// A missing/escaped/unreadable artifact is reported ok:false (now:null), never thrown.
+export function recheckChecks(root, checks) {
+  if (!Array.isArray(checks)) return [];
+  return checks.map((c) => {
+    let now = null, ok = false;
+    try { now = hashJailed(jailPath(root, c.artifact)); ok = now === c.hash; } catch { ok = false; }
+    return { artifact: c.artifact, was: c.hash, now, ok };
+  });
+}
+
 // Re-hash every recorded artifact for a page and report drift - this is what turns `verified` into
 // `stale` at review time (roadmap §4.16). A missing/escaped artifact is reported ok:false, never thrown.
 export function recheckVerification(workspaceDir, { root, page }) {
   const db = readVerify(workspaceDir);
   const entry = Object.prototype.hasOwnProperty.call(db, page) ? db[page] : null;
-  if (!entry || !Array.isArray(entry.checks)) return [];
-  return entry.checks.map((c) => {
-    let now = null, ok = false;
-    try { now = hashJailed(jailPath(root, c.artifact)); ok = now === c.hash; } catch { ok = false; }
-    return { artifact: c.artifact, was: c.hash, now, ok };
-  });
+  return entry && Array.isArray(entry.checks) ? recheckChecks(root, entry.checks) : [];
 }
 
 // ---- _compile-state.json (processed-session watermark) ----

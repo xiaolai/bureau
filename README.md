@@ -18,8 +18,10 @@ each other. **bureau** turns sessions into memory you can trust:
   written by `init` at your repo root and imported from `CLAUDE.md` — makes *every* AI session honor
   those rules, so the gate governs all work, not just bureau commands.
 - **Inspect, live & versioned.** A navigable offline **gazette** (the board), built by the bundled
-  **press** — with a **live** freshness view (`serve`) that lights up dependents as you edit, and
-  **git-backed versioning** to render any past board, diff two versions, and pin named snapshots.
+  **press** — with a **live Engine view** (`serve`) that lights up as you edit: page↔page *freshness*,
+  claim↔file *artifact currency* (a verified file that drifted), and the *convergence* trend, all in
+  one place — plus **git-backed versioning** to render any past board, diff two versions, and pin
+  named snapshots.
 
 This is the [Karpathy LLM-wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
 (LLM as compiler, not retriever) plus session provenance, a review gate, an always-on `BUREAU.md`
@@ -109,8 +111,8 @@ section ids in `_config.json`'s `groups[]`.
 | `bureau:crew` | enable or author specialized agents (a "crew") that work the canon |
 
 **The engine, underneath** (deterministic; run for you by the commands above, or directly): `gazette
-scan · gate · fsck · report · approve · confirm · resolve · ledger · build --at · diff · snapshot` —
-see the [CLI reference](docs/cli-reference.md).
+scan · gate · fsck · report · telemetry · approve · confirm · resolve · ledger · build --at · diff ·
+snapshot` — see the [CLI reference](docs/cli-reference.md).
 
 Two hooks run automatically: `SessionEnd` writes a mechanical logbook **stub** (no session is ever
 lost); `SessionStart`-after-compaction re-grounds the agent from the logbook.

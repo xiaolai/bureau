@@ -16,6 +16,17 @@ function escapeAttr(s) {
   return escapeHtml(s);
 }
 
+// Collapse C0/C1 control characters (0x00–0x1F, 0x7F–0x9F) to spaces. For untrusted text — page
+// titles, a JSON parse-error echoing a malformed ledger — concatenated into TERMINAL output, where a
+// stray ESC/CR/newline could inject ANSI styling or forge lines. Written with code-point comparison
+// (no regex escape) so the source can never carry a literal control byte. The ONE such sanitizer.
+function stripControl(s) {
+  return Array.from(String(s == null ? "" : s), (ch) => {
+    const c = ch.codePointAt(0);
+    return c < 0x20 || (c >= 0x7f && c <= 0x9f) ? " " : ch;
+  }).join("");
+}
+
 // shared/slug — heading-anchor slugs. Used at build for heading ids and for the
 // `?h=` target of `[[Note#Heading]]` wiki-links, so both sides agree. Unicode-aware
 // (CJK headings keep their characters). Concatenated into the bundle by build-runtime.
@@ -95,7 +106,14 @@ function metaRow(meta) {
   const fresh = meta.freshness
     ? '<span class="meta-chip meta-chip--freshness meta-chip--fresh-' + escapeHtml(String(meta.freshness)) + '">' + escapeHtml(String(meta.freshness)) + "</span>"
     : "";
-  return base || fresh ? '<div class="doc-meta">' + base + fresh + "</div>" : "";
+  // `artifacts` ({ current, drifted }) is the ledger-currency badge: it only appears when a page has
+  // fingerprinted artifacts, and turns from "current" to "drifted" the moment a verified file changes.
+  const a = meta.artifacts;
+  const art = a && (a.drifted || a.current)
+    ? '<span class="meta-chip meta-chip--artifacts meta-chip--artifacts-' + (a.drifted ? "drifted" : "current") + '">' +
+      (a.drifted ? "⚠ " + a.drifted + " drifted" : "✓ " + a.current + " current") + "</span>"
+    : "";
+  return base || fresh || art ? '<div class="doc-meta">' + base + fresh + art + "</div>" : "";
 }
 
 const ICONS = {

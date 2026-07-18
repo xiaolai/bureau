@@ -17,6 +17,8 @@ import { scanCode, codeModel } from "./code/scan.mjs";
 import { renderTreemapSvg } from "./code/treemap.mjs";
 import { renderHealthHtml } from "./render/health-report.mjs";
 import { liveFreshness } from "./engine/live.mjs";
+import { liveArtifacts, artifactInputDigest } from "./engine/artifacts.mjs";
+import { projectTimeline } from "./engine/telemetry.mjs";
 import { canonicalJSON } from "./services/determinism.mjs";
 import { escapeHtml, cspMeta, sanitizeBody } from "./services/sanitize.mjs";
 import { resolveLinks, parseHtmlDoc, markdownToHtml, addHeadingIds, resolveImageEmbeds, replaceOutsideRaw } from "./core/parse.mjs";
@@ -214,6 +216,10 @@ function hashInputs({ root, docsDir, dataDir, now }) {
   if (meta.temporal && meta.temporal.enabled) {
     try { h.update("git:" + execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()); } catch { /* not a repo */ }
   }
+  // ledger-referenced artifacts live OUTSIDE docs/assets/code, so a change to a verified file would not
+  // otherwise alter this key — and the incremental cache would keep serving a board that still says
+  // CURRENT. Fold each artifact's current content hash (or a MISSING marker) in so drift busts the cache.
+  h.update("\0artifacts\0" + artifactInputDigest({ workspaceDir: docsDir, root }));
   return h.digest("hex");
 }
 
@@ -271,13 +277,29 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
   // degrades to no badges (integrity surfaced on the Health page), never a failed build.
   const fresh = liveFreshness({ corpus, docsDir, model });
 
+  // artifact CURRENCY (ADR-0001, §4.16): re-hash each ledger-recorded file against the working tree,
+  // so a claim whose verified artifact drifted shows it in the board — the claim↔file axis, alongside
+  // the page↔page freshness above. Pure over (ledger + tree); a missing/broken ledger degrades cleanly.
+  const arts = liveArtifacts({ workspaceDir: docsDir, root, corpus, model });
+
+  // CONVERGENCE trend (telemetry §4.14): a deterministic replay of the COMMITTED decision log — is the
+  // canon settling or thrashing? Suppressed when the log fails its integrity check (the Engine view
+  // already flags that); a broken read degrades to no panel, never a failed build.
+  let converge = null;
+  if (!fresh.integrity) {
+    // reuse the SAME verified committed-log snapshot liveFreshness already read — one read, one state
+    try { converge = projectTimeline({ model, events: fresh.committed || [] }); }
+    catch { converge = null; }
+  }
+
   // ── board: project from corpus (same parse + NFC identity as the model)──
   // raw HTML bodies; wiki-link resolution + sanitization happen in one pass below.
   const docs = Object.create(null);      // keyed by user title — null proto blocks "__proto__" pollution
   const realLinks = Object.create(null); // id → body links the model already extracted (per-format, code-aware)
   for (const e of corpus.entries) {
     const flvl = fresh.byKey.get(e.id); // current pages get no badge (undefined)
-    const meta = flvl ? { ...e.metaChips, freshness: flvl } : e.metaChips;
+    const art = arts.byKey.get(e.id);   // { current, drifted } for pages with fingerprinted artifacts
+    const meta = (flvl || art) ? { ...e.metaChips, ...(flvl ? { freshness: flvl } : {}), ...(art ? { artifacts: art } : {}) } : e.metaChips;
     docs[e.id] = { group: e.group, icon: e.icon, meta, body: e.body, format: e.format };
     realLinks[e.id] = e.bodyLinks;
   }
@@ -359,7 +381,7 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
   docs[healthId] = {
     group: "health", icon: "seal",
     meta: { type: "knowledge-base check", status: healthClean ? "OK" : "findings" },
-    body: renderHealthHtml(health, fresh), // fresh adds the live "Drift" section (needs-review/stale/modified + why)
+    body: renderHealthHtml(health, fresh, arts, converge), // fresh/arts/converge = the unified live Engine view (freshness · artifacts · convergence)
   };
 
   // ── one render pass over every text body: resolve wiki-links ([[..]] + data-wiki)
@@ -473,6 +495,9 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
     health: health.counts, healthClean, bundleBytes: bundle.totalBytes,
     freshness: fresh.counts, freshnessPending: fresh.pending, // live engine badges: {needsReview, stale, modified}
     freshnessIntact: !fresh.integrity, // false ⇒ the decision log failed its integrity check (badges suppressed)
+    artifacts: arts.counts, // {current, drifted, pages} — ledger currency against the working tree
+    artifactError: arts.error, // a malformed _verify.json (surfaced in the one-liner, not silently treated as empty)
+    convergence: converge ? converge.stabilization.verdict : null, // drained/stabilizing/thrashing (null ⇒ suppressed)
   };
   writeFileSync(metaPath, JSON.stringify({ hash, summary }));
   return summary;

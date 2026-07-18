@@ -68,6 +68,19 @@ body {
 .meta-chip--fresh-modified { background: rgba(74,93,110,.13); border-color: rgba(74,93,110,.32); color: var(--accent-deep); }
 @media (prefers-color-scheme: dark) { .meta-chip--fresh-needs-review { color: #e0b357; } }
 :root[data-theme="dark"] .meta-chip--fresh-needs-review { color: #e0b357; }
+/* artifact-currency badge (claim↔file ledger): current is quiet, drifted is loud */
+.meta-chip--artifacts { font-weight: 600; }
+.meta-chip--artifacts-current { background: rgba(74,109,90,.12); border-color: rgba(74,109,90,.30); color: #2f6248; }
+.meta-chip--artifacts-drifted { background: rgba(168,50,42,.13); border-color: rgba(168,50,42,.36); color: var(--rust-deep); }
+@media (prefers-color-scheme: dark) { .meta-chip--artifacts-current { color: #7fbf9a; } }
+:root[data-theme="dark"] .meta-chip--artifacts-current { color: #7fbf9a; }
+/* convergence verdict badge (telemetry §4.14) */
+.meta-chip--converge-drained { background: rgba(74,109,90,.12); border-color: rgba(74,109,90,.30); color: #2f6248; font-weight: 600; }
+.meta-chip--converge-stabilizing { background: rgba(74,93,110,.13); border-color: rgba(74,93,110,.32); color: var(--accent-deep); font-weight: 600; }
+.meta-chip--converge-thrashing { background: rgba(181,124,20,.13); border-color: rgba(181,124,20,.34); color: #8a5d0b; font-weight: 600; }
+@media (prefers-color-scheme: dark) { .meta-chip--converge-drained { color: #7fbf9a; } .meta-chip--converge-thrashing { color: #e0b357; } }
+:root[data-theme="dark"] .meta-chip--converge-drained { color: #7fbf9a; }
+:root[data-theme="dark"] .meta-chip--converge-thrashing { color: #e0b357; }
 
 /* ── Markdown body ── */
 .markdown { font-family: var(--serif); color: var(--ink); line-height: 1.85; font-size: 16px; }

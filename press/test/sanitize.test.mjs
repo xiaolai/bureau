@@ -6,6 +6,18 @@ import assert from "node:assert/strict";
 import { sanitizeBody } from "../src/services/sanitize.mjs";
 import { resolveLinks, rewriteWikiRef } from "../src/core/parse.mjs";
 import { makeResolve } from "../src/runtime/pure.mjs";
+import { stripControl } from "../src/shared/escape.mjs";
+
+const CTRL = new RegExp("[\\u0000-\\u001f\\u007f-\\u009f]"); // built from a string → no literal control byte in source
+
+test("stripControl: collapses C0/C1 controls (ESC/CR/NL) to spaces; keeps printable + astral", () => {
+  const esc = String.fromCharCode(0x1b), cr = String.fromCharCode(0x0d), nl = String.fromCharCode(0x0a), c1 = String.fromCharCode(0x9b);
+  const out = stripControl("a" + esc + "[31mb" + cr + nl + c1 + "c");
+  assert.doesNotMatch(out, CTRL);       // no control char survives — can't inject ANSI / forge lines
+  assert.equal(out, "a [31mb   c");      // each control char → exactly one space
+  assert.equal(stripControl("héllo 🚀"), "héllo 🚀"); // printable + astral (surrogate pair) untouched
+  assert.equal(stripControl(null), "");  // null-safe
+});
 
 test("sanitizeBody: strips <script> + event handlers, keeps viz/mermaid/class/data-*", () => {
   const out = sanitizeBody(

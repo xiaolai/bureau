@@ -56,6 +56,7 @@ See [`recursion-engine.md`](recursion-engine.md) for the model.
 | `gazette impact "<title>"` | pre-change blast radius — which pages (transitively) rest on this one, so you see the review cost before editing its claim |
 | `gazette fsck [--check]` | rebuild the derived tier to a byte-fixpoint; non-zero exit on a broken fixpoint, tampered log, or a blocking finding (unbacked-canonical, orphan-confirm, malformed ledger). `--check` doesn't write the cache. |
 | `gazette report` | deterministic auditable metrics: fixpoint digest, gate accounting (cutoff ratio beside edge count), wiring kill rate |
+| `gazette telemetry` | convergence telemetry (§4.14): replays the decision log to show per-run work, repeated firings, review-queue depth + age, and a `drained`/`stabilizing`/`thrashing` verdict — the *trend*, where `gate`/`report` are point-in-time. Read-only, always exit 0. |
 | `gazette approve "<title>" [--by <who>]` | log a human approval → backs `trust: canonical` |
 | `gazette reject "<title>" [--reason "…"]` | log a rejection (the authored tier stands; no canonical backing) |
 | `gazette confirm "<title>" [--by <who>]` | vouch that a dependent page's open `rests_on` edges still hold → cutoff (skips broken edges) |

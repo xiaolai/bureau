@@ -23,7 +23,7 @@ export function liveFreshness({ corpus, docsDir, model }) {
     const v = verifyIntegrity(committed);
     if (!v.ok) integrity = v;
   } catch (e) { integrity = { ok: false, reason: e.message }; }
-  if (integrity) return { byKey: new Map(), drift: [], pending: 0, counts: { needsReview: 0, stale: 0, modified: 0 }, integrity };
+  if (integrity) return { byKey: new Map(), drift: [], pending: 0, counts: { needsReview: 0, stale: 0, modified: 0 }, integrity, committed: [] };
 
   // uncommitted working-tree changes (dry-run), applied as an OVERLAY on the committed log
   const planned = scan({ docsDir: dir, corpus, apply: false, events: committed }).planned;
@@ -59,5 +59,8 @@ export function liveFreshness({ corpus, docsDir, model }) {
   }
   drift.sort((a, b) => { const A = JSON.stringify(a), B = JSON.stringify(b); return A < B ? -1 : A > B ? 1 : 0; }); // total order (0 for equal)
 
-  return { byKey, drift, pending: planned.length, counts, integrity: null };
+  // `committed` = the verified committed-log snapshot (used here for the working-tree overlay). Returned
+  // so the convergence lane replays the SAME snapshot instead of re-reading the log — no chance of two
+  // reads landing on different states across a concurrent append, and no re-verification cost.
+  return { byKey, drift, pending: planned.length, counts, integrity: null, committed };
 }

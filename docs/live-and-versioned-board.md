@@ -14,14 +14,29 @@ node press/bin/gazette.mjs serve        # or: bureau:serve
 ```
 
 `serve` builds the board, serves it on localhost, watches the workspace, and **hot-reloads the
-browser on every save** — and it paints the recursion engine's **freshness** onto the board:
+browser on every save** — painting the recursion engine's live state directly onto the gazette.
 
-- **Per-page badges** — `needs-review` (amber), `stale` (red), `modified` (blue). A `current` page
-  is unbadged. The badge reflects the **working tree**: it shows an uncommitted edit *before* you
-  `scan`, so a change to an upstream claim lights up its dependents live.
-- **A "Drift · engine" section** on the Health page — the *why* behind each badge (which upstream
-  span changed), distinct from the coarse timestamp-based `Stale` lane.
-- The terminal prints the tally on each rebuild: `drift ⚠ 1 need review · 1 modified · 1 unscanned`.
+### The Engine view — one place, three signals
+
+The Health page opens with an **"Engine · live state"** section: the three dynamic, dependency-aware
+signals together, distinct from the deterministic *structural* checks below it. Each keeps its own
+honest scope:
+
+1. **Freshness (page↔page)** — the *"Drift · engine"* facet. Which page rests on an upstream claim
+   that changed. Per-page badges ride here too: `needs-review` (amber), `stale` (red), `modified`
+   (blue); a `current` page is unbadged. Badges reflect the **working tree** — they show an
+   uncommitted edit *before* you `scan`, so a changed upstream lights up its dependents live.
+2. **Artifacts (claim↔file)** — the *"Artifacts · currency"* facet. bureau can fingerprint the real
+   file a claim was verified against (`ledger verify --artifact`); this re-hashes each against the
+   working tree and flags any that **DRIFTED** — the one place the canon touches the repository and
+   can silently rot. A drifted page also carries a **⚠ drifted** chip; a checked-and-current one a
+   quiet **✓ current** chip.
+3. **Convergence (trend)** — the *"Convergence"* facet. A replay of the decision log answering *is
+   the canon settling or thrashing?* (`drained` / `stabilizing` / `thrashing`), with the queue depth,
+   repeated firings, and cutoff ratio printed beside the verdict — never alone.
+
+The terminal prints the freshness tally on each rebuild: `drift ⚠ 1 need review · 1 modified · 1
+unscanned`.
 
 The board previews; **`scan` records.** Freshness reflects your working tree in real time, but the
 persisted state (the decision log) only advances when you actually run `gazette scan` (which appends
@@ -82,8 +97,9 @@ snapshot name then works anywhere a ref does: `build --at v1.0`, `diff v1.0 HEAD
 
 | you want to… | use |
 |---|---|
-| watch freshness update as you edit | `serve` (the live board) |
+| watch the live Engine view (freshness · artifacts · convergence) update as you edit | `serve` (the live board) |
 | see the current dirty set without a browser | `gazette gate` / `bureau:status` |
+| check whether a claim's verified file drifted | the Engine view, or `gazette ledger recheck` |
 | look at the canon as it was at a past commit | `build --at <ref>` |
 | see exactly what changed between two versions | `diff <A> <B>` |
 | pin a reproducible "release" of the canon | `snapshot create <name>` |

@@ -79,7 +79,8 @@ You spend a session deciding your auth token lifetime.
 | You have a few minutes to vet memory | `bureau:review` | promote vetted claims to `canonical` |
 | Before a milestone / periodically | `bureau:lint` | catch contradictions, gaps, drift across the canon |
 | You need to recall something | `bureau:query "…"` | tier-aware answer with citations |
-| "What needs my attention?" | `bureau:status` | uncompiled · pending-review · **needs-review/stale (the gate)** · contested |
+| "What needs my attention?" | `bureau:status` | uncompiled · pending-review · **needs-review/stale (the gate)** · contested · the convergence verdict |
+| "Is the canon settling or churning?" | `gazette telemetry` | the convergence trend — queue depth/age, repeated firings, `drained`/`stabilizing`/`thrashing` |
 | Bring the whole canon up to date | `bureau:cycle` | one pass: compile → scan → lint → review → inspect |
 | Read it as a human | `bureau:inspect` | build + open the offline gazette |
 | Watch freshness update as you edit | `bureau:serve` | the live board — dependents light up on change |
@@ -137,6 +138,12 @@ Then the loop is: edit a claim → `gazette scan` records the change → the gat
 it → `bureau:review` (or `bureau:cycle`) surfaces it → you confirm it still holds (or fix it). A
 **cosmetic** edit outside a cited claim propagates to nobody. `bureau:status` and the live board
 (`bureau:serve`) show the current needs-review/stale set at a glance.
+
+Freshness is page↔page. There's a second axis — **claim↔file**: bureau can fingerprint the real file a
+claim was checked against (`gazette ledger verify --artifact <path>`), and the gazette's **Engine view**
+(on the Health page) then flags it **DRIFTED** the moment that file changes — so a `canonical` claim
+whose code moved out from under it can't quietly stay green. The Engine view gathers all three live
+signals in one place: freshness, artifact currency, and the convergence trend.
 
 This is the flagship feature — the full model, the four-field state, and the honest limits are in
 **[The recursion engine](recursion-engine.md)**.

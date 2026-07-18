@@ -2,7 +2,7 @@
 // (b) a CLI text summary. The board "view" is a generated doc, like the timeline.
 // [[id]] links are resolved + the HTML sanitized by build.mjs before shipping.
 import { healthTotal } from "../derive/health.mjs";
-import { escapeHtml, escapeAttr } from "../shared/escape.mjs";
+import { escapeHtml, escapeAttr, stripControl } from "../shared/escape.mjs";
 
 // A doc title is untrusted. Emitting `[[<title>]]` put it into the page's HTML RAW — a title
 // like `<img src=x onerror=…>` landed as a live tag and only the downstream sanitizer's
@@ -12,17 +12,22 @@ import { escapeHtml, escapeAttr } from "../shared/escape.mjs";
 const wl = (id) => '<a data-wiki="' + escapeAttr(String(id == null ? "" : id)) + '">' + escapeHtml(String(id == null ? "" : id)) + "</a>";
 const esc = (s) => escapeHtml(String(s == null ? "" : s));
 
-// The live recursion-engine "Drift" section (ADR-0001): dependency-aware freshness against the
-// working tree, distinct from the coarse timestamp `Stale` lane below. Rendered first because it is
-// the dynamic signal a live board exists to show.
-function renderDrift(fresh) {
+// ── The unified live ENGINE view ─────────────────────────────────────────────────────────────────
+// The three dynamic, dependency-aware signals the live board exists to show, under one banner and
+// distinct from the structural checks below: page↔page FRESHNESS (a page on a changed upstream span),
+// claim↔file ARTIFACT currency (a verified file that drifted), and the CONVERGENCE trend (is the canon
+// settling or thrashing?). Each keeps its own honest scope. Rendered first — it is the live state.
+
+// (1) dependency freshness — the recursion-engine gate against the working tree. Kept named "Drift ·
+// engine" (established label); distinct from the coarse timestamp `Stale` lane in the structural block.
+function renderFreshness(fresh) {
   if (!fresh) return "";
-  if (fresh.integrity) return '<h2>Drift · engine</h2><blockquote><p>⚠ The decision log failed its integrity check' +
+  if (fresh.integrity) return '<h3>Drift · engine</h3><blockquote><p>⚠ The decision log failed its integrity check' +
     (fresh.integrity.reason ? " (" + esc(fresh.integrity.reason) + ")" : "") + " — freshness badges are suppressed. Run <code>gazette fsck</code>.</p></blockquote>";
   const { counts, drift, pending } = fresh;
   const total = counts.needsReview + counts.stale + counts.modified;
-  if (!total) return '<h2>Drift · engine</h2><blockquote><p>✅ Every page is current — no page sits on a changed upstream, and nothing is unscanned.</p></blockquote>';
-  let s = "<h2>Drift · engine · " + total + "</h2><blockquote><p>Dependency-aware freshness (the deterministic gate, not the timestamp heuristic): " +
+  if (!total) return '<h3>Drift · engine</h3><blockquote><p>✅ Every page is current — no page sits on a changed upstream, and nothing is unscanned.</p></blockquote>';
+  let s = "<h3>Drift · engine · " + total + "</h3><blockquote><p>Dependency-aware freshness (the deterministic gate, not the timestamp heuristic): " +
     counts.needsReview + " need review · " + counts.stale + " stale · " + counts.modified + " modified" +
     (pending ? " · " + pending + " uncommitted span change" + (pending === 1 ? "" : "s") + " (run <code>gazette scan</code> to record)" : "") + ".</p></blockquote>";
   if (drift.length) {
@@ -34,14 +39,60 @@ function renderDrift(fresh) {
   return s;
 }
 
-export function renderHealthHtml(health, fresh = null) {
+// (2) artifact currency — the `_verify.json` ledger re-hashed against the working tree. This is the
+// one place the canon touches the real repository: a claim verified against a file that has since
+// changed is silently rotten, and only this surfaces it in the board.
+function renderArtifacts(arts) {
+  if (!arts) return "";
+  if (arts.error) return '<h3>Artifacts · currency</h3><blockquote><p>⚠ The artifact ledger <code>_verify.json</code> is malformed (' + esc(arts.error) + ") — run <code>gazette fsck</code>.</p></blockquote>";
+  const { counts, drift } = arts;
+  if (!counts.pages) return '<h3>Artifacts · currency</h3><blockquote><p>No artifacts fingerprinted yet — record one with <code>gazette ledger verify --page "…" --artifact &lt;path&gt;</code> so a claim tracks the file it was checked against.</p></blockquote>';
+  if (!counts.drifted) return "<h3>Artifacts · currency</h3><blockquote><p>✅ Every fingerprinted artifact is current — all " + counts.current +
+    " check(s) across " + counts.pages + " page(s) still match the file they were verified against.</p></blockquote>";
+  let s = "<h3>Artifacts · currency · " + counts.drifted + "</h3><blockquote><p>" + counts.drifted + " artifact(s) DRIFTED (the file changed since the claim was verified) · " +
+    counts.current + " still current — a drifted artifact means a <code>verified</code>/<code>canonical</code> claim may no longer hold. Re-verify with <code>gazette ledger verify</code>.</p></blockquote>";
+  s += '<table class="wb-table"><thead><tr><th>Page</th><th>Artifact</th><th>State</th></tr></thead><tbody>' +
+    drift.map((d) => "<tr><td>" + wl(d.page) + "</td><td><code>" + esc(d.artifact) + "</code></td><td>" +
+      '<span class="meta-chip meta-chip--artifacts-drifted">DRIFTED</span> ' + (d.now === null ? "missing or unreadable" : "hash changed") + "</td></tr>").join("") +
+    "</tbody></table>";
+  return s;
+}
+
+// (3) convergence — a deterministic replay of the decision log (telemetry §4.14). Is the canon
+// settling (queue drains, repeated firings fall) or thrashing? The verdict is ALWAYS printed beside
+// the raw numbers, never alone.
+function renderConvergence(converge) {
+  if (!converge) return "";
+  if (!converge.observations.length) return "<h3>Convergence</h3><blockquote><p>No history yet — edit a claim, <code>gazette scan</code>, then confirm it in review to build a trend.</p></blockquote>";
+  const s = converge.stabilization, cur = converge.current;
+  const pct = (r) => (r == null ? "n/a" : (r * 100).toFixed(1) + "%");
+  return "<h3>Convergence · " + esc(s.verdict) + '</h3><blockquote><p><span class="meta-chip meta-chip--converge-' + esc(s.verdict) + '">' + esc(s.verdict) +
+    "</span> review queue depth " + cur.queueDepth + " (peak " + converge.peakQueueDepth + ") · " + converge.repeatedFirings + " page(s) re-fired (max " + converge.maxFirings +
+    "×) · per-run work mean " + converge.perRunWork.mean.toFixed(1) + " · cutoff " + pct(cur.cutoffRatio) + " beside " + cur.tracked +
+    " tracked edge(s). Convergence is eventual stabilization under bounded work, not a shrinking set.</p></blockquote>";
+}
+
+// The Engine banner + its three facets, one coherent live view.
+function renderEngine(fresh, arts, converge) {
+  const facets = renderFreshness(fresh) + renderArtifacts(arts) + renderConvergence(converge);
+  if (!facets) return "";
+  const bits = [];
+  if (fresh && fresh.integrity) bits.push("⚠ decision-log integrity FAILED");
+  else if (fresh) { const t = fresh.counts.needsReview + fresh.counts.stale + fresh.counts.modified; bits.push(t ? t + " page(s) drifted" : "every page current"); }
+  if (arts && !arts.error) bits.push(arts.counts.drifted ? arts.counts.drifted + " artifact(s) drifted" : (arts.counts.pages ? "artifacts current" : "no artifacts fingerprinted"));
+  if (converge && converge.observations.length) bits.push("canon " + converge.stabilization.verdict);
+  return "<h2>Engine · live state</h2><blockquote><p>The recursion engine's live, dependency-aware view — <em>distinct</em> from the deterministic structural checks below." +
+    (bits.length ? " <strong>" + esc(bits.join(" · ")) + ".</strong>" : "") + "</p></blockquote>" + facets;
+}
+
+export function renderHealthHtml(health, fresh = null, arts = null, converge = null) {
   const c = health.counts;
   const clean = healthTotal(health) === 0;
   let b = '<article data-generated="health"><h1>Health</h1>';
   b += "<blockquote><p>Automatic, deterministic check (no LLM) of the read-only projection — it watches for what the writing side hasn't caught up on.";
   if (health.now) b += "<br>Baseline <code>" + esc(health.now) + "</code>, stale window " + health.staleWindowDays + " days.";
   b += "</p></blockquote>";
-  b += renderDrift(fresh); // live engine freshness, before the structural counts
+  b += renderEngine(fresh, arts, converge); // the unified live Engine view, before the structural counts
 
   const rows = [
     ["Dangling links (likely rename/typo)", c.dangling],
@@ -60,7 +111,7 @@ export function renderHealthHtml(health, fresh = null) {
   // "clean" is STRUCTURAL only — the Drift section above carries dependency-aware freshness, which
   // can flag needs-review/stale/integrity even when the structural checks pass. Qualify accordingly.
   if (clean) return b + "<blockquote><p>✅ No <em>structural</em> findings — the knowledge base is structurally consistent." +
-    (fresh ? " (Dependency-aware freshness is in the <strong>Drift</strong> section above.)" : "") + "</p></blockquote></article>";
+    (fresh || arts || converge ? " (Live dependency freshness, artifact currency, and convergence are in the <strong>Engine</strong> view above.)" : "") + "</p></blockquote></article>";
 
   const section = (title, n, note, inner) =>
     "<h2>" + esc(title) + " · " + n + "</h2><blockquote><p>" + note + "</p></blockquote>" + inner;
@@ -106,7 +157,7 @@ export function renderHealthHtml(health, fresh = null) {
 // reader trusts, so a control character (newline, CR, ANSI escape) could forge output — e.g. a
 // title carrying "\n  dangling links : 0" fakes a clean bill in the terminal or in CI logs.
 // Collapse every control char to a space; the HTML path is escaped separately by esc().
-const plain = (s) => String(s == null ? "" : s).replace(/[\u0000-\u001F\u007F-\u009F]/g, " ");
+const plain = stripControl;
 
 export function renderHealthText(health) {
   const c = health.counts;

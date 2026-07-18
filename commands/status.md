@@ -23,6 +23,12 @@ A text dashboard of the workspace: what's captured but not yet canon, what's dri
    dependencies), plus the cutoff ratio it reports beside the tracked-edge count. This is the
    *dependency* freshness — distinct from tier `stale`. If the command fails, note that engine
    freshness is unavailable and continue (don't abort the report).
+
+   The gate is *point-in-time* (what is dirty right now). For the *trend* — is the canon
+   **converging** (the queue drains, repeated firings fall) or **thrashing** — also run
+   `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" telemetry --dir <workspace>` and include its
+   one-line verdict (`drained` / `stabilizing` / `thrashing`) with the queue depth beside it. Optional
+   and read-only; skip silently if it fails.
 5. **Needs attention.** Combine both axes: pages awaiting review by **tier** (`proposed` +
    `verified`), `contested` pages (unresolved conflicts), and pages flagged by **freshness**
    (`needs-review` / `stale` from step 4). A page can appear for both reasons.

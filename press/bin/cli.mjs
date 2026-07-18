@@ -14,13 +14,14 @@ import { healthTotal, countsTotal } from "../src/derive/health.mjs";
 import { parseDate } from "../src/services/dates.mjs";
 import { planRename, applyRename } from "../src/maintain/rename.mjs";
 import { buildRepairPlan, applySafe, renderRepairText } from "../src/maintain/doctor.mjs";
-import { escapeHtml } from "../src/shared/escape.mjs";
+import { escapeHtml, stripControl } from "../src/shared/escape.mjs";
 import { prettify } from "../src/shared/prettify.mjs";
 // recursion engine (ADR-0001): scan → gate → fsck → report + ledgers
 import { scan as engineScan } from "../src/engine/scan.mjs";
 import { computeGate, blastRadius } from "../src/engine/gate.mjs";
 import { fsck as engineFsck } from "../src/engine/fsck.mjs";
 import { report as engineReport, renderMetricsText } from "../src/engine/metrics.mjs";
+import { projectTimeline, renderTimelineText } from "../src/engine/telemetry.mjs";
 import { recordVerification, recheckVerification, markCompiled, uncompiled } from "../src/engine/ledgers.mjs";
 import { loadCorpus, buildModel } from "../src/core/model.mjs";
 import { logPath, readLog, appendEvent } from "../src/engine/log.mjs";
@@ -87,6 +88,13 @@ function runBuild() {
     const total = countsTotal(r.health); // r.health is the counts object (build.mjs); hand-summing it drops new lanes
     bits.push("health " + (r.healthClean ? "✅" : "⚠ " + total + (total === 1 ? " item" : " items")));
     bits.push("drift " + freshnessBit(r));
+    // artifact currency + convergence: quiet unless they need attention (a drifted verified file, or a
+    // thrashing canon) — surfaced in the terminal exactly like drift, detailed in the board's Engine view.
+    // artifactError echoes a JSON parse message that can contain the malformed ledger's raw bytes —
+    // sanitize control chars before it reaches the terminal (else a crafted _verify.json forges output).
+    if (r.artifactError) bits.push("artifacts ⚠ ledger error (" + stripControl(r.artifactError) + ")");
+    else if (r.artifacts && r.artifacts.drifted) bits.push("artifacts ⚠ " + r.artifacts.drifted + " drifted");
+    if (r.convergence === "thrashing") bits.push("convergence ⚠ thrashing");
     console.log("✓ build: " + bits.join(", ") + " (" + r.totalDocs + " pages) -> " + r.outDir);
     return r;
   } catch (e) {
@@ -477,6 +485,20 @@ function runReport() {
   } catch (e) { die(e.message); }
 }
 
+// telemetry: convergence telemetry — a deterministic replay of the decision log (§4.14). Is the canon
+// converging (queue drains between edit bursts, repeated firings trend to zero) or thrashing? Purely
+// informational: convergence state is a signal to read, not a pass/fail gate, so it always exits 0.
+function runTelemetry() {
+  try {
+    const docsDir = engineDir();
+    const model = buildModel({ corpus: loadCorpus({ docsDir }) });
+    const t = projectTimeline({ model, events: readLog(logPath(docsDir)) });
+    const titleOf = new Map(Object.values(model.nodes).map((n) => [n.uid, n.title]));
+    console.log(renderTimelineText(t, { titleOf }));
+    process.exit(0);
+  } catch (e) { die(e.message); }
+}
+
 // resolve a page TITLE to its opaque uid + node (the decision-event verbs address pages by title).
 function resolvePage(docsDir, title) {
   const model = buildModel({ corpus: loadCorpus({ docsDir }) });
@@ -594,6 +616,7 @@ switch (cmd) {
   case "impact": runImpact(); break;
   case "fsck": runFsck(); break;
   case "report": runReport(); break;
+  case "telemetry": runTelemetry(); break;
   case "ledger": runLedger(); break;
   case "approve": runApprove(); break;
   case "reject": runReject(); break;
@@ -626,6 +649,7 @@ switch (cmd) {
       '  gazette impact "<title>"           pre-change blast radius: which pages rest on this one',
       "  gazette fsck [--check]             rebuild mechanical-derived state to a byte-fixpoint (CI gate)",
       "  gazette report                     deterministic auditable metrics (kill rate, fixpoint, cutoff)",
+      "  gazette telemetry                  convergence telemetry: is the canon converging or thrashing? (§4.14)",
       '  gazette approve "<title>"          log a human approval → trust: canonical (backs the projection)',
       '  gazette confirm "<title>"          vouch a dependent page\'s open rests_on edges (gate cutoff)',
       '  gazette resolve "<A>" "<B>" --winner "<title>"   record a contradicts resolution',

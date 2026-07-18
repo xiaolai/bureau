@@ -11348,7 +11348,7 @@ var require_source_map_consumer = __commonJS({
       var temp = {};
       var originalMappings = [];
       var generatedMappings = [];
-      var mapping, str, segment, end, value;
+      var mapping, str, segment2, end, value;
       let subarrayStart = 0;
       while (index < length) {
         if (aStr.charAt(index) === ";") {
@@ -11368,32 +11368,32 @@ var require_source_map_consumer = __commonJS({
             }
           }
           str = aStr.slice(index, end);
-          segment = [];
+          segment2 = [];
           while (index < end) {
             base64VLQ.decode(aStr, index, temp);
             value = temp.value;
             index = temp.rest;
-            segment.push(value);
+            segment2.push(value);
           }
-          if (segment.length === 2) {
+          if (segment2.length === 2) {
             throw new Error("Found a source, but no line and column");
           }
-          if (segment.length === 3) {
+          if (segment2.length === 3) {
             throw new Error("Found a source and line, but no column");
           }
-          mapping.generatedColumn = previousGeneratedColumn + segment[0];
+          mapping.generatedColumn = previousGeneratedColumn + segment2[0];
           previousGeneratedColumn = mapping.generatedColumn;
-          if (segment.length > 1) {
-            mapping.source = previousSource + segment[1];
-            previousSource += segment[1];
-            mapping.originalLine = previousOriginalLine + segment[2];
+          if (segment2.length > 1) {
+            mapping.source = previousSource + segment2[1];
+            previousSource += segment2[1];
+            mapping.originalLine = previousOriginalLine + segment2[2];
             previousOriginalLine = mapping.originalLine;
             mapping.originalLine += 1;
-            mapping.originalColumn = previousOriginalColumn + segment[3];
+            mapping.originalColumn = previousOriginalColumn + segment2[3];
             previousOriginalColumn = mapping.originalColumn;
-            if (segment.length > 4) {
-              mapping.name = previousName + segment[4];
-              previousName += segment[4];
+            if (segment2.length > 4) {
+              mapping.name = previousName + segment2[4];
+              previousName += segment2[4];
             }
           }
           generatedMappings.push(mapping);
@@ -15924,10 +15924,10 @@ import { createServer } from "http";
 import { spawn } from "child_process";
 
 // src/build.mjs
-import { readFileSync as readFileSync6, writeFileSync, existsSync as existsSync5, mkdirSync, copyFileSync, cpSync, rmSync, renameSync, readdirSync as readdirSync4, lstatSync as lstatSync6, realpathSync as realpathSync2 } from "fs";
-import { join as join8, dirname as dirname2, resolve, sep as sep3, relative as relative3 } from "path";
+import { readFileSync as readFileSync7, writeFileSync as writeFileSync2, existsSync as existsSync6, mkdirSync, copyFileSync, cpSync, rmSync, renameSync as renameSync2, readdirSync as readdirSync4, lstatSync as lstatSync7, realpathSync as realpathSync3 } from "fs";
+import { join as join9, dirname as dirname2, resolve as resolve2, sep as sep4, relative as relative3 } from "path";
 import { fileURLToPath } from "url";
-import { createHash as createHash3 } from "crypto";
+import { createHash as createHash4 } from "crypto";
 import { execFileSync as execFileSync2 } from "child_process";
 
 // src/core/model.mjs
@@ -21216,6 +21216,12 @@ function escapeHtml2(s) {
 function escapeAttr(s) {
   return escapeHtml2(s);
 }
+function stripControl(s) {
+  return Array.from(String(s == null ? "" : s), (ch) => {
+    const c = ch.codePointAt(0);
+    return c < 32 || c >= 127 && c <= 159 ? " " : ch;
+  }).join("");
+}
 
 // src/shared/slug.mjs
 function slugify(s) {
@@ -22831,26 +22837,56 @@ function renderTreemapSvg(scan2) {
 // src/render/health-report.mjs
 var wl = (id) => '<a data-wiki="' + escapeAttr(String(id == null ? "" : id)) + '">' + escapeHtml2(String(id == null ? "" : id)) + "</a>";
 var esc3 = (s) => escapeHtml2(String(s == null ? "" : s));
-function renderDrift(fresh) {
+function renderFreshness(fresh) {
   if (!fresh) return "";
-  if (fresh.integrity) return "<h2>Drift \xB7 engine</h2><blockquote><p>\u26A0 The decision log failed its integrity check" + (fresh.integrity.reason ? " (" + esc3(fresh.integrity.reason) + ")" : "") + " \u2014 freshness badges are suppressed. Run <code>gazette fsck</code>.</p></blockquote>";
+  if (fresh.integrity) return "<h3>Drift \xB7 engine</h3><blockquote><p>\u26A0 The decision log failed its integrity check" + (fresh.integrity.reason ? " (" + esc3(fresh.integrity.reason) + ")" : "") + " \u2014 freshness badges are suppressed. Run <code>gazette fsck</code>.</p></blockquote>";
   const { counts, drift, pending } = fresh;
   const total = counts.needsReview + counts.stale + counts.modified;
-  if (!total) return "<h2>Drift \xB7 engine</h2><blockquote><p>\u2705 Every page is current \u2014 no page sits on a changed upstream, and nothing is unscanned.</p></blockquote>";
-  let s = "<h2>Drift \xB7 engine \xB7 " + total + "</h2><blockquote><p>Dependency-aware freshness (the deterministic gate, not the timestamp heuristic): " + counts.needsReview + " need review \xB7 " + counts.stale + " stale \xB7 " + counts.modified + " modified" + (pending ? " \xB7 " + pending + " uncommitted span change" + (pending === 1 ? "" : "s") + " (run <code>gazette scan</code> to record)" : "") + ".</p></blockquote>";
+  if (!total) return "<h3>Drift \xB7 engine</h3><blockquote><p>\u2705 Every page is current \u2014 no page sits on a changed upstream, and nothing is unscanned.</p></blockquote>";
+  let s = "<h3>Drift \xB7 engine \xB7 " + total + "</h3><blockquote><p>Dependency-aware freshness (the deterministic gate, not the timestamp heuristic): " + counts.needsReview + " need review \xB7 " + counts.stale + " stale \xB7 " + counts.modified + " modified" + (pending ? " \xB7 " + pending + " uncommitted span change" + (pending === 1 ? "" : "s") + " (run <code>gazette scan</code> to record)" : "") + ".</p></blockquote>";
   if (drift.length) {
     s += '<table class="wb-table"><thead><tr><th>Page</th><th>Rests on</th><th>Why</th></tr></thead><tbody>' + drift.map((d) => "<tr><td>" + wl(d.page) + "</td><td>" + wl(d.on) + (d.span ? " <code>" + esc3(d.span) + "</code>" : "") + '</td><td><span class="meta-chip meta-chip--fresh-' + esc3(d.level) + '">' + esc3(d.level) + "</span> " + esc3(d.reason) + "</td></tr>").join("") + "</tbody></table>";
   }
   return s;
 }
-function renderHealthHtml(health, fresh = null) {
+function renderArtifacts(arts) {
+  if (!arts) return "";
+  if (arts.error) return "<h3>Artifacts \xB7 currency</h3><blockquote><p>\u26A0 The artifact ledger <code>_verify.json</code> is malformed (" + esc3(arts.error) + ") \u2014 run <code>gazette fsck</code>.</p></blockquote>";
+  const { counts, drift } = arts;
+  if (!counts.pages) return '<h3>Artifacts \xB7 currency</h3><blockquote><p>No artifacts fingerprinted yet \u2014 record one with <code>gazette ledger verify --page "\u2026" --artifact &lt;path&gt;</code> so a claim tracks the file it was checked against.</p></blockquote>';
+  if (!counts.drifted) return "<h3>Artifacts \xB7 currency</h3><blockquote><p>\u2705 Every fingerprinted artifact is current \u2014 all " + counts.current + " check(s) across " + counts.pages + " page(s) still match the file they were verified against.</p></blockquote>";
+  let s = "<h3>Artifacts \xB7 currency \xB7 " + counts.drifted + "</h3><blockquote><p>" + counts.drifted + " artifact(s) DRIFTED (the file changed since the claim was verified) \xB7 " + counts.current + " still current \u2014 a drifted artifact means a <code>verified</code>/<code>canonical</code> claim may no longer hold. Re-verify with <code>gazette ledger verify</code>.</p></blockquote>";
+  s += '<table class="wb-table"><thead><tr><th>Page</th><th>Artifact</th><th>State</th></tr></thead><tbody>' + drift.map((d) => "<tr><td>" + wl(d.page) + "</td><td><code>" + esc3(d.artifact) + '</code></td><td><span class="meta-chip meta-chip--artifacts-drifted">DRIFTED</span> ' + (d.now === null ? "missing or unreadable" : "hash changed") + "</td></tr>").join("") + "</tbody></table>";
+  return s;
+}
+function renderConvergence(converge) {
+  if (!converge) return "";
+  if (!converge.observations.length) return "<h3>Convergence</h3><blockquote><p>No history yet \u2014 edit a claim, <code>gazette scan</code>, then confirm it in review to build a trend.</p></blockquote>";
+  const s = converge.stabilization, cur = converge.current;
+  const pct3 = (r) => r == null ? "n/a" : (r * 100).toFixed(1) + "%";
+  return "<h3>Convergence \xB7 " + esc3(s.verdict) + '</h3><blockquote><p><span class="meta-chip meta-chip--converge-' + esc3(s.verdict) + '">' + esc3(s.verdict) + "</span> review queue depth " + cur.queueDepth + " (peak " + converge.peakQueueDepth + ") \xB7 " + converge.repeatedFirings + " page(s) re-fired (max " + converge.maxFirings + "\xD7) \xB7 per-run work mean " + converge.perRunWork.mean.toFixed(1) + " \xB7 cutoff " + pct3(cur.cutoffRatio) + " beside " + cur.tracked + " tracked edge(s). Convergence is eventual stabilization under bounded work, not a shrinking set.</p></blockquote>";
+}
+function renderEngine(fresh, arts, converge) {
+  const facets = renderFreshness(fresh) + renderArtifacts(arts) + renderConvergence(converge);
+  if (!facets) return "";
+  const bits = [];
+  if (fresh && fresh.integrity) bits.push("\u26A0 decision-log integrity FAILED");
+  else if (fresh) {
+    const t = fresh.counts.needsReview + fresh.counts.stale + fresh.counts.modified;
+    bits.push(t ? t + " page(s) drifted" : "every page current");
+  }
+  if (arts && !arts.error) bits.push(arts.counts.drifted ? arts.counts.drifted + " artifact(s) drifted" : arts.counts.pages ? "artifacts current" : "no artifacts fingerprinted");
+  if (converge && converge.observations.length) bits.push("canon " + converge.stabilization.verdict);
+  return "<h2>Engine \xB7 live state</h2><blockquote><p>The recursion engine's live, dependency-aware view \u2014 <em>distinct</em> from the deterministic structural checks below." + (bits.length ? " <strong>" + esc3(bits.join(" \xB7 ")) + ".</strong>" : "") + "</p></blockquote>" + facets;
+}
+function renderHealthHtml(health, fresh = null, arts = null, converge = null) {
   const c = health.counts;
   const clean = healthTotal(health) === 0;
   let b = '<article data-generated="health"><h1>Health</h1>';
   b += "<blockquote><p>Automatic, deterministic check (no LLM) of the read-only projection \u2014 it watches for what the writing side hasn't caught up on.";
   if (health.now) b += "<br>Baseline <code>" + esc3(health.now) + "</code>, stale window " + health.staleWindowDays + " days.";
   b += "</p></blockquote>";
-  b += renderDrift(fresh);
+  b += renderEngine(fresh, arts, converge);
   const rows = [
     ["Dangling links (likely rename/typo)", c.dangling],
     ["Orphans (no links in or out)", c.orphan],
@@ -22862,7 +22898,7 @@ function renderHealthHtml(health, fresh = null) {
     ["Unsourced (a claim with no provenance)", c.unsourced]
   ];
   b += '<table class="wb-table"><thead><tr><th>Check</th><th class="num">Count</th></tr></thead><tbody>' + rows.map(([k, v]) => "<tr><td>" + k + '</td><td class="num">' + v + "</td></tr>").join("") + "</tbody></table>";
-  if (clean) return b + "<blockquote><p>\u2705 No <em>structural</em> findings \u2014 the knowledge base is structurally consistent." + (fresh ? " (Dependency-aware freshness is in the <strong>Drift</strong> section above.)" : "") + "</p></blockquote></article>";
+  if (clean) return b + "<blockquote><p>\u2705 No <em>structural</em> findings \u2014 the knowledge base is structurally consistent." + (fresh || arts || converge ? " (Live dependency freshness, artifact currency, and convergence are in the <strong>Engine</strong> view above.)" : "") + "</p></blockquote></article>";
   const section = (title, n, note, inner) => "<h2>" + esc3(title) + " \xB7 " + n + "</h2><blockquote><p>" + note + "</p></blockquote>" + inner;
   const tbl = (head2, body) => '<table class="wb-table"><thead><tr>' + head2.map((h) => "<th>" + h + "</th>").join("") + "</tr></thead><tbody>" + body + "</tbody></table>";
   if (c.dangling) {
@@ -22932,7 +22968,7 @@ function renderHealthHtml(health, fresh = null) {
   }
   return b + "</article>";
 }
-var plain = (s) => String(s == null ? "" : s).replace(/[\u0000-\u001F\u007F-\u009F]/g, " ");
+var plain = stripControl;
 function renderHealthText(health) {
   const c = health.counts;
   const lines = [
@@ -23275,7 +23311,7 @@ function liveFreshness({ corpus, docsDir, model }) {
   } catch (e) {
     integrity = { ok: false, reason: e.message };
   }
-  if (integrity) return { byKey: /* @__PURE__ */ new Map(), drift: [], pending: 0, counts: { needsReview: 0, stale: 0, modified: 0 }, integrity };
+  if (integrity) return { byKey: /* @__PURE__ */ new Map(), drift: [], pending: 0, counts: { needsReview: 0, stale: 0, modified: 0 }, integrity, committed: [] };
   const planned = scan({ docsDir: dir, corpus, apply: false, events: committed }).planned;
   const effective = committed.slice();
   for (const p of planned) effective.push(p);
@@ -23307,7 +23343,318 @@ function liveFreshness({ corpus, docsDir, model }) {
     const A = JSON.stringify(a), B = JSON.stringify(b);
     return A < B ? -1 : A > B ? 1 : 0;
   });
-  return { byKey, drift, pending: planned.length, counts, integrity: null };
+  return { byKey, drift, pending: planned.length, counts, integrity: null, committed };
+}
+
+// src/engine/ledgers.mjs
+import { existsSync as existsSync5, readFileSync as readFileSync6, writeFileSync, renameSync, realpathSync as realpathSync2, lstatSync as lstatSync5, openSync as openSync2, closeSync as closeSync2, fstatSync, readSync, constants } from "fs";
+import { join as join7, resolve, sep as sep3, isAbsolute } from "path";
+import { createHash as createHash3 } from "crypto";
+var VERIFY_BASENAME = "_verify.json";
+var COMPILE_BASENAME = "_compile-state.json";
+var DANGEROUS_KEY = /* @__PURE__ */ new Set(["__proto__", "prototype", "constructor"]);
+function toNullProtoMap(obj) {
+  const out = /* @__PURE__ */ Object.create(null);
+  for (const k of Object.keys(obj)) out[k] = obj[k];
+  return out;
+}
+function readJsonObject(file) {
+  if (!existsSync5(file)) return null;
+  let v;
+  try {
+    v = JSON.parse(readFileSync6(file, "utf8"));
+  } catch (e) {
+    throw new Error(file + " is not valid JSON: " + e.message);
+  }
+  if (v === null || typeof v !== "object" || Array.isArray(v)) throw new Error(file + " must be a JSON object, not " + (Array.isArray(v) ? "an array" : typeof v));
+  return v;
+}
+function writeJsonAtomic(file, obj) {
+  const tmp = file + ".tmp-" + process.pid;
+  writeFileSync(tmp, canonicalJSON(obj, 2) + "\n");
+  renameSync(tmp, file);
+}
+function hashJailed(realPath) {
+  const fd = openSync2(realPath, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    if (!fstatSync(fd).isFile()) throw new Error("artifact is not a regular file: " + realPath);
+    const h = createHash3("sha256");
+    const buf = Buffer.allocUnsafe(65536);
+    let n;
+    while ((n = readSync(fd, buf, 0, buf.length, null)) > 0) h.update(buf.subarray(0, n));
+    return h.digest("hex");
+  } finally {
+    closeSync2(fd);
+  }
+}
+function jailPath(root, rel) {
+  if (isAbsolute(rel) || rel.split(/[\\/]/).includes("..")) throw new Error("artifact path must be repo-relative with no `..`: " + rel);
+  const rootReal = realpathSync2(root);
+  const abs = resolve(rootReal, rel);
+  if (!existsSync5(abs)) throw new Error("artifact not found: " + rel);
+  const real = realpathSync2(abs);
+  if (real !== rootReal && !real.startsWith(rootReal + sep3)) throw new Error("artifact path escapes the repo (symlink?): " + rel);
+  if (!lstatSync5(real).isFile()) throw new Error("artifact is not a regular file: " + rel);
+  return real;
+}
+function validateVerifyEntry(page, entry) {
+  if (entry === null || typeof entry !== "object" || Array.isArray(entry)) throw new Error(VERIFY_BASENAME + ': entry for "' + page + '" must be an object');
+  if (!Array.isArray(entry.checks)) throw new Error(VERIFY_BASENAME + ': entry for "' + page + '" must have a `checks` array');
+  for (const c of entry.checks) if (c === null || typeof c !== "object" || typeof c.artifact !== "string" || typeof c.hash !== "string") throw new Error(VERIFY_BASENAME + ': a check under "' + page + '" must have string `artifact` and `hash`');
+}
+function readVerify(workspaceDir) {
+  const raw = readJsonObject(join7(workspaceDir, VERIFY_BASENAME));
+  if (!raw) return /* @__PURE__ */ Object.create(null);
+  const db = toNullProtoMap(raw);
+  for (const page of Object.keys(db)) validateVerifyEntry(page, db[page]);
+  return db;
+}
+function recordVerification(workspaceDir, { root, page, artifact, claim, date }) {
+  if (typeof page !== "string" || !page) throw new Error("recordVerification needs a non-empty page title");
+  const hash = hashJailed(jailPath(root, artifact));
+  const file = join7(workspaceDir, VERIFY_BASENAME);
+  return withLock(file, () => {
+    const db = readVerify(workspaceDir);
+    const prior = Object.prototype.hasOwnProperty.call(db, page) && db[page] && typeof db[page] === "object" && !DANGEROUS_KEY.has(page) ? db[page] : null;
+    const entry = prior || { verifiedAt: date || null, checks: [] };
+    entry.verifiedAt = date || entry.verifiedAt || null;
+    entry.checks = (Array.isArray(entry.checks) ? entry.checks : []).filter((c) => c.artifact !== artifact);
+    entry.checks.push({ artifact, hash, claim: claim || null });
+    entry.checks.sort((a, b) => a.artifact < b.artifact ? -1 : 1);
+    db[page] = entry;
+    writeJsonAtomic(file, db);
+    return hash;
+  });
+}
+function recheckChecks(root, checks) {
+  if (!Array.isArray(checks)) return [];
+  return checks.map((c) => {
+    let now = null, ok = false;
+    try {
+      now = hashJailed(jailPath(root, c.artifact));
+      ok = now === c.hash;
+    } catch {
+      ok = false;
+    }
+    return { artifact: c.artifact, was: c.hash, now, ok };
+  });
+}
+function recheckVerification(workspaceDir, { root, page }) {
+  const db = readVerify(workspaceDir);
+  const entry = Object.prototype.hasOwnProperty.call(db, page) ? db[page] : null;
+  return entry && Array.isArray(entry.checks) ? recheckChecks(root, entry.checks) : [];
+}
+function readCompiled(workspaceDir) {
+  const db = readJsonObject(join7(workspaceDir, COMPILE_BASENAME));
+  if (!db) return /* @__PURE__ */ new Set();
+  if (db.compiled != null && !Array.isArray(db.compiled)) throw new Error(COMPILE_BASENAME + ': "compiled" must be an array');
+  return new Set((db.compiled || []).map(String));
+}
+function markCompiled(workspaceDir, ids) {
+  const file = join7(workspaceDir, COMPILE_BASENAME);
+  return withLock(file, () => {
+    const set2 = readCompiled(workspaceDir);
+    let added = 0;
+    for (const id of Array.isArray(ids) ? ids : [ids]) if (!set2.has(String(id))) {
+      set2.add(String(id));
+      added++;
+    }
+    writeJsonAtomic(file, { compiled: [...set2].sort() });
+    return added;
+  });
+}
+function uncompiled(workspaceDir, allSessionIds) {
+  const set2 = readCompiled(workspaceDir);
+  return [...allSessionIds].map(String).filter((id) => !set2.has(id));
+}
+
+// src/engine/artifacts.mjs
+function liveArtifacts({ workspaceDir, root, corpus, model }) {
+  let db;
+  try {
+    db = readVerify(workspaceDir);
+  } catch (e) {
+    return { byKey: /* @__PURE__ */ new Map(), drift: [], counts: { current: 0, drifted: 0, pages: 0 }, error: e.message };
+  }
+  const byKey = /* @__PURE__ */ new Map();
+  const drift = [];
+  const counts = { current: 0, drifted: 0, pages: 0 };
+  for (const title of Object.keys(db).sort()) {
+    const entry = db[title];
+    const rows = entry && Array.isArray(entry.checks) ? recheckChecks(root, entry.checks) : [];
+    if (!rows.length) continue;
+    counts.pages++;
+    let cur = 0, dr = 0;
+    for (const r of rows) {
+      if (r.ok) {
+        cur++;
+        counts.current++;
+      } else {
+        dr++;
+        counts.drifted++;
+        drift.push({ page: title, artifact: r.artifact, now: r.now });
+      }
+    }
+    const node = model && model.nodes ? model.nodes[nfc(String(title))] : null;
+    const key = node && corpus && corpus.keyByUid ? corpus.keyByUid.get(node.uid) : null;
+    if (key) {
+      const prev = byKey.get(key) || { current: 0, drifted: 0 };
+      byKey.set(key, { current: prev.current + cur, drifted: prev.drifted + dr });
+    }
+  }
+  drift.sort((a, b) => {
+    const A = JSON.stringify([a.page, a.artifact]), B = JSON.stringify([b.page, b.artifact]);
+    return A < B ? -1 : A > B ? 1 : 0;
+  });
+  return { byKey, drift, counts, error: null };
+}
+function artifactInputDigest({ workspaceDir, root }) {
+  let db;
+  try {
+    db = readVerify(workspaceDir);
+  } catch {
+    return "";
+  }
+  const parts = [];
+  for (const page of Object.keys(db).sort()) {
+    const entry = db[page];
+    const checks = entry && Array.isArray(entry.checks) ? entry.checks : [];
+    for (const r of recheckChecks(root, checks)) parts.push(page + "\0" + r.artifact + "\0" + (r.now || "MISSING"));
+  }
+  return parts.sort().join("\n");
+}
+
+// src/engine/telemetry.mjs
+var STRUCTURAL = /* @__PURE__ */ new Set(["introduce", "edit", "rename", "split", "delete"]);
+var isStructural = (ev) => STRUCTURAL.has(ev.type);
+function segment(events) {
+  const segs = [];
+  let cur = null;
+  for (const ev of events) {
+    const kind = isStructural(ev) ? "scan" : "review";
+    if (!cur || cur.kind !== kind) {
+      cur = { kind, events: [] };
+      segs.push(cur);
+    }
+    cur.events.push(ev);
+  }
+  return segs;
+}
+var RECENT_WINDOW = 6;
+var RECENT_REPEAT = 3;
+function projectTimeline({ model, events, schemaVersion = SCHEMA_VERSION }) {
+  const segs = segment(events || []);
+  const observations = [];
+  const dirtySets = [];
+  const enteredSets = [];
+  const firings = /* @__PURE__ */ new Map();
+  const workSamples = [];
+  let prevDirty = /* @__PURE__ */ new Set();
+  let runs = 0, reviews = 0, peakQueueDepth = 0;
+  const prefix = [];
+  for (const seg of segs) {
+    for (const ev of seg.events) prefix.push(ev);
+    const g = computeGate({ model, events: prefix, schemaVersion });
+    const dirtyUids = new Set(g.dirty.map((d) => d.uid));
+    const entered = /* @__PURE__ */ new Set();
+    for (const uid of dirtyUids) if (!prevDirty.has(uid)) {
+      firings.set(uid, (firings.get(uid) || 0) + 1);
+      entered.add(uid);
+    }
+    if (seg.kind === "scan") {
+      runs++;
+      workSamples.push(seg.events.length);
+    } else reviews++;
+    observations.push({
+      atSeq: seg.events[seg.events.length - 1].seq,
+      kind: seg.kind,
+      work: seg.events.length,
+      queueDepth: g.dirty.length,
+      entered: entered.size,
+      tracked: g.counts.tracked,
+      open: g.counts.open,
+      broken: g.counts.broken,
+      cutoffRatio: g.cutoffRatio
+    });
+    dirtySets.push(dirtyUids);
+    enteredSets.push(entered);
+    peakQueueDepth = Math.max(peakQueueDepth, g.dirty.length);
+    prevDirty = dirtyUids;
+  }
+  const currentDirty = dirtySets.length ? dirtySets[dirtySets.length - 1] : /* @__PURE__ */ new Set();
+  const queueAge = [...currentDirty].map((uid) => {
+    let age = 0;
+    for (let i = dirtySets.length - 1; i >= 0 && dirtySets[i].has(uid); i--) age++;
+    return { uid, age };
+  }).sort((a, b) => b.age - a.age || (a.uid < b.uid ? -1 : 1));
+  const firingList = [...firings.entries()].map(([uid, count]) => ({ uid, count })).sort((a, b) => b.count - a.count || (a.uid < b.uid ? -1 : 1));
+  const repeatedFirings = firingList.filter((f) => f.count >= 2).length;
+  const maxFirings = firingList.reduce((m, f) => Math.max(m, f.count), 0);
+  const perRunWork = workSamples.length ? { last: workSamples[workSamples.length - 1], max: Math.max(...workSamples), mean: workSamples.reduce((a, b) => a + b, 0) / workSamples.length } : { last: 0, max: 0, mean: 0 };
+  const fullGate = computeGate({ model, events: events || [], schemaVersion });
+  const current = {
+    queueDepth: fullGate.dirty.length,
+    tracked: fullGate.counts.tracked,
+    open: fullGate.counts.open,
+    broken: fullGate.counts.broken,
+    cutoffRatio: fullGate.cutoffRatio,
+    dirty: fullGate.dirty.map((d) => d.uid).sort()
+  };
+  const currentDepth = current.queueDepth;
+  const n = observations.length;
+  const queueGrowth = n >= 2 ? observations[n - 1].queueDepth - observations[n - 2].queueDepth : 0;
+  const recentCounts = /* @__PURE__ */ new Map();
+  for (const s of enteredSets.slice(-RECENT_WINDOW)) for (const uid of s) recentCounts.set(uid, (recentCounts.get(uid) || 0) + 1);
+  const recentMaxFirings = [...recentCounts.values()].reduce((m, v) => Math.max(m, v), 0);
+  const tail = observations.slice(-RECENT_WINDOW).map((o) => o.queueDepth);
+  const sustainedGrowth = tail.length >= 3 && tail[tail.length - 1] > 0 && tail.every((d, i) => i === 0 || d >= tail[i - 1]) && tail[tail.length - 1] > tail[0];
+  let verdict;
+  if (recentMaxFirings >= RECENT_REPEAT || sustainedGrowth) verdict = "thrashing";
+  else if (currentDepth === 0) verdict = "drained";
+  else verdict = "stabilizing";
+  return {
+    schemaVersion,
+    runs,
+    reviews,
+    observations,
+    current,
+    firings: firingList,
+    repeatedFirings,
+    maxFirings,
+    queueAge,
+    peakQueueDepth,
+    perRunWork,
+    stabilization: { verdict, currentDepth, queueGrowth, recentMaxFirings, maxFirings, sustainedGrowth, repeatedFirings }
+  };
+}
+var pct = (r) => r == null ? "n/a" : (r * 100).toFixed(1) + "%";
+function renderTimelineText(t, { titleOf } = {}) {
+  const name = (uid) => stripControl(titleOf && titleOf.get(uid) || uid);
+  const L = [];
+  L.push("bureau convergence telemetry  (deterministic replay of the decision log \u2014 \xA74.14)");
+  if (!t.observations.length) {
+    L.push("  no history yet \u2014 edit a claim, run `gazette scan`, then confirm it in review to build a series");
+    return L.join("\n");
+  }
+  L.push("  runs: " + t.runs + " edit-burst(s) \xB7 " + t.reviews + " review(s) \xB7 " + t.observations.length + " observation(s)");
+  L.push("  per-run work: last " + t.perRunWork.last + " \xB7 max " + t.perRunWork.max + " \xB7 mean " + t.perRunWork.mean.toFixed(1) + " span-event(s)");
+  L.push("  review queue: depth " + t.current.queueDepth + " (peak " + t.peakQueueDepth + ")" + (t.queueAge.length ? " \xB7 oldest " + t.queueAge[0].age + " observation(s)" : ""));
+  L.push("  repeated firings: " + t.repeatedFirings + " page(s) re-entered the queue \u22652\xD7 (max " + t.maxFirings + "\xD7)");
+  L.push("  cutoff ratio " + pct(t.current.cutoffRatio) + " beside " + t.current.tracked + " tracked edge(s) \xB7 " + t.current.open + " open \xB7 " + t.current.broken + " broken  (never alone \u2014 \xA74.14)");
+  const s = t.stabilization;
+  const mark = s.verdict === "drained" ? "\u2705" : s.verdict === "stabilizing" ? "\xB7" : "\u26A0";
+  L.push("  " + mark + " " + s.verdict + " \u2014 depth " + s.currentDepth + ", tail growth " + (s.queueGrowth >= 0 ? "+" : "") + s.queueGrowth + ", max firings " + s.maxFirings);
+  const churning = t.firings.filter((f) => f.count >= 2).slice(0, 5);
+  if (churning.length) {
+    L.push("  churning pages:");
+    for (const f of churning) L.push("    \xB7 " + name(f.uid) + " \xD7" + f.count);
+  }
+  const aged = t.queueAge.slice(0, 5);
+  if (aged.length) {
+    L.push("  outstanding (queue age):");
+    for (const a of aged) L.push("    \xB7 " + name(a.uid) + " \u2014 " + a.age + " observation(s)");
+  }
+  return L.join("\n");
 }
 
 // src/services/sanitize.mjs
@@ -23509,15 +23856,15 @@ function emitCssVars(tokens) {
 }
 
 // src/services/assets.mjs
-import { readdirSync as readdirSync3, lstatSync as lstatSync5 } from "fs";
-import { join as join7 } from "path";
+import { readdirSync as readdirSync3, lstatSync as lstatSync6 } from "fs";
+import { join as join8 } from "path";
 var DEFAULT_BUDGET = 8 * 1024 * 1024;
 function walk3(dir) {
   let total = 0;
   const files = [];
   for (const name of readdirSync3(dir)) {
-    const p = join7(dir, name);
-    const st = lstatSync5(p);
+    const p = join8(dir, name);
+    const st = lstatSync6(p);
     if (st.isSymbolicLink()) continue;
     if (st.isDirectory()) {
       const r = walk3(p);
@@ -23539,20 +23886,20 @@ function bundleReport(outDir, budget = DEFAULT_BUDGET) {
 // src/build.mjs
 var HEALTH_TITLE = "Health";
 var __dirname = dirname2(fileURLToPath(import.meta.url));
-var TEMPLATE_DIR = resolve(__dirname, "..", "template");
+var TEMPLATE_DIR = resolve2(__dirname, "..", "template");
 var ENGINE_LIB = ["app.js", "mermaid.min.js", "echarts.min.js", "js-yaml.min.js", "papaparse.min.js", "viz.min.js", "rough.min.js"];
 function physicalPath(p) {
   let anc = p, tail = [];
-  while (!existsSync5(anc)) {
+  while (!existsSync6(anc)) {
     const parent = dirname2(anc);
     if (parent === anc) return p;
     tail.unshift(anc.slice(parent.length + 1));
     anc = parent;
   }
-  return tail.length ? join8(realpathSync2(anc), ...tail) : realpathSync2(anc);
+  return tail.length ? join9(realpathSync3(anc), ...tail) : realpathSync3(anc);
 }
 function guardOutDir(root, outDir, docsDir, dataDir) {
-  const withSep = (p) => p.endsWith(sep3) ? p : p + sep3;
+  const withSep = (p) => p.endsWith(sep4) ? p : p + sep4;
   const rootP = physicalPath(root), docsP = docsDir && physicalPath(docsDir), dataP = dataDir && physicalPath(dataDir);
   const targets = [["--out", outDir], ["--out temp dir", outDir + ".tmp"], ["--out backup dir", outDir + ".bak"]];
   for (const [olabel, o] of targets) {
@@ -23599,14 +23946,14 @@ function htmlExcerpt(html, target) {
 }
 function buildAssetIndex(assetsDir) {
   const index = {};
-  if (!existsSync5(assetsDir)) return index;
+  if (!existsSync6(assetsDir)) return index;
   const baseCount = /* @__PURE__ */ new Map();
   const walk4 = (dir, rel) => {
     for (const name of readdirSync4(dir).sort()) {
-      const p = join8(dir, name);
+      const p = join9(dir, name);
       let st;
       try {
-        st = lstatSync6(p);
+        st = lstatSync7(p);
       } catch {
         continue;
       }
@@ -23662,23 +24009,23 @@ function transcludeEmbeds(html, source) {
   return replaceOutsideRaw(html, (h) => h.replace(EMBED_BLOCK, (m, t, hd) => make(t, hd)).replace(EMBED_INLINE, (m, t, hd) => make(t, hd)));
 }
 function hashInputs({ root, docsDir, dataDir, now }) {
-  const h = createHash3("sha256");
+  const h = createHash4("sha256");
   h.update("schema:" + SCHEMA_VERSION + "|now:" + (now || ""));
-  for (const f of [...ENGINE_LIB, "theme.css"]) h.update(readFileSync6(join8(TEMPLATE_DIR, "lib", f)));
-  h.update(readFileSync6(join8(TEMPLATE_DIR, "index.html")));
-  h.update(readFileSync6(fileURLToPath(import.meta.url)));
+  for (const f of [...ENGINE_LIB, "theme.css"]) h.update(readFileSync7(join9(TEMPLATE_DIR, "lib", f)));
+  h.update(readFileSync7(join9(TEMPLATE_DIR, "index.html")));
+  h.update(readFileSync7(fileURLToPath(import.meta.url)));
   const addDir = (dir) => {
-    if (!existsSync5(dir)) return;
+    if (!existsSync6(dir)) return;
     try {
-      if (lstatSync6(dir).isSymbolicLink()) return;
+      if (lstatSync7(dir).isSymbolicLink()) return;
     } catch {
       return;
     }
     for (const name of readdirSync4(dir).sort()) {
-      const p = join8(dir, name);
+      const p = join9(dir, name);
       let st;
       try {
-        st = lstatSync6(p);
+        st = lstatSync7(p);
       } catch {
         continue;
       }
@@ -23686,7 +24033,7 @@ function hashInputs({ root, docsDir, dataDir, now }) {
       if (st.isDirectory()) addDir(p);
       else if (st.isFile()) {
         try {
-          const buf = readFileSync6(p);
+          const buf = readFileSync7(p);
           h.update("\0" + relative3(root, p) + "\0");
           h.update(buf);
         } catch {
@@ -23696,15 +24043,15 @@ function hashInputs({ root, docsDir, dataDir, now }) {
   };
   addDir(docsDir);
   addDir(dataDir);
-  addDir(join8(root, "assets"));
+  addDir(join9(root, "assets"));
   for (const f of ["theme.json", "theme.css"]) {
-    const p = join8(root, f);
-    if (existsSync5(p)) h.update(readFileSync6(p));
+    const p = join9(root, f);
+    if (existsSync6(p)) h.update(readFileSync7(p));
   }
   let meta = {};
   try {
-    const cfgPath = join8(docsDir, "_config.json");
-    if (!lstatSync6(cfgPath).isSymbolicLink()) meta = JSON.parse(readFileSync6(cfgPath, "utf8")).meta || {};
+    const cfgPath = join9(docsDir, "_config.json");
+    if (!lstatSync7(cfgPath).isSymbolicLink()) meta = JSON.parse(readFileSync7(cfgPath, "utf8")).meta || {};
   } catch {
   }
   if (meta.code && meta.code.dir) {
@@ -23718,10 +24065,10 @@ function hashInputs({ root, docsDir, dataDir, now }) {
       }
       for (const name of names) {
         if (SKIP.has(name) || name.startsWith(".")) continue;
-        const p = join8(dir, name);
+        const p = join9(dir, name);
         let st;
         try {
-          st = lstatSync6(p);
+          st = lstatSync7(p);
         } catch {
           continue;
         }
@@ -23730,7 +24077,7 @@ function hashInputs({ root, docsDir, dataDir, now }) {
         else if (st.isFile()) h.update(p + ":" + st.size + ":" + st.mtimeMs);
       }
     };
-    statDir(resolve(root, meta.code.dir));
+    statDir(resolve2(root, meta.code.dir));
   }
   if (meta.temporal && meta.temporal.enabled) {
     try {
@@ -23738,10 +24085,11 @@ function hashInputs({ root, docsDir, dataDir, now }) {
     } catch {
     }
   }
+  h.update("\0artifacts\0" + artifactInputDigest({ workspaceDir: docsDir, root }));
   return h.digest("hex");
 }
 function computeHealth({ docsDir, dataDir, now = null }) {
-  dataDir = dataDir || join8(docsDir, "_data");
+  dataDir = dataDir || join9(docsDir, "_data");
   const corpus = loadCorpus({ docsDir, dataDir });
   const model = buildModel({ corpus });
   const backlinks = deriveBacklinks(model);
@@ -23751,7 +24099,7 @@ function computeHealth({ docsDir, dataDir, now = null }) {
   if (corpus.meta?.graph?.enabled !== false && model.nodeCount > 0) knownTargets.add(nfc("Graph"));
   for (const cf of corpus.canvasFiles || []) {
     try {
-      JSON.parse(readFileSync6(join8(docsDir, cf), "utf8"));
+      JSON.parse(readFileSync7(join9(docsDir, cf), "utf8"));
     } catch {
       continue;
     }
@@ -23765,27 +24113,37 @@ function computeHealth({ docsDir, dataDir, now = null }) {
   return { corpus, model, backlinks, health, timeline };
 }
 function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null, force = false } = {}) {
-  root = resolve(root);
-  docsDir = resolve(root, docsDir || "gazette");
-  dataDir = resolve(root, dataDir || join8(docsDir, "_data"));
-  outDir = resolve(root, outDir || "dist");
+  root = resolve2(root);
+  docsDir = resolve2(root, docsDir || "gazette");
+  dataDir = resolve2(root, dataDir || join9(docsDir, "_data"));
+  outDir = resolve2(root, outDir || "dist");
   guardOutDir(root, outDir, docsDir, dataDir);
   const hash = hashInputs({ root, docsDir, dataDir, now });
-  const metaPath = join8(outDir, ".buildmeta.json");
-  if (!force && existsSync5(metaPath) && existsSync5(join8(outDir, "index.html"))) {
+  const metaPath = join9(outDir, ".buildmeta.json");
+  if (!force && existsSync6(metaPath) && existsSync6(join9(outDir, "index.html"))) {
     try {
-      const meta = JSON.parse(readFileSync6(metaPath, "utf8"));
+      const meta = JSON.parse(readFileSync7(metaPath, "utf8"));
       if (meta.hash === hash) return { ...meta.summary, outDir, cached: true };
     } catch {
     }
   }
   const { corpus, model, health, timeline } = computeHealth({ docsDir, dataDir, now });
   const fresh = liveFreshness({ corpus, docsDir, model });
+  const arts = liveArtifacts({ workspaceDir: docsDir, root, corpus, model });
+  let converge = null;
+  if (!fresh.integrity) {
+    try {
+      converge = projectTimeline({ model, events: fresh.committed || [] });
+    } catch {
+      converge = null;
+    }
+  }
   const docs = /* @__PURE__ */ Object.create(null);
   const realLinks = /* @__PURE__ */ Object.create(null);
   for (const e of corpus.entries) {
     const flvl = fresh.byKey.get(e.id);
-    const meta = flvl ? { ...e.metaChips, freshness: flvl } : e.metaChips;
+    const art = arts.byKey.get(e.id);
+    const meta = flvl || art ? { ...e.metaChips, ...flvl ? { freshness: flvl } : {}, ...art ? { artifacts: art } : {} } : e.metaChips;
     docs[e.id] = { group: e.group, icon: e.icon, meta, body: e.body, format: e.format };
     realLinks[e.id] = e.bodyLinks;
   }
@@ -23816,7 +24174,7 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
   for (const cf of corpus.canvasFiles) {
     let canvasJson;
     try {
-      canvasJson = JSON.parse(readFileSync6(join8(docsDir, cf), "utf8"));
+      canvasJson = JSON.parse(readFileSync7(join9(docsDir, cf), "utf8"));
     } catch {
       console.warn("\u26A0 skipping invalid .canvas: " + cf);
       continue;
@@ -23827,7 +24185,7 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
     docs[nfc(title2)] = { group: "canvas", icon: "globe", meta: { type: "JSON Canvas (read-only)" }, svg: renderCanvasSvg(canvasJson) };
   }
   if (corpus.meta && corpus.meta.code && corpus.meta.code.dir) {
-    const scan2 = scanCode({ dir: resolve(root, corpus.meta.code.dir) });
+    const scan2 = scanCode({ dir: resolve2(root, corpus.meta.code.dir) });
     if (scan2) {
       if (!groups.some((g) => g.id === "code")) groups.push({ id: "code", label: "Code" });
       const tm = "Code \xB7 Module map", dg = "Code \xB7 Dependencies";
@@ -23855,10 +24213,10 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
     group: "health",
     icon: "seal",
     meta: { type: "knowledge-base check", status: healthClean ? "OK" : "findings" },
-    body: renderHealthHtml(health, fresh)
-    // fresh adds the live "Drift" section (needs-review/stale/modified + why)
+    body: renderHealthHtml(health, fresh, arts, converge)
+    // fresh/arts/converge = the unified live Engine view (freshness · artifacts · convergence)
   };
-  const assetIndex = buildAssetIndex(join8(root, "assets"));
+  const assetIndex = buildAssetIndex(join9(root, "assets"));
   const rawBodies = /* @__PURE__ */ Object.create(null), linksById = /* @__PURE__ */ Object.create(null);
   for (const id of Object.keys(docs)) {
     const d = docs[id];
@@ -23880,61 +24238,61 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
   }
   const backlinks = buildBoardBacklinks(rawBodies, linksById);
   const tmp = outDir + ".tmp";
-  if (existsSync5(tmp)) rmSync(tmp, { recursive: true, force: true });
-  mkdirSync(join8(tmp, "lib"), { recursive: true });
-  writeFileSync(join8(tmp, "model.json"), canonicalJSON(model) + "\n");
-  writeFileSync(join8(tmp, "health.json"), canonicalJSON(health) + "\n");
-  if (layout) writeFileSync(join8(tmp, "graph.json"), canonicalJSON(layout) + "\n");
-  if (temporal) writeFileSync(join8(tmp, "temporal.json"), canonicalJSON(temporal) + "\n");
+  if (existsSync6(tmp)) rmSync(tmp, { recursive: true, force: true });
+  mkdirSync(join9(tmp, "lib"), { recursive: true });
+  writeFileSync2(join9(tmp, "model.json"), canonicalJSON(model) + "\n");
+  writeFileSync2(join9(tmp, "health.json"), canonicalJSON(health) + "\n");
+  if (layout) writeFileSync2(join9(tmp, "graph.json"), canonicalJSON(layout) + "\n");
+  if (temporal) writeFileSync2(join9(tmp, "temporal.json"), canonicalJSON(temporal) + "\n");
   const STORY = { meta: corpus.meta, groups: orderGroups(groups, corpus.groupOrder), docs, backlinks };
-  writeFileSync(
-    join8(tmp, "lib", "content.js"),
+  writeFileSync2(
+    join9(tmp, "lib", "content.js"),
     "// \u26A0 auto-generated. Do not edit. Source is gazette/*.html; rebuild with: gazette build\nwindow.STORY = " + JSON.stringify(STORY, null, 2) + ";\n"
   );
-  for (const f of ENGINE_LIB) copyFileSync(join8(TEMPLATE_DIR, "lib", f), join8(tmp, "lib", f));
+  for (const f of ENGINE_LIB) copyFileSync(join9(TEMPLATE_DIR, "lib", f), join9(tmp, "lib", f));
   let projectTokens = null;
-  const tokensPath = join8(root, "theme.json");
-  if (existsSync5(tokensPath)) {
+  const tokensPath = join9(root, "theme.json");
+  if (existsSync6(tokensPath)) {
     try {
-      projectTokens = JSON.parse(readFileSync6(tokensPath, "utf8"));
+      projectTokens = JSON.parse(readFileSync7(tokensPath, "utf8"));
     } catch (e) {
       throw new Error("theme.json is not valid JSON: " + e.message);
     }
   }
-  const themeCss = readFileSync6(join8(TEMPLATE_DIR, "lib", "theme.css"), "utf8").replace("/*@TOKENS@*/", emitCssVars(resolveTokens(projectTokens)).trim());
-  writeFileSync(join8(tmp, "lib", "theme.css"), themeCss);
-  let html = readFileSync6(join8(TEMPLATE_DIR, "index.html"), "utf8");
+  const themeCss = readFileSync7(join9(TEMPLATE_DIR, "lib", "theme.css"), "utf8").replace("/*@TOKENS@*/", emitCssVars(resolveTokens(projectTokens)).trim());
+  writeFileSync2(join9(tmp, "lib", "theme.css"), themeCss);
+  let html = readFileSync7(join9(TEMPLATE_DIR, "index.html"), "utf8");
   const title = [corpus.meta?.title, corpus.meta?.subtitle].filter(Boolean).join(" \xB7 ") || "gazette";
   html = html.replace("<!--TITLE-->", escapeHtml2(title)).replace("<!--CSP-->", cspMeta());
   let themeOverride = false;
-  const projectTheme = join8(root, "theme.css");
-  if (existsSync5(projectTheme)) {
-    copyFileSync(projectTheme, join8(tmp, "theme.override.css"));
+  const projectTheme = join9(root, "theme.css");
+  if (existsSync6(projectTheme)) {
+    copyFileSync(projectTheme, join9(tmp, "theme.override.css"));
     html = html.replace("<!--THEME_OVERRIDE-->", '<link rel="stylesheet" href="theme.override.css" />');
     themeOverride = true;
   } else {
     html = html.replace("<!--THEME_OVERRIDE-->", "");
   }
-  writeFileSync(join8(tmp, "index.html"), html);
+  writeFileSync2(join9(tmp, "index.html"), html);
   let assetsCopied = false;
-  const assetsDir = join8(root, "assets");
-  if (existsSync5(assetsDir)) {
-    cpSync(assetsDir, join8(tmp, "assets"), { recursive: true, dereference: false, filter: (src) => !lstatSync6(src).isSymbolicLink() });
+  const assetsDir = join9(root, "assets");
+  if (existsSync6(assetsDir)) {
+    cpSync(assetsDir, join9(tmp, "assets"), { recursive: true, dereference: false, filter: (src) => !lstatSync7(src).isSymbolicLink() });
     assetsCopied = true;
   }
-  if (existsSync5(outDir)) {
+  if (existsSync6(outDir)) {
     const bak = outDir + ".bak";
-    if (existsSync5(bak)) rmSync(bak, { recursive: true, force: true });
-    renameSync(outDir, bak);
+    if (existsSync6(bak)) rmSync(bak, { recursive: true, force: true });
+    renameSync2(outDir, bak);
     try {
-      renameSync(tmp, outDir);
+      renameSync2(tmp, outDir);
     } catch (e) {
-      renameSync(bak, outDir);
+      renameSync2(bak, outDir);
       throw e;
     }
     rmSync(bak, { recursive: true, force: true });
   } else {
-    renameSync(tmp, outDir);
+    renameSync2(tmp, outDir);
   }
   const bundle = bundleReport(outDir);
   if (bundle.over) {
@@ -23953,15 +24311,21 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
     freshness: fresh.counts,
     freshnessPending: fresh.pending,
     // live engine badges: {needsReview, stale, modified}
-    freshnessIntact: !fresh.integrity
+    freshnessIntact: !fresh.integrity,
     // false ⇒ the decision log failed its integrity check (badges suppressed)
+    artifacts: arts.counts,
+    // {current, drifted, pages} — ledger currency against the working tree
+    artifactError: arts.error,
+    // a malformed _verify.json (surfaced in the one-liner, not silently treated as empty)
+    convergence: converge ? converge.stabilization.verdict : null
+    // drained/stabilizing/thrashing (null ⇒ suppressed)
   };
-  writeFileSync(metaPath, JSON.stringify({ hash, summary }));
+  writeFileSync2(metaPath, JSON.stringify({ hash, summary }));
   return summary;
 }
 
 // src/maintain/rename.mjs
-import { readFileSync as readFileSync7, writeFileSync as writeFileSync2, renameSync as renameSync2, unlinkSync as unlinkSync2 } from "fs";
+import { readFileSync as readFileSync8, writeFileSync as writeFileSync3, renameSync as renameSync3, unlinkSync as unlinkSync2 } from "fs";
 var BAD_TITLE = /[[\]|#]|[\x00-\x1f\x7f-\x9f]/;
 function planRename({ docsDir, from, to }) {
   if (!from || !to) throw new Error("rename needs both <old> and <new> titles");
@@ -23976,7 +24340,7 @@ function planRename({ docsDir, from, to }) {
   const edits = [];
   let linkTotal = 0;
   for (const e of corpus.entries) {
-    const raw = readFileSync7(safeDocPath(docsDir, e.file), "utf8");
+    const raw = readFileSync8(safeDocPath(docsDir, e.file), "utf8");
     const ref = rewriteWikiRef(raw, fromTitle, to);
     let next = ref.html, titleChanged = false;
     if (e.id === fromId) {
@@ -23996,7 +24360,7 @@ function applyRename(plan, docsDir) {
       const dest = safeDocPath(docsDir, e.file);
       const tmp = dest + ".rename-" + process.pid + ".tmp";
       staged.push({ tmp, dest, raw: e.raw });
-      writeFileSync2(tmp, e.next);
+      writeFileSync3(tmp, e.next);
     }
   } catch (err) {
     for (const s of staged) {
@@ -24010,13 +24374,13 @@ function applyRename(plan, docsDir) {
   const done = [];
   try {
     for (const s of staged) {
-      renameSync2(s.tmp, s.dest);
+      renameSync3(s.tmp, s.dest);
       done.push(s);
     }
   } catch (err) {
     for (const s of done) {
       try {
-        writeFileSync2(s.dest, s.raw);
+        writeFileSync3(s.dest, s.raw);
       } catch {
       }
     }
@@ -24032,8 +24396,8 @@ function applyRename(plan, docsDir) {
 }
 
 // src/maintain/doctor.mjs
-import { readFileSync as readFileSync8, writeFileSync as writeFileSync3, renameSync as renameSync3, lstatSync as lstatSync7 } from "fs";
-import { join as join9 } from "path";
+import { readFileSync as readFileSync9, writeFileSync as writeFileSync4, renameSync as renameSync4, lstatSync as lstatSync8 } from "fs";
+import { join as join10 } from "path";
 function levenshtein(a, b) {
   const m = a.length, n = b.length;
   if (!m) return n;
@@ -24086,26 +24450,26 @@ function applySafe(docsDir, fixes, model) {
   const applied = [];
   const drift = fixes.find((f) => f.kind === "drift");
   if (drift) {
-    const cfg = join9(docsDir, "_config.json");
-    if (lstatSync7(cfg).isSymbolicLink()) throw new Error("refusing to write a symlinked _config.json: " + cfg);
-    const c = JSON.parse(readFileSync8(cfg, "utf8"));
+    const cfg = join10(docsDir, "_config.json");
+    if (lstatSync8(cfg).isSymbolicLink()) throw new Error("refusing to write a symlinked _config.json: " + cfg);
+    const c = JSON.parse(readFileSync9(cfg, "utf8"));
     c.meta = c.meta || {};
     c.meta.expectedDocs = drift.actual;
     const tmp = cfg + ".doctor-" + process.pid + ".tmp";
-    writeFileSync3(tmp, JSON.stringify(c, null, 2) + "\n");
-    renameSync3(tmp, cfg);
+    writeFileSync4(tmp, JSON.stringify(c, null, 2) + "\n");
+    renameSync4(tmp, cfg);
     applied.push("drift: expectedDocs \u2192 " + drift.actual);
   }
   for (const f of fixes.filter((x) => x.kind === "dangling" && x.auto)) {
     const node = model.nodes[f.source];
     if (!node) continue;
     const p = safeDocPath(docsDir, node.file);
-    const raw = readFileSync8(p, "utf8");
+    const raw = readFileSync9(p, "utf8");
     const { html: next, count } = rewriteWikiRef(raw, f.target, f.suggest);
     if (count > 0 && next !== raw) {
       const tmp = p + ".doctor-" + process.pid + ".tmp";
-      writeFileSync3(tmp, next);
-      renameSync3(tmp, p);
+      writeFileSync4(tmp, next);
+      renameSync4(tmp, p);
       applied.push("dangling: " + f.source + " [[" + f.target + "]] \u2192 [[" + f.suggest + "]]");
     }
   }
@@ -24157,125 +24521,6 @@ function resolveNodeState(node, decisions, conflictPartnerUids = []) {
     if (allResolved) resolutionId = decisions.resolved.get(keys[0]) ?? null;
   }
   return { trust, trustBacked, conflict, resolutionId, freeze: node.freeze || null };
-}
-
-// src/engine/ledgers.mjs
-import { existsSync as existsSync6, readFileSync as readFileSync9, writeFileSync as writeFileSync4, renameSync as renameSync4, realpathSync as realpathSync3, lstatSync as lstatSync8, openSync as openSync2, closeSync as closeSync2, fstatSync, readSync, constants } from "fs";
-import { join as join10, resolve as resolve2, sep as sep4, isAbsolute } from "path";
-import { createHash as createHash4 } from "crypto";
-var VERIFY_BASENAME = "_verify.json";
-var COMPILE_BASENAME = "_compile-state.json";
-var DANGEROUS_KEY = /* @__PURE__ */ new Set(["__proto__", "prototype", "constructor"]);
-function toNullProtoMap(obj) {
-  const out = /* @__PURE__ */ Object.create(null);
-  for (const k of Object.keys(obj)) out[k] = obj[k];
-  return out;
-}
-function readJsonObject(file) {
-  if (!existsSync6(file)) return null;
-  let v;
-  try {
-    v = JSON.parse(readFileSync9(file, "utf8"));
-  } catch (e) {
-    throw new Error(file + " is not valid JSON: " + e.message);
-  }
-  if (v === null || typeof v !== "object" || Array.isArray(v)) throw new Error(file + " must be a JSON object, not " + (Array.isArray(v) ? "an array" : typeof v));
-  return v;
-}
-function writeJsonAtomic(file, obj) {
-  const tmp = file + ".tmp-" + process.pid;
-  writeFileSync4(tmp, canonicalJSON(obj, 2) + "\n");
-  renameSync4(tmp, file);
-}
-function hashJailed(realPath) {
-  const fd = openSync2(realPath, constants.O_RDONLY | constants.O_NOFOLLOW);
-  try {
-    if (!fstatSync(fd).isFile()) throw new Error("artifact is not a regular file: " + realPath);
-    const h = createHash4("sha256");
-    const buf = Buffer.allocUnsafe(65536);
-    let n;
-    while ((n = readSync(fd, buf, 0, buf.length, null)) > 0) h.update(buf.subarray(0, n));
-    return h.digest("hex");
-  } finally {
-    closeSync2(fd);
-  }
-}
-function jailPath(root, rel) {
-  if (isAbsolute(rel) || rel.split(/[\\/]/).includes("..")) throw new Error("artifact path must be repo-relative with no `..`: " + rel);
-  const rootReal = realpathSync3(root);
-  const abs = resolve2(rootReal, rel);
-  if (!existsSync6(abs)) throw new Error("artifact not found: " + rel);
-  const real = realpathSync3(abs);
-  if (real !== rootReal && !real.startsWith(rootReal + sep4)) throw new Error("artifact path escapes the repo (symlink?): " + rel);
-  if (!lstatSync8(real).isFile()) throw new Error("artifact is not a regular file: " + rel);
-  return real;
-}
-function validateVerifyEntry(page, entry) {
-  if (entry === null || typeof entry !== "object" || Array.isArray(entry)) throw new Error(VERIFY_BASENAME + ': entry for "' + page + '" must be an object');
-  if (!Array.isArray(entry.checks)) throw new Error(VERIFY_BASENAME + ': entry for "' + page + '" must have a `checks` array');
-  for (const c of entry.checks) if (c === null || typeof c !== "object" || typeof c.artifact !== "string" || typeof c.hash !== "string") throw new Error(VERIFY_BASENAME + ': a check under "' + page + '" must have string `artifact` and `hash`');
-}
-function readVerify(workspaceDir) {
-  const raw = readJsonObject(join10(workspaceDir, VERIFY_BASENAME));
-  if (!raw) return /* @__PURE__ */ Object.create(null);
-  const db = toNullProtoMap(raw);
-  for (const page of Object.keys(db)) validateVerifyEntry(page, db[page]);
-  return db;
-}
-function recordVerification(workspaceDir, { root, page, artifact, claim, date }) {
-  if (typeof page !== "string" || !page) throw new Error("recordVerification needs a non-empty page title");
-  const hash = hashJailed(jailPath(root, artifact));
-  const file = join10(workspaceDir, VERIFY_BASENAME);
-  return withLock(file, () => {
-    const db = readVerify(workspaceDir);
-    const prior = Object.prototype.hasOwnProperty.call(db, page) && db[page] && typeof db[page] === "object" && !DANGEROUS_KEY.has(page) ? db[page] : null;
-    const entry = prior || { verifiedAt: date || null, checks: [] };
-    entry.verifiedAt = date || entry.verifiedAt || null;
-    entry.checks = (Array.isArray(entry.checks) ? entry.checks : []).filter((c) => c.artifact !== artifact);
-    entry.checks.push({ artifact, hash, claim: claim || null });
-    entry.checks.sort((a, b) => a.artifact < b.artifact ? -1 : 1);
-    db[page] = entry;
-    writeJsonAtomic(file, db);
-    return hash;
-  });
-}
-function recheckVerification(workspaceDir, { root, page }) {
-  const db = readVerify(workspaceDir);
-  const entry = Object.prototype.hasOwnProperty.call(db, page) ? db[page] : null;
-  if (!entry || !Array.isArray(entry.checks)) return [];
-  return entry.checks.map((c) => {
-    let now = null, ok = false;
-    try {
-      now = hashJailed(jailPath(root, c.artifact));
-      ok = now === c.hash;
-    } catch {
-      ok = false;
-    }
-    return { artifact: c.artifact, was: c.hash, now, ok };
-  });
-}
-function readCompiled(workspaceDir) {
-  const db = readJsonObject(join10(workspaceDir, COMPILE_BASENAME));
-  if (!db) return /* @__PURE__ */ new Set();
-  if (db.compiled != null && !Array.isArray(db.compiled)) throw new Error(COMPILE_BASENAME + ': "compiled" must be an array');
-  return new Set((db.compiled || []).map(String));
-}
-function markCompiled(workspaceDir, ids) {
-  const file = join10(workspaceDir, COMPILE_BASENAME);
-  return withLock(file, () => {
-    const set2 = readCompiled(workspaceDir);
-    let added = 0;
-    for (const id of Array.isArray(ids) ? ids : [ids]) if (!set2.has(String(id))) {
-      set2.add(String(id));
-      added++;
-    }
-    writeJsonAtomic(file, { compiled: [...set2].sort() });
-    return added;
-  });
-}
-function uncompiled(workspaceDir, allSessionIds) {
-  const set2 = readCompiled(workspaceDir);
-  return [...allSessionIds].map(String).filter((id) => !set2.has(id));
 }
 
 // src/engine/fsck.mjs
@@ -24437,14 +24682,14 @@ function report({ docsDir, schemaVersion = SCHEMA_VERSION } = {}) {
     ok: f.ok && gate.counts.broken === 0 && realSurvivors === 0
   };
 }
-var pct = (r) => r == null ? "n/a" : (r * 100).toFixed(1) + "%";
+var pct2 = (r) => r == null ? "n/a" : (r * 100).toFixed(1) + "%";
 function renderMetricsText(r) {
   const L = [];
   L.push("bureau engine metrics");
   L.push("  pages: " + r.nodeCount);
   L.push("  fixpoint: " + (r.fixpoint.stable ? "stable \u2705" : "UNSTABLE \u2717") + "  digest " + r.fixpoint.digest.slice(0, 12));
-  L.push("  gate: " + r.gate.trackedEdges + " tracked edges \xB7 " + r.gate.dirtyPages + " dirty pages \xB7 cutoff ratio " + pct(r.gate.cutoffRatio) + " (beside edge-count, never alone) \xB7 " + r.gate.untrackedEdges + " untracked \xB7 " + r.gate.brokenEdges + " broken");
-  L.push("  wiring kill rate: " + pct(r.wiring.killRate) + " (" + r.wiring.killed + "/" + r.wiring.gateable + ")" + (r.wiring.realSurvivors ? " \xB7 " + r.wiring.realSurvivors + " SURVIVED mutation \u2717" : "") + " \u2014 " + r.wiring.note);
+  L.push("  gate: " + r.gate.trackedEdges + " tracked edges \xB7 " + r.gate.dirtyPages + " dirty pages \xB7 cutoff ratio " + pct2(r.gate.cutoffRatio) + " (beside edge-count, never alone) \xB7 " + r.gate.untrackedEdges + " untracked \xB7 " + r.gate.brokenEdges + " broken");
+  L.push("  wiring kill rate: " + pct2(r.wiring.killRate) + " (" + r.wiring.killed + "/" + r.wiring.gateable + ")" + (r.wiring.realSurvivors ? " \xB7 " + r.wiring.realSurvivors + " SURVIVED mutation \u2717" : "") + " \u2014 " + r.wiring.note);
   if (r.gate.brokenEdges) L.push("  broken (dangling) edges: " + r.gate.brokenEdges + " \u2717");
   if (r.findings.length) {
     L.push("  findings:");
@@ -24671,6 +24916,9 @@ function runBuild() {
     const total = countsTotal(r.health);
     bits.push("health " + (r.healthClean ? "\u2705" : "\u26A0 " + total + (total === 1 ? " item" : " items")));
     bits.push("drift " + freshnessBit(r));
+    if (r.artifactError) bits.push("artifacts \u26A0 ledger error (" + stripControl(r.artifactError) + ")");
+    else if (r.artifacts && r.artifacts.drifted) bits.push("artifacts \u26A0 " + r.artifacts.drifted + " drifted");
+    if (r.convergence === "thrashing") bits.push("convergence \u26A0 thrashing");
     console.log("\u2713 build: " + bits.join(", ") + " (" + r.totalDocs + " pages) -> " + r.outDir);
     return r;
   } catch (e) {
@@ -25111,6 +25359,18 @@ function runReport() {
     die(e.message);
   }
 }
+function runTelemetry() {
+  try {
+    const docsDir = engineDir();
+    const model = buildModel({ corpus: loadCorpus({ docsDir }) });
+    const t = projectTimeline({ model, events: readLog(logPath(docsDir)) });
+    const titleOf = new Map(Object.values(model.nodes).map((n) => [n.uid, n.title]));
+    console.log(renderTimelineText(t, { titleOf }));
+    process.exit(0);
+  } catch (e) {
+    die(e.message);
+  }
+}
 function resolvePage(docsDir, title) {
   const model = buildModel({ corpus: loadCorpus({ docsDir }) });
   const node = model.nodes[nfc(String(title))];
@@ -25262,6 +25522,9 @@ switch (cmd) {
   case "report":
     runReport();
     break;
+  case "telemetry":
+    runTelemetry();
+    break;
   case "ledger":
     runLedger();
     break;
@@ -25308,6 +25571,7 @@ switch (cmd) {
       '  gazette impact "<title>"           pre-change blast radius: which pages rest on this one',
       "  gazette fsck [--check]             rebuild mechanical-derived state to a byte-fixpoint (CI gate)",
       "  gazette report                     deterministic auditable metrics (kill rate, fixpoint, cutoff)",
+      "  gazette telemetry                  convergence telemetry: is the canon converging or thrashing? (\xA74.14)",
       '  gazette approve "<title>"          log a human approval \u2192 trust: canonical (backs the projection)',
       `  gazette confirm "<title>"          vouch a dependent page's open rests_on edges (gate cutoff)`,
       '  gazette resolve "<A>" "<B>" --winner "<title>"   record a contradicts resolution',

@@ -56,11 +56,16 @@ The bundled press is at `${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs`; the works
    ```
    `build` surfaces structural findings (dangling/orphan/contradiction/unsourced) + the live drift
    tally; `fsck` confirms the derived state rebuilds to a byte-fixpoint and flags any
-   unbacked-`canonical` or tamper. Report both.
+   unbacked-`canonical` or tamper. Report both. Then read the **convergence trend**:
+   ```
+   node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" telemetry --dir <workspace>
+   ```
+   which replays the decision log to show whether this pass left the canon **converging** (queue
+   draining, repeated firings falling) or **thrashing**. Informational — never a halt condition.
 
 7. **Report.** One summary: minutes compiled, spans scanned, lint findings, pages approved / left
-   pending (by tier and by freshness), and the board + fsck result. Name the single next action if
-   anything is still pending.
+   pending (by tier and by freshness), the board + fsck result, and the convergence verdict (step 6).
+   Name the single next action if anything is still pending.
 
 ## Rules
 

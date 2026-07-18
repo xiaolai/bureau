@@ -167,6 +167,7 @@ bureau repo the workspace is auto-detected, so `--dir` is optional). See
 | `gate` | show the eager dirty index — which pages are `needs-review`/`stale`, and why |
 | `impact "<title>"` | pre-change blast radius — which pages rest on this one (so you weigh the cost before editing) |
 | `report` | deterministic, auditable metrics (kill rate, cutoff ratio *beside* edge count, fixpoint digest) |
+| `telemetry` | convergence telemetry — replay the decision log to see if the canon is *converging* (queue drains, repeated firings fall) or *thrashing*; the trend behind the point-in-time gate |
 | `fsck` | rebuild all derived state to a byte-fixpoint; a CI gate (fails on drift/tamper/unbacked-canonical) |
 | `approve "<title>"` | log a human approval → backs `trust: canonical` |
 | `confirm "<title>"` | vouch that a page's open `rests_on` edges still hold → cutoff |
@@ -175,6 +176,39 @@ bureau repo the workspace is auto-detected, so `--dir` is optional). See
 
 In the bureau workflow you rarely run these raw: `bureau:status` surfaces the gate, `bureau:review`
 drives `approve`/`confirm`/`resolve`, and `bureau:cycle` runs `scan` as part of the pipeline.
+
+---
+
+## Is the canon converging? — the telemetry lane
+
+The gate answers *what is dirty right now*. `gazette telemetry` answers a different question — *over
+time, is the canon settling or churning?* It **replays the decision log**, recomputing the gate at
+each edit-burst and review, and reports the honest convergence signals:
+
+- **per-run work** — how many spans changed per edit-burst,
+- **repeated firings** — pages that keep re-entering the review queue (churn),
+- **review-queue depth + age** — how much is outstanding, and for how long,
+- the **early-cutoff ratio beside the tracked-edge count** (never alone — a ratio inflated by
+  *deleting* edges is under-scoping wearing a success mask),
+- and a one-word verdict — `drained`, `stabilizing`, or `thrashing` — **always printed beside those
+  raw numbers.**
+
+Two design choices keep it honest. First, convergence is **not** monotonic set-shrinkage — independent
+edits grow the dirty set; the real criterion is *eventual stabilization under bounded per-run work*, so
+the lane charts that, not a shrinking-set fairy tale. Second, it is a **deterministic replay of the
+log**, not a separately-recorded live feed: the whole series is a pure function of `(pages + log)`, so
+it inherits the byte-fixpoint reproducibility — no new artifact, nothing that can drift from the ground
+truth. It trades wall-clock cadence (which it cannot know) for reproducibility (which it guarantees).
+
+One honest limit: the replay runs the *recorded span history* against **today's** dependency graph —
+edges live in frontmatter, not the log — so it answers *"given the current graph, how did the recorded
+churn play out?"*, a reproducible **counterfactual**, not a per-run archive. Adding or removing an edge
+reshapes the whole series. That is the right scope for *"is the canon converging now?"*; it is **not** a
+historical audit of what each past run saw. The thrash verdict is judged over a bounded *recent* window
+(so a canon that churned early then settled reads as `drained`, not `thrashing` forever).
+
+`bureau:status` and `bureau:cycle` surface the verdict for you; run `gazette telemetry --dir <workspace>`
+for the full breakdown.
 
 ---
 

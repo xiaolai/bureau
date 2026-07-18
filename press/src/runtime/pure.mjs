@@ -63,7 +63,14 @@ export function metaRow(meta) {
   const fresh = meta.freshness
     ? '<span class="meta-chip meta-chip--freshness meta-chip--fresh-' + escapeHtml(String(meta.freshness)) + '">' + escapeHtml(String(meta.freshness)) + "</span>"
     : "";
-  return base || fresh ? '<div class="doc-meta">' + base + fresh + "</div>" : "";
+  // `artifacts` ({ current, drifted }) is the ledger-currency badge: it only appears when a page has
+  // fingerprinted artifacts, and turns from "current" to "drifted" the moment a verified file changes.
+  const a = meta.artifacts;
+  const art = a && (a.drifted || a.current)
+    ? '<span class="meta-chip meta-chip--artifacts meta-chip--artifacts-' + (a.drifted ? "drifted" : "current") + '">' +
+      (a.drifted ? "⚠ " + a.drifted + " drifted" : "✓ " + a.current + " current") + "</span>"
+    : "";
+  return base || fresh || art ? '<div class="doc-meta">' + base + fresh + art + "</div>" : "";
 }
 
 export const ICONS = {
