@@ -4,7 +4,7 @@
   "description": "Offline static workboard: turns a folder of HTML docs into a navigable, wiki-linked single-page site with ECharts charts/graphs, sortable tables, and mermaid diagrams.",
   "type": "module",
   "bin": {
-    "gazette": "bin/cli.mjs"
+    "gazette": "bin/gazette.mjs"
   },
   "exports": {
     ".": "./src/index.mjs"

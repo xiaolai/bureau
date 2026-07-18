@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+// ⚠ BUILD-TIME SOURCE ENTRY — not the runnable distributable. This imports ../src/*.mjs, which
+// depend on node_modules (node-html-parser, markdown-it, sanitize-html). The shipped plugin ships
+// no node_modules, so running THIS directly fails with ERR_MODULE_NOT_FOUND. `scripts/build-gazette.mjs`
+// esbuild-bundles it into the self-contained `bin/gazette.mjs` — THAT is what every skill/command runs
+// and what `package.json`'s `bin` points at. To run the CLI, use `bin/gazette.mjs`.
+//
 // gazette — offline knowledge-base board: gazette/*.html → self-contained static site.
 //   gazette init                  scaffold gazette/_config.json + a sample in the current dir
 //   gazette build [opts]          build dist/
