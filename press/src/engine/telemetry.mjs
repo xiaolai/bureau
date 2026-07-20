@@ -55,7 +55,7 @@ function segment(events) {
 const RECENT_WINDOW = 6;
 const RECENT_REPEAT = 3;
 
-export function projectTimeline({ model, events, schemaVersion = SCHEMA_VERSION }) {
+export function projectTimeline({ model, events, schemaVersion = SCHEMA_VERSION, policy = null }) {
   const segs = segment(events || []);
   const observations = [];
   const dirtySets = [];        // parallel to observations: Set<uid> dirty at each point (for age)
@@ -71,7 +71,7 @@ export function projectTimeline({ model, events, schemaVersion = SCHEMA_VERSION 
   // revisions/confirmations at segment boundaries would make it linear if a large history ever needs it.
   for (const seg of segs) {
     for (const ev of seg.events) prefix.push(ev);
-    const g = computeGate({ model, events: prefix, schemaVersion });
+    const g = computeGate({ model, events: prefix, schemaVersion, policy });
     const dirtyUids = new Set(g.dirty.map((d) => d.uid));
     // pages that newly entered the queue at this observation = a firing (not-dirty → dirty edge)
     const entered = new Set();
@@ -111,7 +111,7 @@ export function projectTimeline({ model, events, schemaVersion = SCHEMA_VERSION 
   // CURRENT state = the gate over the WHOLE log. This equals the last observation when there is history,
   // and — crucially — is still computed when there is NONE: a corpus with unconfirmed or broken edges but
   // no recorded scan is dirty NOW, so telemetry must not claim `drained` while the gate shows dirty pages.
-  const fullGate = computeGate({ model, events: events || [], schemaVersion });
+  const fullGate = computeGate({ model, events: events || [], schemaVersion, policy });
   const current = {
     queueDepth: fullGate.dirty.length, tracked: fullGate.counts.tracked, open: fullGate.counts.open,
     broken: fullGate.counts.broken, cutoffRatio: fullGate.cutoffRatio, dirty: fullGate.dirty.map((d) => d.uid).sort(),

@@ -25,6 +25,7 @@ import { prettify } from "../src/shared/prettify.mjs";
 // recursion engine (ADR-0001): scan → gate → fsck → report + ledgers
 import { scan as engineScan } from "../src/engine/scan.mjs";
 import { computeGate, blastRadius } from "../src/engine/gate.mjs";
+import { loadPolicy } from "../src/engine/policy.mjs";
 import { fsck as engineFsck } from "../src/engine/fsck.mjs";
 import { report as engineReport, renderMetricsText } from "../src/engine/metrics.mjs";
 import { projectTimeline, renderTimelineText } from "../src/engine/telemetry.mjs";
@@ -460,10 +461,14 @@ function runGate() {
   try {
     const docsDir = engineDir();
     const model = buildModel({ corpus: loadCorpus({ docsDir }) });
-    const g = computeGate({ model, events: readLog(logPath(docsDir)) });
+    const pol = loadPolicy(docsDir);
+    const g = computeGate({ model, events: readLog(logPath(docsDir)), policy: pol });
     const c = g.counts;
     console.log("gate: " + c.tracked + " tracked edges · " + g.dirty.length + " dirty pages · cutoff ratio " +
       (g.cutoffRatio == null ? "n/a" : (g.cutoffRatio * 100).toFixed(1) + "%") + " · " + c.untracked + " untracked · " + c.broken + " broken");
+    // a cutoff means "confirmed by an ACCEPTED authority" — print which those are, so `current`
+    // is never silently ambiguous between human-confirmed and machine-confirmed.
+    console.log("  confirm-edge authorities: [" + pol["confirm-edge"].join(",") + "]");
     for (const d of g.dirty) console.log("  " + (d.freshness === "stale" ? "✗ stale       " : "· needs-review") + " " + d.uid);
     process.exit(0); // the gate is informational; broken/dirty is expected mid-work
   } catch (e) { die(e.message); }
@@ -498,7 +503,7 @@ function runTelemetry() {
   try {
     const docsDir = engineDir();
     const model = buildModel({ corpus: loadCorpus({ docsDir }) });
-    const t = projectTimeline({ model, events: readLog(logPath(docsDir)) });
+    const t = projectTimeline({ model, events: readLog(logPath(docsDir)), policy: loadPolicy(docsDir) });
     const titleOf = new Map(Object.values(model.nodes).map((n) => [n.uid, n.title]));
     console.log(renderTimelineText(t, { titleOf }));
     process.exit(0);
@@ -542,7 +547,7 @@ function runConfirm() {
     if (!title) die('usage: gazette confirm "<dependent page title>"');
     const docsDir = engineDir();
     const { node, model } = resolvePage(docsDir, title);
-    const g = computeGate({ model, events: readLog(logPath(docsDir)) });
+    const g = computeGate({ model, events: readLog(logPath(docsDir)), policy: loadPolicy(docsDir) });
     let n = 0, skippedBroken = 0;
     for (const e of g.edges) {
       if (!e.tracked || !e.open || e.dep !== node.uid) continue;
@@ -571,7 +576,16 @@ function runResolve() {
     if (!winner) die('resolve needs --winner "<title>"');
     const wn = model.nodes[nfc(String(winner))];
     if (!wn || (wn.uid !== na.uid && wn.uid !== nb.uid)) die("--winner must be one of the two named pages");
-    const ev = appendEvent(logPath(docsDir), { type: "resolve", conflict: conflictKey(na.uid, nb.uid), winner: wn.uid });
+    // The pair must ACTUALLY contradict each other right now. Without this, a resolution could be
+    // pre-seeded for any two pages, and if a `contradicts:` edge appeared between them later the
+    // stale event resolved it automatically — a conflict that never faced review.
+    const contradicts = model.edges.some((e) => e.edgeType === "contradicts" &&
+      ((e.sourceUid === na.uid && model.nodes[e.target] && model.nodes[e.target].uid === nb.uid) ||
+       (e.sourceUid === nb.uid && model.nodes[e.target] && model.nodes[e.target].uid === na.uid)));
+    if (!contradicts) die("[" + na.title + "] and [" + nb.title + "] do not declare a `contradicts:` edge — there is no conflict to resolve");
+    // record the resolving authority like approve/confirm do — without a `by`, every resolution
+    // classified as `human` by default and the `resolve` policy had nothing to gate on.
+    const ev = appendEvent(logPath(docsDir), { type: "resolve", conflict: conflictKey(na.uid, nb.uid), winner: wn.uid, by: opt("by", "human") });
     console.log("✓ resolved [" + na.title + "] × [" + nb.title + "] → winner [" + wn.title + "] (resolution_id " + ev.seq + ")");
   } catch (e) { die(e.message); }
 }

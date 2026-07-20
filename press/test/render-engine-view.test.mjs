@@ -68,3 +68,49 @@ test("meta chip: freshness and artifact badges coexist on one row", () => {
 test("meta chip: an empty artifacts object emits no chip", () => {
   assert.equal(metaRow({ artifacts: { current: 0, drifted: 0 } }), "");
 });
+
+// ── Trust · authority facet (the audit found the renderer inferred trust from auxiliary arrays) ──
+const auth = (rows, accept = ["human"]) => ({
+  accept,
+  canonical: rows,
+  machineBacked: rows.filter((r) => r.by && r.by !== "human"),
+  unauthorized: rows.filter((r) => r.rejected),
+  unbacked: rows.filter((r) => r.by == null),
+});
+const withAuth = (rows, accept) => ({ ...FRESH_CLEAN, authority: auth(rows, accept) });
+
+test("trust facet: an all-human canon gets the clean human certification", () => {
+  const h = renderHealthHtml(ZERO_HEALTH, withAuth([{ page: "A", by: "human", authorized: true, rejected: false }]), null, null);
+  assert.match(h, /Trust · authority/);
+  assert.match(h, /approved by a <strong>human<\/strong>/);
+});
+
+test("trust facet: an UNBACKED canonical never gets a green human certification", () => {
+  // the bug: `by: null` sat in neither machineBacked nor unauthorized, so the clean branch fired and
+  // certified a page nobody approved as human-approved.
+  const rows = [{ page: "A", by: "human", authorized: true, rejected: false },
+                { page: "B", by: null, authorized: false, rejected: false }];
+  const h = renderHealthHtml(ZERO_HEALTH, withAuth(rows), null, null);
+  assert.doesNotMatch(h, /approved by a <strong>human<\/strong>/); // NOT certified
+  assert.match(h, /unbacked/);
+  assert.match(h, /data-wiki="B"/);
+});
+
+test("trust facet: a rejected HUMAN approval is reported even with zero machine-backed pages", () => {
+  // under approve:["invariant"] a human approval is unauthorized — the banner used to be guarded on
+  // machineBacked.length, so this vanished entirely and the summary said "0 … NON-human".
+  const rows = [{ page: "A", by: "human", authorized: false, rejected: true }];
+  const h = renderHealthHtml(ZERO_HEALTH, withAuth(rows, ["invariant"]), null, null);
+  assert.match(h, /does NOT accept/);
+  assert.doesNotMatch(h, /0 approved by a NON-human/);
+  assert.match(h, /not backed by an accepted authority/); // reaches the Engine banner
+});
+
+test("trust facet: a mixed corpus hides no rows", () => {
+  // `rows = unauthorized.length ? unauthorized : machineBacked` dropped the accepted machine page.
+  const rows = [{ page: "Acc", by: "invariant", authorized: true, rejected: false },
+                { page: "Rej", by: "human", authorized: false, rejected: true }];
+  const h = renderHealthHtml(ZERO_HEALTH, withAuth(rows, ["invariant"]), null, null);
+  assert.match(h, /data-wiki="Acc"/);
+  assert.match(h, /data-wiki="Rej"/);
+});

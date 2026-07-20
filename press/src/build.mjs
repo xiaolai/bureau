@@ -1,6 +1,6 @@
 // build.mjs  -  gazette engine core: gazette/*.html (SSOT) -> self-contained dist/.
 // single parse authority: loadCorpus read + validate once; model and board both project from one corpus (grill H3). 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, cpSync, rmSync, renameSync, readdirSync, lstatSync, realpathSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, cpSync, rmSync, renameSync, readdirSync, lstatSync, realpathSync, unlinkSync } from "fs";
 import { join, dirname, resolve, sep, relative } from "path";
 import { fileURLToPath } from "url";
 import { createHash } from "crypto";
@@ -285,11 +285,18 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
   // CONVERGENCE trend (telemetry §4.14): a deterministic replay of the COMMITTED decision log — is the
   // canon settling or thrashing? Suppressed when the log fails its integrity check (the Engine view
   // already flags that); a broken read degrades to no panel, never a failed build.
-  let converge = null;
+  let converge = null, convergeError = null;
   if (!fresh.integrity) {
-    // reuse the SAME verified committed-log snapshot liveFreshness already read — one read, one state
-    try { converge = projectTimeline({ model, events: fresh.committed || [] }); }
-    catch { converge = null; }
+    // reuse the SAME verified committed-log snapshot AND resolved policy liveFreshness already read —
+    // one read, one state, one policy, so freshness / convergence / authority never diverge on the board
+    // The replay consumes an ALREADY-VERIFIED snapshot, so a throw here is a defect, not a bad read —
+    // degrade the panel rather than fail the build, but never swallow the cause silently.
+    try { converge = projectTimeline({ model, events: fresh.committed || [], policy: fresh.policy }); }
+    catch (e) {
+      converge = null;
+      convergeError = e && e.message ? e.message : String(e);
+      console.warn("⚠ convergence replay failed (the panel is omitted): " + convergeError);
+    }
   }
 
   // ── board: project from corpus (same parse + NFC identity as the model)──
@@ -495,10 +502,25 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
     health: health.counts, healthClean, bundleBytes: bundle.totalBytes,
     freshness: fresh.counts, freshnessPending: fresh.pending, // live engine badges: {needsReview, stale, modified}
     freshnessIntact: !fresh.integrity, // false ⇒ the decision log failed its integrity check (badges suppressed)
+    // non-null ⇒ the convergence replay threw. The panel degrades, but the CAUSE is reported here and
+    // warned on stderr — capturing it into a dead local was no better than swallowing it.
+    convergenceError: convergeError,
     artifacts: arts.counts, // {current, drifted, pages} — ledger currency against the working tree
     artifactError: arts.error, // a malformed _verify.json (surfaced in the one-liner, not silently treated as empty)
     convergence: converge ? converge.stabilization.verdict : null, // drained/stabilizing/thrashing (null ⇒ suppressed)
   };
-  writeFileSync(metaPath, JSON.stringify({ hash, summary }));
+  // Re-hash the inputs before committing the cache key. `hash` was computed BEFORE the corpus, log,
+  // and `_config.json` (which carries `trust_policy`) were actually read, so an input edited during
+  // the build would otherwise be stored under the PRE-edit key — and served from cache later when the
+  // file returned to those bytes, handing back output built under a different policy. If the inputs
+  // moved, record no cache key: the next build re-renders instead of trusting a mismatched one.
+  //
+  // KNOWN LIMIT (not closed): this is an optimistic double-read, not a consistent snapshot. An A→B→A
+  // edit that lands entirely between the two hashes leaves both equal while the build consumed B.
+  // Closing it needs the loaders to read from one snapshotted byte set (or a build lock); until then
+  // this narrows the window rather than eliminating it. `--force` bypasses the cache entirely.
+  const hashAfter = hashInputs({ root, docsDir, dataDir, now });
+  if (hashAfter === hash) writeFileSync(metaPath, JSON.stringify({ hash, summary }));
+  else { try { if (existsSync(metaPath)) unlinkSync(metaPath); } catch { /* nothing cached to invalidate */ } }
   return summary;
 }

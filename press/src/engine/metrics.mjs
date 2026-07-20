@@ -8,6 +8,7 @@ import { logPath, readLog } from "./log.mjs";
 import { computeGate } from "./gate.mjs";
 import { fsck } from "./fsck.mjs";
 import { mutationGate, MUTATION_NOTE } from "./mutation.mjs";
+import { loadPolicy } from "./policy.mjs";
 
 export function report({ docsDir, schemaVersion = SCHEMA_VERSION } = {}) {
   // ONE snapshot (corpus + integrity-verified log) threaded through every measurement, so gate,
@@ -15,14 +16,19 @@ export function report({ docsDir, schemaVersion = SCHEMA_VERSION } = {}) {
   const corpus = loadCorpus({ docsDir });
   const model = buildModel({ corpus });
   const events = readLog(logPath(docsDir));
-  const gate = computeGate({ model, events, schemaVersion });
-  const f = fsck({ docsDir, corpus, events, schemaVersion, write: false });
+  const policy = loadPolicy(docsDir); // the committed trust-authority policy, threaded into gate + fsck
+  const gate = computeGate({ model, events, schemaVersion, policy });
+  const f = fsck({ docsDir, corpus, events, schemaVersion, write: false, policy });
+  // mutation is a STRUCTURAL wiring probe — it fabricates confirmations purely to close edges at
+  // baseline, so it is policy-INDEPENDENT by design (subjecting its scaffolding to the authority
+  // policy would break the measure under a non-human policy for no semantic gain).
   const m = mutationGate({ docsDir, corpus, events });
 
   const realSurvivors = m.survivors.filter((s) => s.reason === "survived-mutation").length;
   return {
     nodeCount: model.nodeCount,
     fixpoint: { stable: f.fixpointStable, digest: f.digest },
+    policy: { approve: policy.approve, confirmEdge: policy["confirm-edge"], resolve: policy.resolve },
     gate: {
       trackedEdges: gate.counts.tracked,
       untrackedEdges: gate.counts.untracked,
@@ -48,6 +54,21 @@ export function renderMetricsText(r) {
   L.push("bureau engine metrics");
   L.push("  pages: " + r.nodeCount);
   L.push("  fixpoint: " + (r.fixpoint.stable ? "stable ✅" : "UNSTABLE ✗") + "  digest " + r.fixpoint.digest.slice(0, 12));
+  if (r.policy) {
+    // report ALL THREE decisions — `resolve` was omitted, so a workspace accepting machine
+    // resolution showed nothing about it in the "auditable" block.
+    const line = "  trust policy: approve=[" + r.policy.approve.join(",") + "] · confirm-edge=[" +
+      r.policy.confirmEdge.join(",") + "] · resolve=[" + r.policy.resolve.join(",") + "]";
+    // per-decision, not "is the policy non-default": the canonical warning is about APPROVE. A
+    // machine-only `confirm-edge` policy made the old check emit "canonical no longer implies a
+    // human vouched", which was simply false.
+    const machine = (k) => (r.policy[k] || []).some((a) => a !== "human");
+    const notes = [];
+    if (machine("approve")) notes.push("`canonical` no longer implies a human vouched");
+    if (machine("confirmEdge")) notes.push("edge cutoffs may be machine-confirmed");
+    if (machine("resolve")) notes.push("conflicts may be machine-resolved");
+    L.push(line + (notes.length ? " — " + notes.join("; ") : " (human-only default)"));
+  }
   L.push("  gate: " + r.gate.trackedEdges + " tracked edges · " + r.gate.dirtyPages + " dirty pages · cutoff ratio " + pct(r.gate.cutoffRatio) +
     " (beside edge-count, never alone) · " + r.gate.untrackedEdges + " untracked · " + r.gate.brokenEdges + " broken");
   L.push("  wiring kill rate: " + pct(r.wiring.killRate) + " (" + r.wiring.killed + "/" + r.wiring.gateable + ")" +

@@ -72,15 +72,66 @@ function renderConvergence(converge) {
     " tracked edge(s). Convergence is eventual stabilization under bounded work, not a shrinking set.</p></blockquote>";
 }
 
-// The Engine banner + its three facets, one coherent live view.
+// (4) trust authority — who backs each `canonical` page under the workspace trust-authority policy.
+// The gate says a page is fresh; the tier says it is approved; THIS says by whom. When a workspace
+// accepts a non-human authority (a runtime's automatic `invariant` gate), `canonical` no longer means
+// "a human vouched" — so the board must show the authority beside the tier, and flag any canonical the
+// policy does not accept. All-human + human-only policy (the bureau default) → a clean one-liner.
+function renderTrust(authority) {
+  if (!authority) return "";
+  const { accept = ["human"], canonical = [], machineBacked = [], unauthorized = [], unbacked = [] } = authority;
+  if (!canonical.length) return ""; // nothing canonical yet — no authority to report
+  const accepts = "accepted authorities: <code>" + esc(accept.join(", ")) + "</code>";
+
+  // The clean branch asserts "a human approved every canonical page" — so it must be proven by EVERY
+  // row, never inferred from the auxiliary arrays being empty. An UNBACKED canonical (no approve
+  // event at all) has `by: null` and sits in neither machineBacked nor unauthorized; inferring from
+  // those arrays printed a green human certification for a page nobody approved.
+  const allHumanApproved = canonical.every((r) => r.by === "human" && r.authorized);
+  if (allHumanApproved)
+    return "<h3>Trust · authority</h3><blockquote><p>✅ All " + canonical.length + " <code>canonical</code> page(s) were approved by a <strong>human</strong> (" + accepts + ").</p></blockquote>";
+
+  // Every row that is not a clean human approval, deduplicated by page — a mixed corpus must not hide
+  // accepted machine-backed pages behind the unauthorized ones.
+  const rows = canonical.filter((r) => !(r.by === "human" && r.authorized));
+  const problems = unauthorized.length + unbacked.length;
+  const bits = [];
+  if (machineBacked.length) bits.push(machineBacked.length + " approved by a NON-human authority — <code>canonical</code> here does not imply a human vouched");
+  // reported INDEPENDENTLY of machineBacked: under a machine-only policy a rejected approval can be a HUMAN one.
+  if (unauthorized.length) bits.push("<strong>" + unauthorized.length + " approved by an authority this workspace does NOT accept</strong>");
+  if (unbacked.length) bits.push("<strong>" + unbacked.length + " with no approval at all (unbacked)</strong>");
+
+  let s = "<h3>Trust · authority · " + (problems || machineBacked.length) + "</h3><blockquote><p>Of " + canonical.length +
+    " <code>canonical</code> page(s): " + bits.join(" · ") + ". " +
+    (problems ? "Run <code>gazette fsck</code> — these are blocking findings. " : "") + accepts + ".</p></blockquote>";
+  s += '<table class="wb-table"><thead><tr><th>Page</th><th>Approved by</th><th>State</th></tr></thead><tbody>' +
+    rows.map((r) => {
+      const state = r.authorized ? "accepted"
+        : r.by == null ? '<span class="meta-chip meta-chip--fresh-stale">unbacked</span>'
+        : '<span class="meta-chip meta-chip--fresh-stale">unauthorized</span>';
+      return "<tr><td>" + wl(r.page) + "</td><td>" + (r.by == null ? "<em>no approval</em>" : "<code>" + esc(r.by) + "</code>") + "</td><td>" + state + "</td></tr>";
+    }).join("") +
+    "</tbody></table>";
+  return s;
+}
+
+// The Engine banner + its facets, one coherent live view.
 function renderEngine(fresh, arts, converge) {
-  const facets = renderFreshness(fresh) + renderArtifacts(arts) + renderConvergence(converge);
+  const authority = fresh && fresh.authority;
+  const facets = renderFreshness(fresh) + renderArtifacts(arts) + renderConvergence(converge) + renderTrust(authority);
   if (!facets) return "";
   const bits = [];
   if (fresh && fresh.integrity) bits.push("⚠ decision-log integrity FAILED");
   else if (fresh) { const t = fresh.counts.needsReview + fresh.counts.stale + fresh.counts.modified; bits.push(t ? t + " page(s) drifted" : "every page current"); }
   if (arts && !arts.error) bits.push(arts.counts.drifted ? arts.counts.drifted + " artifact(s) drifted" : (arts.counts.pages ? "artifacts current" : "no artifacts fingerprinted"));
   if (converge && converge.observations.length) bits.push("canon " + converge.stabilization.verdict);
+  // each signal is independent — a rejected HUMAN approval (machine-only policy) or an unbacked
+  // canonical must reach the banner even when nothing is machine-backed.
+  if (authority) {
+    const bad = (authority.unauthorized || []).length + (authority.unbacked || []).length;
+    if (authority.machineBacked.length) bits.push(authority.machineBacked.length + " canonical machine-backed");
+    if (bad) bits.push("⚠ " + bad + " canonical not backed by an accepted authority");
+  }
   return "<h2>Engine · live state</h2><blockquote><p>The recursion engine's live, dependency-aware view — <em>distinct</em> from the deterministic structural checks below." +
     (bits.length ? " <strong>" + esc(bits.join(" · ")) + ".</strong>" : "") + "</p></blockquote>" + facets;
 }

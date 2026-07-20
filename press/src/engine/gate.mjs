@@ -7,14 +7,26 @@
 // Honesty: an UNTRACKED rests_on edge (bare string, no span) cannot be gated, so its dependent is
 // conservatively needs-review and is EXCLUDED from the sound-gate guarantee / cutoff ratio.
 import { projectRevisions, spanRevision, verdictKey, becauseDigest, edgeId } from "./revisions.mjs";
+import { isAuthorized } from "./policy.mjs";
 import { SCHEMA_VERSION } from "../core/model.mjs";
 
 const RANK = { current: 0, "needs-review": 1, stale: 2 }; // stale (broken dep) outranks needs-review
 
-// latest verdict key confirmed per edgeId (a later confirm-edge supersedes an earlier one)
-export function lastConfirmations(events) {
+// latest verdict key confirmed per edgeId (a later confirm-edge supersedes an earlier one). When a
+// `policy` is supplied, a confirmation whose AUTHORITY is not accepted for `confirm-edge` is IGNORED
+// — it never cuts the edge off, so e.g. an `invariant` confirmation under a human-only policy leaves
+// the dependent `needs-review`. No policy → count every confirmation (the legacy, pre-policy path,
+// so every existing caller is byte-for-byte unchanged).
+export function lastConfirmations(events, policy = null) {
   const m = new Map();
-  for (const ev of events) if (ev.type === "confirm-edge") m.set(ev.edge, ev.verdict_key);
+  for (const ev of events) {
+    if (ev.type !== "confirm-edge") continue;
+    // `policy != null`, not truthiness: a malformed falsy policy (`false`, `0`, `""`) would otherwise
+    // SKIP the authority check entirely and fail OPEN — accept-all on a security boundary. Only an
+    // explicitly omitted/null policy selects the legacy accept-all path.
+    if (policy != null && !isAuthorized(policy, "confirm-edge", ev.by)) continue;
+    m.set(ev.edge, ev.verdict_key);
+  }
   return m;
 }
 
@@ -29,9 +41,9 @@ function depClaimRev(spans, node) {
   return (node && node.spans ? node.spans : []).reduce((sum, s) => sum + spanRevision(spans, node.uid, "^" + s.anchor), 0);
 }
 
-export function computeGate({ model, events, schemaVersion = SCHEMA_VERSION }) {
+export function computeGate({ model, events, schemaVersion = SCHEMA_VERSION, policy = null }) {
   const spans = projectRevisions(events);
-  const confirmed = lastConfirmations(events);
+  const confirmed = lastConfirmations(events, policy);
   const byTitle = model.nodes;
   const freshness = new Map(); // uid -> level
   const bump = (uid, level) => { const cur = freshness.get(uid) || "current"; if (RANK[level] > RANK[cur]) freshness.set(uid, level); };
