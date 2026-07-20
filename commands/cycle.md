@@ -37,17 +37,28 @@ The bundled press is at `${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs`; the works
    adversarially refute → keep what holds). This is the LLM-judgment pass; it's the slowest step, so
    `--skip-lint` exists for a quick cycle.
 
-5. **Surface the review queue — tiers AND freshness.** Compute what needs a human:
+5. **Surface the review queue — tiers, freshness, AND authority.** Compute what needs a human:
    - **By tier:** every dossier at `proposed`/`verified`/`stale`/`contested` (not yet `canonical`).
    - **By freshness (the gate):**
      ```
      node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" gate --dir <workspace>
      ```
      which lists `needs-review` (rests on a changed upstream) and `stale` (broken dependency) pages.
-   Then run the human gate — follow `skills/review/SKILL.md`: re-check staleness, present the batch
-   digest, and on the human's approval promote via `gazette approve "<title>"` + set `canonical`,
-   `confirm` still-valid dependencies via `gazette confirm "<title>"`, and record any conflict
-   resolution via `gazette resolve`. Rejections append a minute; nothing is erased.
+   - **By authority:** a page can be `canonical` yet backed by nothing, or by an authority this
+     workspace does not accept. Include every `unbacked-canonical`, `unauthorized-canonical`,
+     `unauthorized-confirm`, and `unauthorized-resolve` finding from `gazette fsck` in the queue —
+     otherwise they surface only after the cycle's own verification step, once mutations have landed.
+
+   Then present the batch for decision — follow `skills/review/SKILL.md`. **You do not run the
+   decision commands yourself** (see BUREAU.md): `gazette approve`, `confirm`, and `resolve` are the
+   human's, and passing `--by human` on their behalf forges the authority the gate rests on. Surface
+   the digest and let the human run them.
+
+   Before presenting, read the workspace's `_config.json` → `trust_policy` and check the actual
+   actor's authority class is accepted for that decision. If `human` is not accepted for a decision,
+   say so and leave the item pending — naming the authority that must produce it — rather than
+   emitting an event that will be recorded and then rejected. Never impersonate a machine authority
+   to get past it. Rejections append a minute; nothing is erased.
 
 6. **Inspect + verify.** Rebuild the board and run the deterministic checks:
    ```
@@ -79,7 +90,7 @@ The bundled press is at `${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs`; the works
 ## Examples
 
 <example>
-Context: several sessions have been filed and a few upstream claims were edited; the user wants to catch up.
+Context: 3 sessions have been filed and 4 upstream claims were edited; the user wants to catch up.
 user: "bureau:cycle"
 assistant: "Ran the full pass: compiled 3 minutes into 2 new dossiers + 1 update; scanned 4 changed spans; lint found 1 superseded claim (set stale). Review queue: 2 proposed facts (auto-verified — build command, dep version), 1 needs-review page (**Query design** rests on **SSOT model** ^ssot-claim, which changed). You approved the two facts (→ canonical) and confirmed Query design still holds after reviewing the SSOT change. Rebuilt the gazette — health ✅, fsck fixpoint stable. Canon is current and reviewed."
 <commentary>One pass moves new minutes through the gate AND reconciles the dependency drift the engine flagged.</commentary>

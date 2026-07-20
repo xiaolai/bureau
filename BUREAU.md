@@ -25,7 +25,11 @@ knowledge in this repo.
 
 Every cabinet page carries a `status:`. When you use one as memory or context, **honor it**:
 
-- `canonical` — a human approved it → treat as **fact**.
+- `canonical` — an authority the active `trust_policy` accepts approved it → treat as **fact**, and
+  **cite the backing authority with the tier** (`canonical · by human` / `· by invariant`). Under the
+  default human-only policy that authority is a human; under a policy accepting a machine class it is
+  not, and a machine-backed claim does not carry human-level confidence. The engine recognizes an
+  authority *class*, never an authenticated identity.
 - `verified` — auto-checked against the repo, not yet approved → usable, but reconfirm if it is
   load-bearing.
 - `proposed` / `stale` / `contested` — **NOT fact** → verify before relying, and state which tier
@@ -40,6 +44,15 @@ Never write a durable claim straight into the canon, and never set `canonical` y
 not hand-edit cabinet pages. Memory is gated: **capture** (it lands in the low-authority logbook) →
 **compile** (into cabinet pages as `proposed`/`verified`) → **review** (a human promotes to
 `canonical`). The logbook is append-only — never rewrite a past entry.
+
+**You (an AI session) MUST NOT invoke the human-authority decision commands.** That means never
+running `gazette approve`, `gazette confirm`, or `gazette resolve` (nor `bureau:review`'s
+promote/confirm/resolve steps) on your own initiative, and never passing `--by human`, a person's
+name, or omitting `--by` so the event is recorded as human. The authority on a decision event is a
+**claim the writer asserts, not an authenticated identity** — the log is tamper-evident, but nothing
+stops a caller from writing `by: "human"`. The whole gate rests on you not doing that. Surface what
+is ready for decision and let the human run it; if you are driving an automated pipeline, record it
+under its real machine authority (`--by invariant`) and let `trust_policy` decide whether it counts.
 
 ## Cite the minute that introduced the claim
 
@@ -83,6 +96,10 @@ dependency gate (`docs/adr-0001-engine-data-model.md`):
 - **The decision log is the source of truth.** `canonical` is a **projection** of a logged
   `approve` event, not the frontmatter alone — `gazette fsck` flags any authored `canonical` no
   approval backs. Never hand-edit `canon/_log.jsonl`; it is append-only and tamper-evident.
+- **Who may approve is policy.** `canonical` is backed by an `approve` event whose *authority* the
+  workspace accepts (`_config.json` → `trust_policy`; the default is human-only). Under a policy
+  that accepts a machine authority, `canonical` no longer implies a human vouched — so cite the
+  backing authority beside the tier, and treat an `unauthorized-canonical` finding as **not** settled.
 - **Mechanical, code-owned** (never hand-write) — run the bundled press,
   `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" <verb> --dir canon`:
   `scan` (record span-revision events after edits), `gate` (the eager dirty index — a page's real

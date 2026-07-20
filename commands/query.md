@@ -21,11 +21,20 @@ Follow the protocol in the **recall** skill (`skills/recall/SKILL.md`). In short
    `status:` tier, and the `[[session …]]` provenance behind it.
 4. **Never present a non-`canonical` claim as fact.** If the answer rests on `proposed`,
    `verified`, `stale`, or `contested` pages, say so explicitly and mark the uncertainty.
+   **Cite the backing authority too, not just the tier.** In a workspace whose `_config.json`
+   `trust_policy` accepts a non-human authority (a runtime's automatic `invariant` gate), a
+   `canonical` page may have been approved by a machine, not a human — so `canonical` no longer
+   implies a human vouched. When a load-bearing claim is `canonical`, name who backed it (from the
+   board's **Trust · authority** view, or `gazette report`): a human-approved fact and a
+   machine-approved one are not the same strength. Flag any `canonical` the policy does not accept
+   (an `unauthorized-canonical` fsck finding) as **not** settled.
 5. If the canon does not answer the question, say so plainly — do not invent. Note the gap
    (a `bureau:lint` gap finding, or a session worth filing).
 6. Report the answer with its citations; offer to capture a notable new conclusion
    (`bureau:note`) so it enters the gate rather than being lost.
 
-**Output format.** Prose answer with inline citations in the form `[Page title, <status>]`. If
-any load-bearing claim is non-`canonical`, open with a bold warning line naming the weakest
-tier relied on. End with a `Sources:` list of the pages used (title · status · `[[session]]`).
+**Output format.** Prose answer with inline citations in the form `[Page title, <tier>]` — and for
+a `canonical` claim, `[Page title, canonical · by <authority>]` (e.g. `by human`, `by invariant`).
+If any load-bearing claim is non-`canonical`, **or is `canonical` but machine-backed / unauthorized**,
+open with a bold warning line naming the weakest tier (and authority) relied on. End with a
+`Sources:` list of the pages used (title · tier · backing authority · `[[session]]`).

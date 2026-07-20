@@ -6,16 +6,22 @@ argument-hint: "\"<dossier title>\""
 # bureau:impact — what rests on this claim
 
 Before you change a dossier's claim, see everything that depends on it. `impact` walks the
-`rests_on` graph in reverse (cycle-safe, each page at most once) and lists the dossiers that would
-drop to `needs-review` if this page's claim changes. It reads only — it changes nothing.
+`rests_on` graph in reverse (cycle-safe, each page at most once). It reads only — it changes nothing.
+
+Read the result in two layers, because the gate is **one-hop**: the pages that rest *directly* on the
+changed span go `needs-review` immediately; everything deeper is the **speculative worst case**, which
+materializes only if each intervening page's own claim then changes too. Report it as an upper bound
+on review cost, never as "these N pages will all be flagged."
 
 This is the counterpart to the gate: the gate tells you what *has* drifted; `impact` tells you what
 *would* drift, so you can weigh the cost of an edit up front (roadmap §4.7).
 
 ## Steps
 
-1. Locate the workspace (`bureau.json`; default `canon`). Take the dossier title from `$ARGUMENTS`
-   (quote it — titles have spaces). If empty, ask which dossier.
+1. Locate the workspace (`bureau.json`; default `canon`). If none, tell the user to run
+   `bureau:init` first and stop. Take the dossier title from `$ARGUMENTS` (quote it — titles have
+   spaces). If empty, ask which dossier. If the title matches no dossier in the canon, report
+   `no dossier titled "<title>"` and stop — never guess at a near match.
 2. Run the press:
    ```
    node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" impact "<title>" --dir <workspace>
