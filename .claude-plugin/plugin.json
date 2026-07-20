@@ -1,6 +1,6 @@
 {
   "name": "bureau",
-  "version": "0.13.1",
+  "version": "0.14.0",
   "description": "Turn AI sessions into a maintained, inspectable canon. Capture each session to append-only logbooks, compile them into a consistency-checked knowledge base (cabinets) gated by a human review tier, and render it as a navigable offline gazette (built by the bundled press). A deterministic recursion engine tracks claim-level dependencies (rests_on + author-anchored spans): an append-only decision log is the source of truth, per-span revisions drive an early-cutoff gate that flags downstream pages when an upstream claim changes, and fsck rebuilds all derived state to a byte-fixpoint. A live Engine view (serve) paints three signals onto the board as you edit — dependency freshness (needs-review/stale), artifact currency (a verified file that drifted out from under a claim), and a convergence trend (is the canon settling or thrashing) — and git-backed versioning renders any past board (build --at), diffs two versions from the decision-log slice (diff), and pins named snapshots. Karpathy LLM-wiki pattern + session provenance. Self-contained — no separate install.",
   "author": {
     "name": "xiaolai"
