@@ -4,10 +4,11 @@
 // and read-only static serving.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import http from "node:http";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync } from "node:fs";
 import { join, relative, isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
-import { start, makeWatcher } from "../../scripts/serve.mjs";
+import { start, makeWatcher, _internal } from "../../scripts/serve.mjs";
 
 let cwd, srv, base;
 
@@ -95,6 +96,21 @@ test("serve: a valid intake writes an append-only status:logbook minute — noth
 test("serve: intake without a subject is rejected", async () => {
   const r = await fetch(base + "/intake", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ body: "no subject" }) });
   assert.equal(r.status, 400);
+});
+
+test("serve: a non-object JSON body is rejected with 400, not a crash", async () => {
+  // JSON.parse("null") succeeds and yields null; the old code dereferenced it → TypeError → hung
+  // request + unhandled rejection. Every non-object shape must now come back as a clean 400.
+  for (const raw of ["null", "[]", "42", '"a string"', "true"]) {
+    const r = await fetch(base + "/intake", { method: "POST", headers: { "content-type": "application/json" }, body: raw });
+    assert.equal(r.status, 400, "intake body " + raw + " must be 400");
+    assert.match((await r.json()).err, /expected an object/);
+  }
+  // the review/decision route shares the same guard (token supplied so it reaches applyDecision)
+  const d = await fetch(base + "/review/decision", {
+    method: "POST", headers: { "content-type": "application/json", "x-bureau-review": srv.reviewToken }, body: "null",
+  });
+  assert.equal(d.status, 400, "decision body null must be 400");
 });
 
 test("serve: a path-bearing drawer is sanitized to a safe slug (no traversal)", async () => {
@@ -188,6 +204,79 @@ test("serve: the token can never promote a non-pending or out-of-tree path", asy
   assert.equal(escape.status, 404, "a path outside the pending set is refused");
 });
 
+// ── port policy: randomized 5-digit default, retry-on-collision, user-pinnable ─
+// A free ephemeral port number: bind :0, read it, release it. Used as a "known-free" target.
+async function freePort() {
+  const s = http.createServer(() => {});
+  await new Promise((r) => s.listen(0, "127.0.0.1", r));
+  const p = s.address().port;
+  await new Promise((r) => s.close(r));
+  return p;
+}
+
+test("serve: with no --port the chamber picks a random 5-digit loopback port", async () => {
+  const s = await start({ cwd }); // port omitted → auto
+  try {
+    assert.equal(s.host, "127.0.0.1", "loopback only");
+    assert.ok(Number.isInteger(s.port) && s.port >= _internal.PORT_MIN && s.port <= _internal.PORT_MAX,
+      "auto port must be 5-digit in [" + _internal.PORT_MIN + "," + _internal.PORT_MAX + "], got " + s.port);
+  } finally { await new Promise((r) => s.server.close(r)); }
+});
+
+test("serve: two chambers run at once on different ports (multi-repo)", async () => {
+  const a = await start({ cwd });
+  const b = await start({ cwd });
+  try {
+    assert.notEqual(a.port, b.port, "concurrent chambers must not share a port");
+    for (const p of [a.port, b.port]) assert.ok(p >= _internal.PORT_MIN && p <= _internal.PORT_MAX, "both auto-picked in range");
+  } finally {
+    await new Promise((r) => a.server.close(r));
+    await new Promise((r) => b.server.close(r));
+  }
+});
+
+test("serve: an auto-picked port re-rolls past a collision (retry)", async () => {
+  // Occupy a port, then rig the picker to hand out that occupied port first — listenChamber must
+  // skip it and land on the next (free) pick.
+  const occupied = http.createServer(() => {});
+  await new Promise((r) => occupied.listen(0, "127.0.0.1", r));
+  const taken = occupied.address().port;
+  const free = await freePort();
+  let calls = 0;
+  const pick = () => (calls++ === 0 ? taken : free); // collide once, then succeed
+  const s = http.createServer(() => {});
+  try {
+    const bound = await _internal.listenChamber(s, "127.0.0.1", null, 40, pick);
+    assert.equal(bound, free, "re-rolled off the occupied port onto the free one");
+    assert.equal(calls, 2, "picked twice: one collision, then success");
+    assert.equal(s.address().port, free, "server is actually listening on the free port");
+  } finally {
+    await new Promise((r) => s.close(r));
+    await new Promise((r) => occupied.close(r));
+  }
+});
+
+test("serve: listenChamber rejects a non-integer port and a non-positive tries (zero-trust inputs)", async () => {
+  const s = http.createServer(() => {});
+  try {
+    // a string port must not slip through to server.listen() (where it would mean an IPC socket path)
+    await assert.rejects(() => _internal.listenChamber(s, "127.0.0.1", "8080"), /port must be null/);
+    await assert.rejects(() => _internal.listenChamber(s, "127.0.0.1", Number.NaN), /port must be null/);
+    await assert.rejects(() => _internal.listenChamber(s, "127.0.0.1", 70000), /port must be null/);
+    // an unbounded/zero retry budget contradicts the bounded-retry contract
+    await assert.rejects(() => _internal.listenChamber(s, "127.0.0.1", null, 0), /tries must be a positive integer/);
+    await assert.rejects(() => _internal.listenChamber(s, "127.0.0.1", null, Infinity), /tries must be a positive integer/);
+  } finally { s.close(); }
+});
+
+test("serve: a pinned --port already in use fails loudly (no silent re-pick)", async () => {
+  const a = await start({ cwd, port: 0 }); // hold an ephemeral port open
+  try {
+    await assert.rejects(() => start({ cwd, port: a.port }), (e) => e && e.code === "EADDRINUSE",
+      "a pinned, occupied port must reject — not wander onto another port");
+  } finally { await new Promise((r) => a.server.close(r)); }
+});
+
 // ── Phase 3: watch / live-rebuild (debounce wiring, timing-independent) ────────
 test("serve: makeWatcher debounces a burst of changes into one rebuild", async () => {
   let calls = 0;
@@ -199,6 +288,18 @@ test("serve: makeWatcher debounces a burst of changes into one rebuild", async (
   await new Promise((r) => setTimeout(r, 60));
   assert.equal(calls, 2, "a later change triggers another rebuild");
   w.close();
+});
+
+test("serve: makeWatcher.close() cancels a queued rebuild and stops firing", async () => {
+  let calls = 0;
+  const w = makeWatcher(cwd, () => { calls++; }, { debounceMs: 30 });
+  w.fire();                                       // schedule a rebuild…
+  w.close();                                      // …then close before the debounce elapses
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(calls, 0, "a rebuild queued before close must not run afterward");
+  w.fire();                                       // a change arriving after close is ignored
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(calls, 0, "fire() after close is a no-op");
 });
 
 // ── audit-fix regressions (v0.5.0 hardening) ──────────────────────────────────

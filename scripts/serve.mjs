@@ -22,7 +22,7 @@ import http from "node:http";
 import { existsSync, mkdirSync, writeFileSync, readFileSync, statSync, realpathSync, lstatSync, opendirSync, readdirSync, renameSync, rmSync, openSync, closeSync, constants as FS, watch as fsWatch } from "node:fs";
 import { join, dirname, resolve, normalize, extname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import { spawn } from "node:child_process";
 
 const LOG_DRAWER = "logbook";
@@ -37,7 +37,12 @@ function safe(fn, dflt) { try { return fn(); } catch { return dflt; } }
 // is an exclusive create; `readNoFollow` refuses to read through a symlinked file.
 function writeNew(path, data) {
   let fd; try { fd = openSync(path, FS.O_WRONLY | FS.O_CREAT | FS.O_EXCL | FS.O_NOFOLLOW, 0o644); } catch { return false; }
-  try { writeFileSync(fd, data); return true; } catch { return false; } finally { safe(() => closeSync(fd), null); } // writeFileSync writes ALL bytes (no short-write)
+  let ok = false;
+  try { writeFileSync(fd, data); ok = true; } catch { ok = false; } finally { safe(() => closeSync(fd), null); } // writeFileSync writes ALL bytes (no short-write)
+  // A failed write (disk full, I/O error) leaves the just-created exclusive file empty/partial —
+  // remove it so a later minute with the same name isn't blocked by O_EXCL and no corrupt file is read.
+  if (!ok) safe(() => rmSync(path), null);
+  return ok;
 }
 function readNoFollow(path) {
   let fd; try { fd = openSync(path, FS.O_RDONLY | FS.O_NOFOLLOW); } catch { return null; }
@@ -114,9 +119,33 @@ function jsonPost(req) {
   return /^application\/json\b/i.test(String(req.headers["content-type"] || ""));
 }
 
+// Parse a request body as a JSON OBJECT. Returns null for invalid JSON OR any non-object shape
+// (JSON `null`, array, number, string, boolean) — callers turn null into a 400 instead of
+// dereferencing it. `JSON.parse("null")` succeeds and yields null, so a bare shape check is not
+// enough; this is the single choke point that keeps a hostile body from crashing a handler. An
+// empty/absent body is intentionally treated as `{}` (an object), so callers reject it through their
+// own field checks with a more specific message ("subject is required") rather than "invalid JSON".
+function parseJsonObject(body) {
+  let b; try { b = JSON.parse(body || "{}"); } catch { return null; }
+  return (b && typeof b === "object" && !Array.isArray(b)) ? b : null;
+}
+
+// Build (and create) the dated logbook subdir YYYY/MM, with containment checks bracketing the mkdir
+// so a symlinked logbook can't steer the write outside the workspace. Returns the dir, or null on a
+// containment failure (the caller turns that into its own error). One source of truth for the
+// intake and review-minute writers.
+function logbookDir(ctx, iso) {
+  const dir = join(ctx.wsDir, LOG_DRAWER, iso.slice(0, 4), iso.slice(5, 7));
+  if (!containedUnder(dir, ctx.wsDir)) return null;
+  safe(() => mkdirSync(dir, { recursive: true }), null);
+  if (!containedUnder(dir, ctx.wsDir)) return null;
+  return dir;
+}
+
 // ── intake: a proposed claim → an append-only logbook minute (low authority) ───────
 function writeIntake(ctx, body) {
-  let b; try { b = JSON.parse(body || "{}"); } catch { return { code: 400, err: "invalid JSON" }; }
+  const b = parseJsonObject(body);
+  if (!b) return { code: 400, err: "invalid JSON — expected an object" };
   const subject = String(b.subject == null ? "" : b.subject).trim();
   const text = String(b.body == null ? "" : b.body).trim();
   if (!subject) return { code: 400, err: "subject is required" };
@@ -126,11 +155,8 @@ function writeIntake(ctx, body) {
   const drawer = safeId(b.drawer);                      // optional cabinet hint, path-safe slug only
 
   const now = new Date(), iso = now.toISOString(), date = iso.slice(0, 10);
-  const dir = join(ctx.wsDir, LOG_DRAWER, iso.slice(0, 4), iso.slice(5, 7));
-  // containment BEFORE any mkdir so a symlinked logbook can't steer a write outside the workspace
-  if (!containedUnder(dir, ctx.wsDir)) return { code: 500, err: "workspace containment check failed" };
-  safe(() => mkdirSync(dir, { recursive: true }), null);
-  if (!containedUnder(dir, ctx.wsDir)) return { code: 500, err: "workspace containment check failed" };
+  const dir = logbookDir(ctx, iso);
+  if (!dir) return { code: 500, err: "workspace containment check failed" };
 
   const seq = ctx.nextSeq();
   const id = ctx.sessionId + "-" + seq;                 // unique per server run → no title/file collision
@@ -229,7 +255,8 @@ function rewriteFrontmatter(text, changes) {
 // append-only review minute naming what was rejected (the audit trail; never a destructive delete
 // in a browser — a contested page is re-decided in a session). Token already checked by the route.
 function applyDecision(ctx, body) {
-  let b; try { b = JSON.parse(body || "{}"); } catch { return { code: 400, err: "invalid JSON" }; }
+  const b = parseJsonObject(body);
+  if (!b) return { code: 400, err: "invalid JSON — expected an object" };
   const decision = b.decision === "approve" ? "approve" : b.decision === "reject" ? "reject" : null;
   if (!decision) return { code: 400, err: "decision must be 'approve' or 'reject'" };
   const rel = String(b.path == null ? "" : b.path);
@@ -259,10 +286,8 @@ function applyDecision(ctx, body) {
 // without it, so the audit trail can't silently vanish.
 function appendReviewMinute(ctx, match, reason) {
   const iso = new Date().toISOString(), date = iso.slice(0, 10);
-  const dir = join(ctx.wsDir, LOG_DRAWER, iso.slice(0, 4), iso.slice(5, 7));
-  if (!containedUnder(dir, ctx.wsDir)) return false;
-  safe(() => mkdirSync(dir, { recursive: true }), null);
-  if (!containedUnder(dir, ctx.wsDir)) return false;
+  const dir = logbookDir(ctx, iso);
+  if (!dir) return false;
   const id = ctx.sessionId + "-review-" + ctx.nextSeq();
   const fm = [
     "---", "title: chamber review " + id + " · " + date, "updated: " + date, "status: logbook",
@@ -275,13 +300,11 @@ function appendReviewMinute(ctx, match, reason) {
   return writeNew(join(dir, id + ".md"), fm);
 }
 
-function chamberPage(ctx) {
-  const gz = existsSync(join(ctx.outDir, "index.html"));
-  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chamber · ${esc(ctx.wsName)}</title>
-<style>
+// The chamber page is static except for the workspace name and the gazette link. Its stylesheet and
+// client script carry NO server data, so they live as module constants — chamberPage() weaves in only
+// the few dynamic bits, keeping markup, style, and behavior separately readable. (Neither constant
+// contains a backtick or ${…}, so they are safe as plain template literals.)
+const CHAMBER_CSS = `
   :root { color-scheme: light dark; }
   body { font: 15px/1.5 system-ui, sans-serif; max-width: 680px; margin: 40px auto; padding: 0 20px; }
   h1 { font-size: 20px; margin: 0 0 4px; } .sub { color: #888; margin: 0 0 24px; font-size: 13px; }
@@ -301,7 +324,67 @@ function chamberPage(ctx) {
   .acts { display: flex; gap: 8px; flex: none; }
   button.mini { margin: 0; padding: 5px 12px; font-size: 13px; }
   button.ghost { background: transparent; color: #a33; border: 1px solid #d99; }
-</style></head><body>
+`;
+
+const CHAMBER_SCRIPT = `
+  var f = document.getElementById("f"), out = document.getElementById("out");
+  f.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var b = { subject: f.subject.value, body: f.body.value, drawer: f.drawer.value, author: f.author.value };
+    out.hidden = false; out.className = "note"; out.textContent = "Filing…";
+    try {
+      var r = await fetch("/intake", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) });
+      var j = await r.json();
+      if (r.ok) { out.className = "note ok"; out.textContent = "Filed → " + j.path + " (status: logbook). Run bureau:compile, then bureau:review."; f.reset(); }
+      else { out.className = "note err"; out.textContent = "Rejected: " + (j.err || r.status); }
+    } catch (err) { out.className = "note err"; out.textContent = "Failed: " + err.message; }
+  });
+
+  var tokenEl = document.getElementById("token"); // kept in the field for the page lifetime only — never persisted to Web Storage
+  var pending = document.getElementById("pending"), rout = document.getElementById("rout"), rcount = document.getElementById("rcount");
+  async function loadReview() {
+    try {
+      var j = await (await fetch("/review")).json();
+      rcount.textContent = "(" + j.pending.length + ")";
+      pending.textContent = "";
+      if (!j.pending.length) { var e = document.createElement("p"); e.className = "sub"; e.textContent = "Nothing awaiting review."; pending.appendChild(e); return; }
+      j.pending.forEach(function (d) {
+        var row = document.createElement("div"); row.className = "prow";
+        var meta = document.createElement("div");
+        var t = document.createElement("strong"); t.textContent = d.title;             // textContent = no injection
+        var s = document.createElement("span"); s.className = "tier"; s.textContent = " " + d.status + " · " + d.path;
+        meta.appendChild(t); meta.appendChild(s);
+        var ok = document.createElement("button"); ok.textContent = "Approve"; ok.className = "mini";
+        var no = document.createElement("button"); no.textContent = "Reject"; no.className = "mini ghost";
+        ok.onclick = function () { decide(d.path, "approve"); };
+        no.onclick = function () { decide(d.path, "reject", prompt("Reason for rejecting (optional):") || ""); };
+        var acts = document.createElement("div"); acts.className = "acts"; acts.appendChild(ok); acts.appendChild(no);
+        row.appendChild(meta); row.appendChild(acts); pending.appendChild(row);
+      });
+    } catch (err) {                                          // a failed load must surface, not hang as an unhandled rejection with stale UI
+      rcount.textContent = ""; pending.textContent = "";
+      var pe = document.createElement("p"); pe.className = "sub err"; pe.textContent = "Could not load pending review: " + err.message; pending.appendChild(pe);
+    }
+  }
+  async function decide(path, decision, reason) {
+    rout.hidden = false; rout.className = "note"; rout.textContent = "Deciding…";
+    try {
+      var r = await fetch("/review/decision", { method: "POST", headers: { "content-type": "application/json", "x-bureau-review": tokenEl.value }, body: JSON.stringify({ path: path, decision: decision, reason: reason }) });
+      var j = await r.json();
+      if (r.ok) { rout.className = "note ok"; rout.textContent = (decision === "approve" ? "Promoted → canonical: " : "Sent back → contested: ") + j.path; loadReview(); }
+      else { rout.className = "note err"; rout.textContent = "Rejected: " + (j.err || r.status); }
+    } catch (err) { rout.className = "note err"; rout.textContent = "Failed: " + err.message; }
+  }
+  loadReview();
+`;
+
+function chamberPage(ctx) {
+  const gz = existsSync(join(ctx.outDir, "index.html"));
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chamber · ${esc(ctx.wsName)}</title>
+<style>${CHAMBER_CSS}</style></head><body>
   <h1>Chamber — ${esc(ctx.wsName)}</h1>
   <p class="sub">Propose a claim. It lands as an append-only logbook minute and enters
     <code>bureau:compile</code> → <code>bureau:review</code>. It is <strong>not canon</strong> until a human approves.
@@ -326,52 +409,7 @@ function chamberPage(ctx) {
   <input id="token" type="password" placeholder="reviewer token" autocomplete="off">
   <div id="pending" style="margin-top:14px"></div>
   <div id="rout" class="note" hidden></div>
-<script>
-  var f = document.getElementById("f"), out = document.getElementById("out");
-  f.addEventListener("submit", async function (e) {
-    e.preventDefault();
-    var b = { subject: f.subject.value, body: f.body.value, drawer: f.drawer.value, author: f.author.value };
-    out.hidden = false; out.className = "note"; out.textContent = "Filing…";
-    try {
-      var r = await fetch("/intake", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) });
-      var j = await r.json();
-      if (r.ok) { out.className = "note ok"; out.textContent = "Filed → " + j.path + " (status: logbook). Run bureau:compile, then bureau:review."; f.reset(); }
-      else { out.className = "note err"; out.textContent = "Rejected: " + (j.err || r.status); }
-    } catch (err) { out.className = "note err"; out.textContent = "Failed: " + err.message; }
-  });
-
-  var tokenEl = document.getElementById("token"); // kept in the field for the page lifetime only — never persisted to Web Storage
-  var pending = document.getElementById("pending"), rout = document.getElementById("rout"), rcount = document.getElementById("rcount");
-  async function loadReview() {
-    var j = await (await fetch("/review")).json();
-    rcount.textContent = "(" + j.pending.length + ")";
-    pending.textContent = "";
-    if (!j.pending.length) { var e = document.createElement("p"); e.className = "sub"; e.textContent = "Nothing awaiting review."; pending.appendChild(e); return; }
-    j.pending.forEach(function (d) {
-      var row = document.createElement("div"); row.className = "prow";
-      var meta = document.createElement("div");
-      var t = document.createElement("strong"); t.textContent = d.title;             // textContent = no injection
-      var s = document.createElement("span"); s.className = "tier"; s.textContent = " " + d.status + " · " + d.path;
-      meta.appendChild(t); meta.appendChild(s);
-      var ok = document.createElement("button"); ok.textContent = "Approve"; ok.className = "mini";
-      var no = document.createElement("button"); no.textContent = "Reject"; no.className = "mini ghost";
-      ok.onclick = function () { decide(d.path, "approve"); };
-      no.onclick = function () { decide(d.path, "reject", prompt("Reason for rejecting (optional):") || ""); };
-      var acts = document.createElement("div"); acts.className = "acts"; acts.appendChild(ok); acts.appendChild(no);
-      row.appendChild(meta); row.appendChild(acts); pending.appendChild(row);
-    });
-  }
-  async function decide(path, decision, reason) {
-    rout.hidden = false; rout.className = "note"; rout.textContent = "Deciding…";
-    try {
-      var r = await fetch("/review/decision", { method: "POST", headers: { "content-type": "application/json", "x-bureau-review": tokenEl.value }, body: JSON.stringify({ path: path, decision: decision, reason: reason }) });
-      var j = await r.json();
-      if (r.ok) { rout.className = "note ok"; rout.textContent = (decision === "approve" ? "Promoted → canonical: " : "Sent back → contested: ") + j.path; loadReview(); }
-      else { rout.className = "note err"; rout.textContent = "Rejected: " + (j.err || r.status); }
-    } catch (err) { rout.className = "note err"; rout.textContent = "Failed: " + err.message; }
-  }
-  loadReview();
-</script></body></html>`;
+<script>${CHAMBER_SCRIPT}</script></body></html>`;
 }
 
 function handle(req, res, ctx) {
@@ -411,11 +449,17 @@ function handle(req, res, ctx) {
 // from disk per request, so a rebuilt out dir is served live (the browser refreshes to see it).
 // Exported so the debounce/build wiring is unit-testable without depending on fs.watch timing.
 export function makeWatcher(dir, build, { debounceMs = 250 } = {}) {
-  let timer = null, pending = false, watcher = null;
-  const fire = () => { pending = true; if (timer) return; timer = setTimeout(() => { timer = null; if (pending) { pending = false; Promise.resolve().then(build).catch((e) => safe(() => process.stderr.write("bureau serve: rebuild error — " + (e && e.message || e) + "\n"), null)); } }, debounceMs); };
+  let timer = null, pending = false, watcher = null, closed = false;
+  const fire = () => {
+    if (closed) return;                                    // a change arriving after close() is ignored
+    pending = true; if (timer) return;
+    timer = setTimeout(() => { timer = null; if (pending && !closed) { pending = false; Promise.resolve().then(build).catch((e) => safe(() => process.stderr.write("bureau serve: rebuild error — " + (e && e.message || e) + "\n"), null)); } }, debounceMs);
+  };
   try { watcher = fsWatch(dir, { recursive: true }, fire); }
   catch (e) { watcher = null; } // recursive watch unsupported (older Node on Linux) → caller warns
-  return { fire, supported: !!watcher, close: () => safe(() => watcher && watcher.close(), null) };
+  // close() must cancel any queued debounce so a rebuild can't start after the chamber is gone.
+  const close = () => { closed = true; if (timer) { clearTimeout(timer); timer = null; } pending = false; safe(() => watcher && watcher.close(), null); };
+  return { fire, supported: !!watcher, close };
 }
 
 // spawn the bundled press to rebuild the gazette out dir from the workspace.
@@ -429,19 +473,70 @@ function rebuildGazette(ctx) {
   });
 }
 
+// ── port policy ────────────────────────────────────────────────────────────────────
+// A repo's chamber must not fight another repo's chamber over one well-known port — bureau is
+// meant to run per-repo, several at once. So when the caller pins no port we pick a RANDOM 5-digit
+// loopback port and re-roll on the (astronomically unlikely) collision until one is free. A pinned
+// port (`--port <n>`, or `port: 0` = OS-ephemeral used by tests) is honored STRICTLY: a collision
+// throws so the user hears about it, rather than silently wandering onto a port they didn't ask for.
+const PORT_MIN = 10000, PORT_MAX = 65535;                 // the 5-digit loopback range
+const randomPort = () => randomInt(PORT_MIN, PORT_MAX + 1); // uniform in [PORT_MIN, PORT_MAX]
+
+// Bind `server` to `host`. `port == null` → auto-pick a random 5-digit port, re-rolling on
+// EADDRINUSE up to `tries` times. A concrete `port` is bound as-is (a collision propagates). The
+// same http.Server is reused across attempts — a failed listen leaves it non-listening, so the next
+// listen() re-binds cleanly; both one-shot listeners are removed each attempt so none accumulate.
+async function listenChamber(server, host, port, tries = 40, pick = randomPort) {
+  // Zero-trust the port: `null` means auto-pick; anything else must be a real TCP port integer.
+  // Without this a stray string would reach server.listen() and be read as an IPC socket path, and a
+  // NaN/boolean would bind nonsense — the CLI validates, but a programmatic start() must too.
+  if (!(port == null || (Number.isInteger(port) && port >= 0 && port <= PORT_MAX)))
+    throw new TypeError("listenChamber: port must be null (auto) or an integer in 0–" + PORT_MAX + ", got " + String(port));
+  if (!(Number.isInteger(tries) && tries > 0))
+    throw new TypeError("listenChamber: tries must be a positive integer, got " + String(tries));
+  const auto = port == null;
+  let candidate = auto ? pick() : port;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await new Promise((res2, rej) => {
+        let onError, onListening;
+        const cleanup = () => { server.removeListener("error", onError); server.removeListener("listening", onListening); };
+        onError = (e) => { cleanup(); rej(e); };
+        onListening = () => { cleanup(); res2(); };
+        server.once("error", onError);
+        server.once("listening", onListening);
+        // A synchronous listen() throw (e.g. bad server state) must still unhook both listeners.
+        try { server.listen(candidate, host); } catch (e) { cleanup(); rej(e); }
+      });
+      return candidate;
+    } catch (e) {
+      if (auto && e && e.code === "EADDRINUSE" && attempt < tries) { candidate = pick(); continue; }
+      throw e;
+    }
+  }
+}
+
 // Start the chamber. Resolves the workspace, binds 127.0.0.1, returns the live server.
-// `host`/`port` are overridable for tests (port 0 = ephemeral). Never binds beyond localhost.
-export async function start({ cwd = process.cwd(), out = "gazette", port = 4317, host = "127.0.0.1", watch = false } = {}) {
+// `port` is overridable for tests (0 = OS-ephemeral); `null`/undefined = auto-pick a random 5-digit
+// port with retry (see listenChamber). `host` is overridable too. Never binds beyond localhost.
+export async function start({ cwd = process.cwd(), out = "gazette", port = null, host = "127.0.0.1", watch = false } = {}) {
   if (!["127.0.0.1", "::1", "localhost"].includes(host)) throw new Error("bureau serve binds loopback only — refusing host " + host);
   const wsDir = workspaceDir(cwd);
   if (!wsDir) throw new Error("no bureau workspace found in " + cwd + " — run bureau:init first");
   const ctx = {
     wsDir, wsName: wsDir.slice(dirname(wsDir).length + 1), outDir: resolve(cwd, out),
-    sessionId: "chamber-" + Date.now().toString(36), reviewToken: randomBytes(16).toString("hex"),
+    // time + entropy: two chambers on one workspace started in the same millisecond must not share
+    // a session id (it namespaces every minute filename — a collision would spuriously 500).
+    sessionId: "chamber-" + Date.now().toString(36) + "-" + randomBytes(3).toString("hex"), reviewToken: randomBytes(16).toString("hex"),
     _seq: 0, nextSeq() { return ++this._seq; },
   };
-  const server = http.createServer((req, res) => { try { handle(req, res, ctx); } catch (e) { safe(() => sendJson(res, 500, { err: "internal error" }), null); } });
-  await new Promise((res2, rej) => { server.once("error", rej); server.listen(port, host, res2); });
+  // `handle` returns a promise on the POST routes; route both synchronous throws AND that promise's
+  // rejection here so a handler error becomes a 500 (not an unhandled rejection that can crash Node).
+  const server = http.createServer((req, res) => {
+    Promise.resolve().then(() => handle(req, res, ctx)).catch(() =>
+      safe(() => { if (!res.headersSent) sendJson(res, 500, { err: "internal error" }); else res.end(); }, null));
+  });
+  await listenChamber(server, host, port);
   let watcher = null;
   if (watch) {
     // serialize rebuilds: never run two gazette builds over the same out dir at once; a change
@@ -456,19 +551,32 @@ export async function start({ cwd = process.cwd(), out = "gazette", port = 4317,
 }
 
 // internal helpers exported for unit tests (not a public API)
-export const _internal = { workspaceDir, containedUnder, safeId, writeIntake };
+export const _internal = { workspaceDir, containedUnder, safeId, writeIntake, listenChamber, randomPort, PORT_MIN, PORT_MAX };
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
   const args = process.argv.slice(2);
   const opt = (n, d) => { const i = args.indexOf("--" + n); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
-  const portArg = opt("port", "4317");
-  const portNum = Number(portArg);
-  if (!Number.isInteger(portNum) || portNum < 1024 || portNum > 65535) { process.stderr.write("bureau serve: --port must be an integer in 1024–65535\n"); process.exit(1); }
-  start({ out: opt("out", "gazette"), port: portNum, host: opt("host", "127.0.0.1"), watch: args.includes("--watch") })
+  // No --port → null → auto-pick a random 5-digit port (retrying on collision). A pinned --port is
+  // validated and honored strictly.
+  const pinned = args.includes("--port");
+  let port = null;
+  if (pinned) {
+    port = Number(opt("port", ""));
+    if (!Number.isInteger(port) || port < 1024 || port > 65535) { process.stderr.write("bureau serve: --port must be an integer in 1024–65535\n"); process.exit(1); }
+  }
+  start({ out: opt("out", "gazette"), port, host: opt("host", "127.0.0.1"), watch: args.includes("--watch") })
     .then(({ host, port, wsName, reviewToken, watcher }) => process.stdout.write(
       "bureau chamber → http://" + (host.includes(":") ? "[" + host + "]" : host) + ":" + port + "  (workspace: " + wsName + ")\n" +
       "  Reviewer token (paste in the chamber to approve/reject): " + reviewToken + "\n" +
       (watcher && watcher.supported ? "  Watching the workspace — the gazette rebuilds on change.\n" : "") +
       "  Ctrl-C to stop.\n"))
-    .catch((e) => { process.stderr.write("bureau serve: " + e.message + "\n"); process.exit(1); });
+    .catch((e) => {
+      // Only a user-pinned port earns the "drop --port" hint; an auto-pick that exhausted its
+      // retries never had a --port to drop, so it gets a distinct message.
+      const hint = e && e.code === "EADDRINUSE"
+        ? (pinned ? " — that port is taken; drop --port to auto-pick a free one"
+                  : " — could not find a free port after retrying; try again")
+        : "";
+      process.stderr.write("bureau serve: " + e.message + hint + "\n"); process.exit(1);
+    });
 }

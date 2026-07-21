@@ -17,14 +17,17 @@ convened AI desk), **dispose is the human's act** — the AI's agent context nev
 
 1. **Locate the workspace.** Find the bureau workspace (`bureau.json`; default `canon`). If none,
    tell the user to run `bureau:init` first and stop.
-2. **Parse arguments.** `--port` (default `4317`), `--out` (the gazette dir; default `gazette`),
-   `--watch` (rebuild the gazette when the workspace changes, so the served board stays fresh —
-   refresh the browser to see it). Validate `--port` is an integer in `1024–65535`; otherwise report
-   and stop.
+2. **Parse arguments.** `--port` (optional — **omit it and the chamber picks a random free 5-digit
+   port**, so several repos can run chambers at once without colliding; pass `--port <n>` only to pin
+   one), `--out` (the gazette dir; default `gazette`), `--watch` (rebuild the gazette when the
+   workspace changes, so the served board stays fresh — refresh the browser to see it). If `--port`
+   is given, validate it is an integer in `1024–65535`; otherwise report and stop.
 3. **Start the server.** Run
-   `node "${CLAUDE_PLUGIN_ROOT}/scripts/serve.mjs" --port <port> --out <out> [--watch]` from the repo root. It
-   binds `127.0.0.1` only — never a public interface. If the port is in use, report the error and
-   suggest another `--port`.
+   `node "${CLAUDE_PLUGIN_ROOT}/scripts/serve.mjs" [--port <port>] --out <out> [--watch]` from the repo
+   root. It binds `127.0.0.1` only — never a public interface. With no `--port` it auto-picks a random
+   port and re-rolls on the rare collision; a **pinned** `--port` that is already in use fails loudly
+   (drop `--port` to auto-pick). Read the actual bound port from the URL the server prints — it is not
+   fixed across runs.
 4. **Report the URL + the reviewer token.** Print `http://127.0.0.1:<port>`, the **reviewer token**
    the server printed (the human pastes it in the chamber to approve/reject — do not echo it anywhere
    the AI seat would capture it), and what the room offers: the intake form and the pending-review
