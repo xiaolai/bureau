@@ -19,13 +19,27 @@ export function resolveRef(root, ref) {
   try { return gitText(root, ["rev-parse", "--verify", "--quiet", ref + "^{commit}"]).trim(); }
   catch { throw new Error("not a valid git ref: " + ref); }
 }
+// The git repository that OWNS a workspace, resolved FROM THE WORKSPACE PATH — never from
+// process.cwd(). This is what lets an EXTERNAL workspace (git root ≠ the caller's cwd, e.g. a private
+// canon at ~/bureaus/PROJ/canon) version against its OWN repo: build/diff/snapshot address the
+// workspace inside the repo that contains it, not whatever repo the caller happens to stand in. For
+// the in-repo default (workspace committed under the cwd's repo) it returns exactly what
+// process.cwd() resolved to, so existing behavior is byte-identical. (ADR-0003)
+export function gitRootFor(workspaceAbs) {
+  try { return gitText(workspaceAbs, ["rev-parse", "--show-toplevel"]).trim(); }
+  catch { throw new Error("workspace is not inside a git repository: " + workspaceAbs); }
+}
 // object path for `git show <ref>:<path>` — relative to the git TOP-LEVEL, forward-slashed, contained.
 // Both sides are realpath'd so a symlinked temp/checkout root (e.g. macOS /var → /private/var) can't
 // make a contained path look like it escapes.
 function repoObjectPath(root, absPath) {
   const top = realpathSync(gitText(root, ["rev-parse", "--show-toplevel"]).trim());
   const rel = relative(top, realpathSync(resolve(absPath)));
-  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) throw new Error("path is outside the git repository: " + absPath);
+  // A workspace that IS the git top-level has no in-repo path to address (rel === ""); the versioned
+  // board can only reach a workspace that is a CHILD of its repo. Give an actionable error (ADR-0003)
+  // instead of the generic "outside the git repository".
+  if (rel === "") throw new Error("the workspace is the git top-level (" + top + ") — nest it under a git root so it is a child (e.g. PROJ/canon); the versioned board addresses the workspace as a path inside its repo, and the root itself has no such path");
+  if (rel.startsWith("..") || isAbsolute(rel)) throw new Error("path is outside the git repository: " + absPath);
   return rel.split(sep).join("/");
 }
 // git-show a file at a ref. Returns null ONLY when git RAN and exited non-zero (the path is absent

@@ -50,6 +50,10 @@ never fails the build.
 A git commit already bundles a consistent `{pages + _log.jsonl + ledgers}` — so **the commit is the
 snapshot unit.** No separate store; git holds content history, the decision log holds state history.
 
+> **Git history is not a backup.** The commit is the snapshot *unit*, but a single local repo lives on
+> one disk. Real durability needs a tested, offsite/encrypted backup of the workspace — a local mirror
+> is only fast recovery, never the durable copy. See `docs/adr-0003-external-workspace.md` (Decision E).
+
 ### Render any past board
 
 ```bash
@@ -106,3 +110,48 @@ snapshot name then works anywhere a ref does: `build --at v1.0`, `diff v1.0 HEAD
 
 The honest split: **git owns content history** (byte-level past boards), **the decision log owns
 state history** (what changed, which decisions, which drift) — composed, never duplicated.
+
+---
+
+## External workspaces (ADR-0003)
+
+When the canon lives OUTSIDE a public code repo (`~/bureaus/<name>/canon`, resolved per-machine via
+`.bureau-id` + a user-local mapping), two things change — and one thing does **not**.
+
+### Provenance is a cross-repo reference, not a bundle
+
+The "commit bundles the evidence" property holds **within the knowledge repo**: a canon commit still
+bundles `{pages + _log.jsonl + ledgers}`, so `build --at` / `diff` / `snapshot` work exactly as
+above. What it does **not** bundle is the *code* the knowledge describes — that now lives in a
+separate repo. So capture stamps a **descriptive** link on each minute:
+
+```yaml
+code_head: 4fa64993…      # the code repo's HEAD at capture time
+code_dirty: true          # the working tree had uncommitted changes
+```
+
+Treat this as a pointer, not a reproducibility guarantee: a bare SHA is meaningless on a dirty tree
+and can become unreachable after a rebase. It says "this minute was taken against roughly this code
+state" — an explicit cross-repo reference, never a claim that one commit holds the complete evidence.
+
+### Backing up & restoring — the drill
+
+`~/bureaus/<name>` is the sole copy of your private canon. A second **local** git repo is a separate
+deletion domain, **not** a backup. Real durability is a **private remote** (a private git host) and/or
+a tested offsite/encrypted backup. Verify it with an actual restore drill:
+
+```bash
+# the workspace repo has a PRIVATE remote (never the public code host)
+cd ~/bureaus/<name> && git remote -v
+
+# simulate loss of the working copy, then restore from the private remote / backup
+mv ~/bureaus/<name> ~/bureaus/<name>.gone
+git clone <private-remote-or-backup-url> ~/bureaus/<name>
+
+# re-pair this machine, then confirm the engine rebuilds to a clean fixpoint
+node "${CLAUDE_PLUGIN_ROOT}/scripts/pair.mjs" "<id>" "~/bureaus/<name>/canon"
+node press/bin/gazette.mjs fsck --dir ~/bureaus/<name>/canon      # must report a stable fixpoint, 0 blocking findings
+```
+
+If `fsck` is clean after the restore, your backup is real. Do this drill periodically — a backup you
+have never restored is a hope, not a backup.

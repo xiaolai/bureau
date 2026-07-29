@@ -145,8 +145,10 @@ Everything above projects from one append-only file, `<workspace>/_log.jsonl`:
 - It records the structural events (`introduce`/`edit`/`delete` of spans) and the human decisions
   (`approve`/`reject`/`confirm-edge`/`resolve`).
 - It is **committed** — the source of truth for the mechanical state, and the input to time-travel.
-- It is **tamper-evident**: each line chains to the previous by a hash, so a rewritten past line is
-  detected by `fsck`.
+- It is **tamper-detecting for naive edits**: each line chains to the previous by a hash, so a
+  carelessly rewritten past line is caught by `fsck`. The chain is *unsigned*, though — a writer with
+  access can recompute every hash, so this is not proof against a determined rewrite; the authority on
+  a decision event stays an unauthenticated assertion.
 - Everything else the engine knows (freshness, revisions, verdict keys, the `.bureau-cache/` gate
   cache) is a *pure function* of `(the authored pages + this log)` and rebuilds to a **byte-fixpoint**
   — drop the cache, run `fsck`, get identical bytes. That regenerability is a release gate.

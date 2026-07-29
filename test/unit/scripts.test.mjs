@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync, rmSync, symlinkSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync, rmSync, symlinkSync, chmodSync, realpathSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -15,9 +15,9 @@ const SCRIBE = join(PLUGIN, "scripts", "scribe-checkpoint.mjs");
 
 // run a hook script in a given cwd with a JSON payload on stdin; return {stdout, status}.
 // A timeout turns a hook that blocks into a failure, not a hung suite.
-function runHook(script, cwd, payload) {
+function runHook(script, cwd, payload, env) {
   try {
-    const stdout = execFileSync("node", [script], { cwd, input: JSON.stringify(payload), encoding: "utf8", stdio: ["pipe", "pipe", "ignore"], timeout: 15000 });
+    const stdout = execFileSync("node", [script], { cwd, input: JSON.stringify(payload), encoding: "utf8", stdio: ["pipe", "pipe", "ignore"], timeout: 15000, env: env ? { ...process.env, ...env } : process.env });
     return { stdout, status: 0 };
   } catch (e) { return { stdout: e.stdout || "", status: e.status == null ? 1 : e.status }; }
 }
@@ -66,6 +66,96 @@ test("capture: no-op when bureau.json marker is absent", (t) => {
   const { status } = runHook(CAPTURE, root, { session_id: "zzz" });
   assert.equal(status, 0);
   assert.equal(logEntries(root).length, 0);
+});
+
+// ── capture-stub · EXTERNAL workspace via user-local mapping (ADR-0003) ────────
+// Build a code repo carrying a path-free .bureau-id, an external workspace under an allowlist root,
+// and a 0600 mapping in a temp XDG_CONFIG_HOME. The path comes ONLY from the mapping — never stdin.
+function externalSetup(t, { id = "proj-x", pair = true } = {}) {
+  const extRoot = realpathSync(mkdtempSync(join(tmpdir(), "bureau-ext-")));
+  const ws = join(extRoot, "proj", "canon"); mkdirSync(ws, { recursive: true }); chmodSync(ws, 0o755);
+  writeFileSync(join(ws, "bureau.json"), "{}");
+  const xdg = realpathSync(mkdtempSync(join(tmpdir(), "bureau-xdg-"))); mkdirSync(join(xdg, "bureau"), { recursive: true });
+  const cfg = { roots: [extRoot], workspaces: pair ? { [id]: { path: ws } } : {} };
+  const cfgFile = join(xdg, "bureau", "workspaces.json"); writeFileSync(cfgFile, JSON.stringify(cfg)); chmodSync(cfgFile, 0o600);
+  const code = mkdtempSync(join(tmpdir(), "bureau-code-")); writeFileSync(join(code, ".bureau-id"), id);
+  if (t) t.after(() => { for (const d of [extRoot, xdg, code]) rmSync(d, { recursive: true, force: true }); });
+  return { ws, xdg, code };
+}
+const wsLogEntries = (ws) => {
+  const out = [];
+  const walk = (d) => { for (const e of readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name); if (e.isDirectory()) walk(p); else if (e.name.endsWith(".md")) out.push(p); } };
+  const lb = join(ws, "logbook"); if (existsSync(lb)) walk(lb);
+  return out;
+};
+
+test("capture: with a .bureau-id + valid mapping, writes to the EXTERNAL workspace, not the cwd", (t) => {
+  const s = externalSetup(t, { id: "proj-x", pair: true });
+  const { status } = runHook(CAPTURE, s.code, { session_id: "extcafe-1" }, { XDG_CONFIG_HOME: s.xdg });
+  assert.equal(status, 0);
+  const ext = wsLogEntries(s.ws);
+  assert.equal(ext.length, 1, "stub landed in the external workspace");
+  assert.match(ext[0], /logbook\/\d{4}\/\d{2}\/extcafe-1\.md$/);
+  assert.ok(!existsSync(join(s.code, "logbook")), "nothing written into the code repo cwd");
+});
+
+test("capture: external mode stamps code_head + code_dirty from the code repo (ADR-0003 Phase 4)", (t) => {
+  const s = externalSetup(t, { id: "proj-x", pair: true });
+  const g = (...a) => execFileSync("git", ["-C", s.code, ...a], { stdio: ["ignore", "ignore", "ignore"] });
+  g("init", "-q"); g("config", "user.email", "t@t"); g("config", "user.name", "t"); g("config", "commit.gpgsign", "false");
+  writeFileSync(join(s.code, "README.md"), "hi"); g("add", "-A"); g("commit", "-q", "-m", "c1");
+  runHook(CAPTURE, s.code, { session_id: "extcafe-3" }, { XDG_CONFIG_HOME: s.xdg });
+  const clean = readFileSync(wsLogEntries(s.ws).find((f) => /extcafe-3/.test(f)), "utf8");
+  assert.match(clean, /^code_head: [0-9a-f]{7,40}$/m);
+  assert.match(clean, /^code_dirty: false$/m);
+  writeFileSync(join(s.code, "README.md"), "changed"); // dirty the working tree
+  runHook(CAPTURE, s.code, { session_id: "extcafe-4" }, { XDG_CONFIG_HOME: s.xdg });
+  const dirty = readFileSync(wsLogEntries(s.ws).find((f) => /extcafe-4/.test(f)), "utf8");
+  assert.match(dirty, /^code_dirty: true$/m);
+});
+
+test("capture: an UNPAIRED .bureau-id writes nothing — no silent auto-map, no cwd fallback, non-blocking", (t) => {
+  const s = externalSetup(t, { id: "proj-x", pair: false });
+  const { status } = runHook(CAPTURE, s.code, { session_id: "extcafe-2" }, { XDG_CONFIG_HOME: s.xdg });
+  assert.equal(status, 0);                                  // never blocks session end
+  assert.equal(wsLogEntries(s.ws).length, 0, "no write to the external workspace");
+  assert.ok(!existsSync(join(s.code, "logbook")), "no fallback write into the cwd tree");
+});
+
+// ── bureau:pair helper (ADR-0003) — the only writer of the user-local mapping ──
+const PAIR = join(PLUGIN, "scripts", "pair.mjs");
+function runPair(args, env) {
+  try {
+    const stdout = execFileSync("node", [PAIR, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 15000, env: env ? { ...process.env, ...env } : process.env });
+    return { stdout, status: 0 };
+  } catch (e) { return { stdout: e.stdout || "", status: e.status == null ? 1 : e.status }; }
+}
+function pairFixture(t, { roots }) {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "bureau-ext-")));
+  const ws = join(root, "proj", "canon"); mkdirSync(ws, { recursive: true }); chmodSync(ws, 0o755); writeFileSync(join(ws, "bureau.json"), "{}");
+  const xdg = realpathSync(mkdtempSync(join(tmpdir(), "bureau-xdg-"))); mkdirSync(join(xdg, "bureau"), { recursive: true });
+  const cfgFile = join(xdg, "bureau", "workspaces.json");
+  writeFileSync(cfgFile, JSON.stringify({ roots: roots === "self" ? [root] : [], workspaces: {} })); chmodSync(cfgFile, 0o600);
+  t.after(() => { for (const d of [root, xdg]) rmSync(d, { recursive: true, force: true }); });
+  return { ws, xdg, cfgFile };
+}
+
+test("pair: records a validated entry with a 0600 config", (t) => {
+  const f = pairFixture(t, { roots: "self" });
+  const { status } = runPair(["proj-p", f.ws], { XDG_CONFIG_HOME: f.xdg });
+  assert.equal(status, 0);
+  const cfg = JSON.parse(readFileSync(f.cfgFile, "utf8"));
+  assert.equal(cfg.workspaces["proj-p"].path, realpathSync(f.ws));
+  assert.equal(statSync(f.cfgFile).mode & 0o777, 0o600);
+});
+
+test("pair: rejects a path-shaped bureau-id before touching anything", () => {
+  assert.equal(runPair(["../evil", "/tmp"], {}).status, 1);
+});
+
+test("pair: rejects a target outside the allowed roots", (t) => {
+  const f = pairFixture(t, { roots: "none" }); // allowlist is just ~/bureaus; the temp ws is outside it
+  assert.equal(runPair(["proj-q", f.ws], { XDG_CONFIG_HOME: f.xdg }).status, 1);
 });
 
 test("capture: no-op on empty / oversized payload (no usable session id)", (t) => {

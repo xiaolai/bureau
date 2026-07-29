@@ -76,6 +76,7 @@ route it back through `bureau:review`.
 | You want to… | Run | Backed by skill |
 |--------------|-----|-----------------|
 | Set bureau up in this repo | `bureau:init` | — |
+| Pair this repo's external (private) workspace to a local path on this machine | `bureau:pair` | — |
 | Ask what the project knows / what was decided | `bureau:query` | `recall` |
 | Jot a durable point mid-session | `bureau:note` | `scribe` |
 | File the whole current session as a minute | `bureau:file-session` | `capture` |

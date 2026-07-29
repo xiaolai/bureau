@@ -350,7 +350,15 @@ function attachPanZoom(host, svg) {
   if (svgEl) { svgEl.style.maxWidth = "100%"; svgEl.style.height = "auto"; }
   let s = 1, tx = 0, ty = 0, s0 = 1, tx0 = 0, ty0 = 0;
   const MIN = 0.4, MAX = 8, STEP = 1.25, NUDGE = 64;
-  function apply() { pan.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + s + ")"; }
+  // LOD band for the canvas projection (ADR-0002 Decision C): the zoom scale picks which detail
+  // tier the SVG reveals. Set on the HOST so CSS can drive it; with JS off it is never set and CSS
+  // falls back to `mid` — byte-identical to the pre-LOD render.
+  function lodFor(k) { return k < 0.75 ? "far" : k < 2 ? "mid" : "near"; }
+  function apply() {
+    pan.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + s + ")";
+    const band = lodFor(s);
+    if (host.dataset.lod !== band) host.dataset.lod = band;
+  }
   function zoomAbout(cx, cy, k) { const ns = Math.max(MIN, Math.min(MAX, s * k)); if (ns === s) return; tx = cx - (cx - tx) * (ns / s); ty = cy - (cy - ty) * (ns / s); s = ns; apply(); }
   function ctr() { const r = vp.getBoundingClientRect(); return [r.width / 2, r.height / 2]; }
   host.querySelector(".mmd-tools").addEventListener("click", (e) => {

@@ -10,6 +10,12 @@
 // and the session id is sanitized to a safe slug before it touches a path or YAML.
 import { existsSync, mkdirSync, writeFileSync, readSync, realpathSync, lstatSync, opendirSync } from "fs";
 import { join, dirname, sep } from "path";
+import { execFileSync } from "child_process";
+// ADR-0003: an EXTERNAL workspace (private canon under ~/bureaus) is resolved from a USER-LOCAL
+// mapping keyed by the repo's path-free .bureau-id. Builtin-only module — safe for this standalone
+// hook (no node_modules). No .bureau-id ⇒ resolveWorkspace returns {mode:"in-repo"} and the legacy
+// in-tree scan below runs, so default behavior is unchanged.
+import { resolveWorkspace } from "../press/src/core/workspace-map.mjs";
 
 const LOG_DRAWER = "logbook";
 
@@ -52,6 +58,19 @@ function safeId(v) {
   return String(v == null ? "" : v).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
 }
 
+// ADR-0003 Phase 4 — DESCRIPTIVE provenance linking a capture to the code repo it ran in (only used
+// in EXTERNAL mode, where code and knowledge are separate repos). NOT a reproducibility claim: a bare
+// SHA is meaningless on a dirty tree and may become unreachable after a rebase. Best-effort + bounded
+// (short timeout), fully safe-wrapped — never blocks session end. Returns null if cwd is not a repo.
+function codeProvenance(cwd) {
+  // tight per-call deadline so two sequential git calls add ≤2s worst-case to SessionEnd (normally <100ms).
+  const git = (args) => safe(() => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 1000 }), null);
+  const head = (git(["rev-parse", "HEAD"]) || "").trim();
+  if (!/^[0-9a-f]{7,64}$/.test(head)) return null; // SHA-1 (40) and SHA-256 (64) object ids
+  const status = git(["status", "--porcelain"]);
+  return { head, dirty: status == null ? null : (status.trim().length > 0 ? "true" : "false") }; // null ⇒ indeterminate ⇒ omit
+}
+
 // read the hook payload (Claude Code passes JSON on stdin). GENUINELY bounded: read in chunks
 // and stop the moment we exceed the cap, so a huge/never-closing stdin can't be slurped whole.
 function readPayload() {
@@ -76,8 +95,16 @@ function main() {
   const payload = readPayload();
   const cwd = process.cwd(); // TRUSTED working dir, NOT payload.cwd
 
-  // act only in a real bureau workspace: the dir carrying the bureau.json marker (auto-detected).
-  const wsDir = workspaceDir(cwd);
+  // Resolve the workspace. No .bureau-id → the in-tree bureau.json scan (unchanged). A .bureau-id
+  // present → the USER-LOCAL mapping (ADR-0003): write to the validated EXTERNAL target. An unpaired
+  // or rejected id refuses to write (and says why on stderr) — NEVER silently auto-map, and never
+  // fall back to the cwd tree (that would mis-file a private capture into the wrong place).
+  const res = safe(() => resolveWorkspace(cwd), { mode: "in-repo" });
+  let wsDir = null;
+  if (res.mode === "external") wsDir = res.dir;
+  else if (res.mode === "in-repo") wsDir = workspaceDir(cwd);
+  else if (res.mode === "unpaired") { safe(() => process.stderr.write("bureau capture-stub: .bureau-id '" + res.id + "' is not paired — run: " + res.hint + "\n"), null); return; }
+  else { safe(() => process.stderr.write("bureau capture-stub: external workspace refused (" + res.reason + ")\n"), null); return; }
   if (!wsDir) return;
 
   const sessionId = safeId(payload.session_id || payload.sessionId);
@@ -105,14 +132,15 @@ function main() {
   // full sanitized id (not the 8-char short) so two sessions sharing a prefix can't collide
   // into a duplicate title — gazette rejects duplicate titles.
   const title = "session " + sessionId + " · " + date; // unquoted, sanitized
+  // In EXTERNAL mode only, stamp a descriptive code_head/code_dirty link (ADR-0003 Phase 4). In-repo
+  // mode keeps the minimal stub — the knowledge is committed WITH the code, so no cross-repo link is
+  // needed.
+  const prov = res.mode === "external" ? codeProvenance(cwd) : null;
+  const fm = ["---", "title: " + title, "updated: " + date, "status: logbook", "session: " + sessionId, "transcript: " + JSON.stringify(transcript)];
+  if (prov) { fm.push("code_head: " + prov.head); if (prov.dirty !== null) fm.push("code_dirty: " + prov.dirty); } // omit code_dirty when indeterminate (keep it a boolean)
+  fm.push("---");
   const body = [
-    "---",
-    "title: " + title,
-    "updated: " + date,
-    "status: logbook",
-    "session: " + sessionId,
-    "transcript: " + JSON.stringify(transcript),
-    "---",
+    ...fm,
     "",
     "## [" + iso + "] session " + short + " — (unfiled)",
     "",

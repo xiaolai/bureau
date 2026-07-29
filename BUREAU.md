@@ -49,8 +49,8 @@ not hand-edit cabinet pages. Memory is gated: **capture** (it lands in the low-a
 running `gazette approve`, `gazette confirm`, or `gazette resolve` (nor `bureau:review`'s
 promote/confirm/resolve steps) on your own initiative, and never passing `--by human`, a person's
 name, or omitting `--by` so the event is recorded as human. The authority on a decision event is a
-**claim the writer asserts, not an authenticated identity** — the log is tamper-evident, but nothing
-stops a caller from writing `by: "human"`. The whole gate rests on you not doing that. Surface what
+**claim the writer asserts, not an authenticated identity** — the log's hash chain detects a naively edited past entry, but it is unsigned (a writer
+with access can recompute the chain), so nothing stops a caller from writing `by: "human"`. The whole gate rests on you not doing that. Surface what
 is ready for decision and let the human run it; if you are driving an automated pipeline, record it
 under its real machine authority (`--by invariant`) and let `trust_policy` decide whether it counts.
 
@@ -95,7 +95,8 @@ dependency gate (`docs/adr-0001-engine-data-model.md`):
   `status:` still works — the loader reads it as `trust` when `trust:` is absent.
 - **The decision log is the source of truth.** `canonical` is a **projection** of a logged
   `approve` event, not the frontmatter alone — `gazette fsck` flags any authored `canonical` no
-  approval backs. Never hand-edit `canon/_log.jsonl`; it is append-only and tamper-evident.
+  approval backs. Never hand-edit `canon/_log.jsonl`; it is append-only, and its hash chain detects naive edits (it is
+unsigned, so not proof against a determined rewrite).
 - **Who may approve is policy.** `canonical` is backed by an `approve` event whose *authority* the
   workspace accepts (`_config.json` → `trust_policy`; the default is human-only). Under a policy
   that accepts a machine authority, `canonical` no longer implies a human vouched — so cite the

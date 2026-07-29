@@ -19,6 +19,11 @@ the append-only logbook drawer, and the config the press needs to render them.
   re-validate. Safe and idempotent — the supported way to "re-init" a repo.
 - `--fresh` — start the workspace over: **back up** the existing one to `<workspace>.bak-<timestamp>`
   (never deleted), then scaffold a clean workspace from the template.
+- `--external <name>` — create the workspace **outside** this repo (ADR-0003), for a **public** code
+  repo whose knowledge must stay private. Instead of an in-repo child dir, it scaffolds
+  `~/bureaus/<name>/canon` (its own git repo), records a **user-local** mapping, and commits only a
+  path-free `.bureau-id` to this repo. See "External workspace mode" below — do not combine with the
+  in-repo modes.
 
 `--reinit` and `--fresh` are mutually exclusive — if both are passed, stop and report. Both only
 matter when the workspace already exists; on a first init they are no-ops.
@@ -143,9 +148,53 @@ matter when the workspace already exists; on a first init they are no-ops.
     steps: `bureau:inspect` to build/open the gazette, `bureau:file-session` (or `bureau:note`) during
     a session, `bureau:query` to ask the canon, and `bureau:crew` to add specialized agents.
 
+## External workspace mode (`--external <name>`) — ADR-0003
+
+For a **public** code repo whose knowledge must stay private, scaffold the workspace OUTSIDE this
+repo. The code repo then carries only a path-free `.bureau-id`; the canon lives in its own private,
+backed-up git repo, resolved per-machine through a user-local mapping. Do **not** run the in-repo
+steps above — instead:
+
+1. **Resolve names.** `name` = `--external <name>` (validate `^[A-Za-z0-9._-]+$`, not `.`/`..`). The
+   workspace root is `~/bureaus/<name>/` and the workspace itself is its **child**
+   `~/bureaus/<name>/canon` — a child so the versioned board can address it (a workspace that IS the
+   git top-level is refused). Mint an opaque, path-free `id` (e.g. `<name>-<8 hex>`), matching
+   `^[A-Za-z0-9._-]+$`.
+
+2. **Scaffold the external workspace.** Create `~/bureaus/<name>/`, `git init` it, copy
+   `${CLAUDE_PLUGIN_ROOT}/templates/workspace/` into `~/bureaus/<name>/canon/` (same `{{DATE}}` /
+   `{{WORKSPACE}}` substitution as the in-repo step 3; set `bureau.json.workspace` to `canon`), then
+   commit it in that repo.
+
+3. **Record the mapping (user-local).** Pair the id to the workspace with the safe writer — NEVER
+   hand-edit `~/.config/bureau/workspaces.json`:
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/pair.mjs" "<id>" "~/bureaus/<name>/canon"
+   ```
+
+4. **Mark the code repo.** Write `./.bureau-id` containing ONLY `<id>` (no path), and commit it. Add
+   NOTHING else to this repo — no workspace dir, no board.
+
+5. **Wire + validate.** Refresh `./BUREAU.md` and the `CLAUDE.md` `@BUREAU.md` import as in the
+   in-repo steps 6–7. Validate with
+   `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" fsck --dir ~/bureaus/<name>/canon` (from this
+   repo, `gazette` also resolves it automatically via the `.bureau-id`).
+
+6. **Back it up.** `~/bureaus/<name>` is now the sole copy — set up a real backup (a **private**
+   remote and/or offsite/encrypted). A single local repo is NOT a backup. See
+   `docs/adr-0003-external-workspace.md` (Decision E) and the backup note in
+   `docs/live-and-versioned-board.md`.
+
+7. **Report.** State the external workspace path, the committed `.bureau-id`, that the mapping was
+   recorded, and the backup reminder. On another machine, restore `~/bureaus/<name>`, then run
+   `bureau:pair`.
+
 ## Notes
 
 - The workspace is the user's DATA; this plugin is the engine. Never put workspace content
   inside the plugin.
+- The workspace is DATA — **back it up.** A single local repo (or a local mirror) is not a backup;
+  real durability needs a tested, offsite/encrypted backup, especially for a private external
+  workspace. See `docs/adr-0003-external-workspace.md` (Decision E).
 - `board/` MUST stay outside the workspace — the press's `guardOutDir` refuses an `--out`
   that overlaps the content dir, which protects the SSOT from being clobbered by its render.

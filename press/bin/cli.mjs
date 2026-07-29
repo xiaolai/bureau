@@ -31,9 +31,10 @@ import { report as engineReport, renderMetricsText } from "../src/engine/metrics
 import { projectTimeline, renderTimelineText } from "../src/engine/telemetry.mjs";
 import { recordVerification, recheckVerification, markCompiled, uncompiled } from "../src/engine/ledgers.mjs";
 import { loadCorpus, buildModel } from "../src/core/model.mjs";
+import { resolveWorkspace } from "../src/core/workspace-map.mjs";
 import { logPath, readLog, appendEvent } from "../src/engine/log.mjs";
 import { conflictKey } from "../src/engine/state.mjs";
-import { buildAtRef, logDiff, snapshotCreate, readSnapshots, resolveSnapshotOrRef } from "../src/engine/versions.mjs";
+import { buildAtRef, logDiff, snapshotCreate, readSnapshots, resolveSnapshotOrRef, gitRootFor } from "../src/engine/versions.mjs";
 import { nfc } from "../src/services/i18n.mjs";
 
 const argv = process.argv.slice(2);
@@ -64,13 +65,21 @@ function dirArg() { return opt("dir") || opt("docs"); }
 // (The `init`/`new` scaffolders keep the plain "gazette" default — they create, they don't read.)
 function contentDir() {
   const explicit = dirArg();
-  if (explicit) return explicit;
+  if (explicit) return explicit; // an explicit --dir/--docs always wins
+  // ADR-0003: if this repo carries a path-free `.bureau-id`, its workspace is EXTERNAL — resolve the
+  // absolute path from the user-local mapping. Unpaired/rejected is a loud failure, never a silent
+  // fall-through to the wrong dir.
+  const res = resolveWorkspace(process.cwd());
+  if (res.mode === "external") return res.dir;
+  if (res.mode === "unpaired") die("this repo's bureau workspace is external but its .bureau-id ('" + res.id + "') is not paired on this machine — run: " + res.hint);
+  if (res.mode === "rejected") die("this repo's external bureau workspace was refused: " + res.reason);
+  // in-repo: exactly one `*/bureau.json` child → use it; 0 or ambiguous → the press default "gazette".
   try {
     const root = process.cwd();
     const ws = readdirSync(root, { withFileTypes: true })
       .filter((d) => d.isDirectory() && !d.name.startsWith(".") && existsSync(join(root, d.name, "bureau.json")))
       .map((d) => d.name);
-    if (ws.length === 1) return ws[0]; // exactly one bureau workspace → use it; 0 or ambiguous → "gazette"
+    if (ws.length === 1) return ws[0];
   } catch { /* unreadable cwd → fall through to the default */ }
   return "gazette";
 }
@@ -379,12 +388,12 @@ function engineDir() { return resolve(process.cwd(), contentDir()); }
 // build --at <ref|snapshot>: render the board AS OF a git commit (via a detached worktree).
 function runBuildAt(ref) {
   try {
-    const root = process.cwd();
     const docsDirAbs = engineDir();
+    const root = gitRootFor(docsDirAbs); // ADR-0003: version against the WORKSPACE's own git repo, not process.cwd()
     // resolve a snapshot NAME or a git ref → the concrete commit (so named snapshots work, and the
     // default output dir is keyed by the UNIQUE commit hash — distinct refs never collide).
     const sha = resolveSnapshotOrRef({ root, docsDirAbs, ref });
-    const outDirAbs = resolve(root, opt("out") || ("dist-at-" + sha.slice(0, 12)));
+    const outDirAbs = resolve(process.cwd(), opt("out") || ("dist-at-" + sha.slice(0, 12)));
     const r = buildAtRef({ root, ref: sha, docsDirAbs, outDirAbs, now: nowArg(), buildSite });
     console.log("✓ build @" + ref + " (" + r.commit.slice(0, 8) + "): " + r.fileDocCount + " documents (" + r.totalDocs + " pages) -> " + r.outDir);
   } catch (e) { die(e.message); }
@@ -395,7 +404,8 @@ function runDiff() {
   try {
     const a = argv[1], b = argv[2];
     if (!a || !b || a.startsWith("--") || b.startsWith("--")) die("usage: gazette diff <refA|snapshot> <refB|snapshot>");
-    const d = logDiff({ root: process.cwd(), refA: a, refB: b, docsDirAbs: engineDir() });
+    const docsDirAbs = engineDir();
+    const d = logDiff({ root: gitRootFor(docsDirAbs), refA: a, refB: b, docsDirAbs }); // ADR-0003: workspace's own repo
     console.log("diff " + a + " (" + d.commitA.slice(0, 8) + ", seq " + d.fromSeq + ") → " + b + " (" + d.commitB.slice(0, 8) + ", seq " + d.toSeq + "): " + d.newEvents + " new log event(s)");
     for (const t of ["introduce", "edit", "delete", "rename", "split", "confirm-edge", "approve", "reject", "resolve"]) {
       const evs = d.by[t]; if (!evs || !evs.length) continue;
@@ -411,7 +421,7 @@ function runDiff() {
 function runSnapshot() {
   try {
     const action = argv[1];
-    const root = process.cwd(), docsDirAbs = engineDir();
+    const docsDirAbs = engineDir(), root = gitRootFor(docsDirAbs); // ADR-0003: workspace's own repo
     if (action === "create") {
       const name = argv[2];
       if (!name || name.startsWith("--")) die('usage: gazette snapshot create <name> [--note "…"]');

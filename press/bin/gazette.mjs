@@ -10311,7 +10311,7 @@ var require_util = __commonJS({
       return path;
     });
     exports.normalize = normalize3;
-    function join15(aRoot, aPath) {
+    function join16(aRoot, aPath) {
       if (aRoot === "") {
         aRoot = ".";
       }
@@ -10343,7 +10343,7 @@ var require_util = __commonJS({
       }
       return joined;
     }
-    exports.join = join15;
+    exports.join = join16;
     exports.isAbsolute = function(aPath) {
       return aPath.charAt(0) === "/" || urlRegexp.test(aPath);
     };
@@ -10557,7 +10557,7 @@ var require_util = __commonJS({
             parsed.path = parsed.path.substring(0, index + 1);
           }
         }
-        sourceURL = join15(urlGenerate(parsed), sourceURL);
+        sourceURL = join16(urlGenerate(parsed), sourceURL);
       }
       return normalize3(sourceURL);
     }
@@ -11997,8 +11997,8 @@ var require_source_map = __commonJS({
 var require_previous_map = __commonJS({
   "node_modules/postcss/lib/previous-map.js"(exports, module) {
     "use strict";
-    var { existsSync: existsSync11, readFileSync: readFileSync14 } = __require("fs");
-    var { dirname: dirname5, join: join15 } = __require("path");
+    var { existsSync: existsSync12, readFileSync: readFileSync15 } = __require("fs");
+    var { dirname: dirname5, join: join16 } = __require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     function fromBase64(str) {
       if (Buffer) {
@@ -12067,9 +12067,9 @@ var require_previous_map = __commonJS({
           }
         }
         this.root = dirname5(path);
-        if (existsSync11(path)) {
+        if (existsSync12(path)) {
           this.mapFile = path;
-          return readFileSync14(path, "utf-8").toString().trim();
+          return readFileSync15(path, "utf-8").toString().trim();
         }
       }
       loadMap(file, prev) {
@@ -12103,7 +12103,7 @@ var require_previous_map = __commonJS({
           return this.decodeInline(this.annotation);
         } else if (this.annotation) {
           let map = this.annotation;
-          if (file) map = join15(dirname5(file), map);
+          if (file) map = join16(dirname5(file), map);
           let unknown = this.loadFile(map, file, false);
           if (unknown) {
             try {
@@ -12133,7 +12133,7 @@ var require_input = __commonJS({
   "node_modules/postcss/lib/input.js"(exports, module) {
     "use strict";
     var { nanoid } = require_non_secure();
-    var { isAbsolute: isAbsolute3, resolve: resolve6 } = __require("path");
+    var { isAbsolute: isAbsolute3, resolve: resolve7 } = __require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     var { fileURLToPath: fileURLToPath2, pathToFileURL } = __require("url");
     var CssSyntaxError = require_css_syntax_error();
@@ -12141,7 +12141,7 @@ var require_input = __commonJS({
     var terminalHighlight = require_terminal_highlight();
     var lineToIndexCache = Symbol("lineToIndexCache");
     var sourceMapAvailable = Boolean(SourceMapConsumer && SourceMapGenerator);
-    var pathAvailable = Boolean(resolve6 && isAbsolute3);
+    var pathAvailable = Boolean(resolve7 && isAbsolute3);
     function getLineToIndex(input) {
       if (input[lineToIndexCache]) return input[lineToIndexCache];
       let lines = input.css.split("\n");
@@ -12175,7 +12175,7 @@ var require_input = __commonJS({
           if (!pathAvailable || /^\w+:\/\//.test(opts.from) || isAbsolute3(opts.from)) {
             this.file = opts.from;
           } else {
-            this.file = resolve6(opts.from);
+            this.file = resolve7(opts.from);
           }
         }
         if (pathAvailable && sourceMapAvailable) {
@@ -12296,7 +12296,7 @@ var require_input = __commonJS({
         if (/^\w+:\/\//.test(file)) {
           return file;
         }
-        return resolve6(this.map.consumer().sourceRoot || this.map.root || ".", file);
+        return resolve7(this.map.consumer().sourceRoot || this.map.root || ".", file);
       }
       origin(line, column, endLine, endColumn) {
         if (!this.map) return false;
@@ -12480,8 +12480,8 @@ var require_rule = __commonJS({
       }
       set selectors(values) {
         let match2 = this.selector ? this.selector.match(/,\s*/) : null;
-        let sep7 = match2 ? match2[0] : "," + this.raw("between", "beforeOpen");
-        this.selector = values.join(sep7);
+        let sep8 = match2 ? match2[0] : "," + this.raw("between", "beforeOpen");
+        this.selector = values.join(sep8);
       }
       constructor(defaults) {
         super(defaults);
@@ -12555,12 +12555,12 @@ var require_fromJSON = __commonJS({
 var require_map_generator = __commonJS({
   "node_modules/postcss/lib/map-generator.js"(exports, module) {
     "use strict";
-    var { dirname: dirname5, relative: relative6, resolve: resolve6, sep: sep7 } = __require("path");
+    var { dirname: dirname5, relative: relative6, resolve: resolve7, sep: sep8 } = __require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     var { pathToFileURL } = __require("url");
     var Input = require_input();
     var sourceMapAvailable = Boolean(SourceMapConsumer && SourceMapGenerator);
-    var pathAvailable = Boolean(dirname5 && resolve6 && relative6 && sep7);
+    var pathAvailable = Boolean(dirname5 && resolve7 && relative6 && sep8);
     var MapGenerator = class {
       constructor(stringify, root, opts, cssString) {
         this.stringify = stringify;
@@ -12789,7 +12789,7 @@ var require_map_generator = __commonJS({
         if (cached) return cached;
         let from = this.opts.to ? dirname5(this.opts.to) : ".";
         if (typeof this.mapOpts.annotation === "string") {
-          from = dirname5(resolve6(from, this.mapOpts.annotation));
+          from = dirname5(resolve7(from, this.mapOpts.annotation));
         }
         let path = relative6(from, file);
         this.memoizedPaths.set(file, path);
@@ -12864,7 +12864,7 @@ var require_map_generator = __commonJS({
       toUrl(path) {
         let cached = this.memoizedURLs.get(path);
         if (cached) return cached;
-        if (sep7 === "\\") {
+        if (sep8 === "\\") {
           path = path.replace(/\\/g, "/");
         }
         let url = encodeURI(path).replace(/[#?]/g, encodeURIComponent);
@@ -15918,8 +15918,8 @@ and ensure you are accounting for this risk.
 });
 
 // bin/cli.mjs
-import { existsSync as existsSync10, mkdirSync as mkdirSync3, writeFileSync as writeFileSync7, appendFileSync as appendFileSync2, readFileSync as readFileSync13, statSync as statSync2, lstatSync as lstatSync11, readdirSync as readdirSync5, realpathSync as realpathSync5, watch } from "fs";
-import { join as join14, resolve as resolve5, dirname as dirname4, extname as extname2, sep as sep6, relative as relative5 } from "path";
+import { existsSync as existsSync11, mkdirSync as mkdirSync3, writeFileSync as writeFileSync7, appendFileSync as appendFileSync2, readFileSync as readFileSync14, statSync as statSync3, lstatSync as lstatSync12, readdirSync as readdirSync5, realpathSync as realpathSync6, watch } from "fs";
+import { join as join15, resolve as resolve6, dirname as dirname4, extname as extname2, sep as sep7, relative as relative5 } from "path";
 import { createServer } from "http";
 import { spawn } from "child_process";
 
@@ -21776,7 +21776,7 @@ function replaceInGaps(html, fn) {
   }
   return out + fn(html.slice(last));
 }
-function resolveLinks(html, resolve6) {
+function resolveLinks(html, resolve7) {
   const slots = [];
   let h = String(html).replace(SENTINEL, "").replace(PROTECT, (m) => {
     slots.push(m);
@@ -21785,9 +21785,9 @@ function resolveLinks(html, resolve6) {
   h = h.replace(A_WIKI, (_, dq, sq, uq, inner) => {
     const target = decodeEntities((dq != null ? dq : sq != null ? sq : uq != null ? uq : "").trim());
     const label = decodeEntities(stripTags(inner)) || target;
-    return resolve6(target, label);
+    return resolve7(target, label);
   });
-  h = replaceInGaps(h, (gap) => gap.replace(WIKI_RE2_LINK, (_, t, l) => resolve6(decodeEntities(t.trim()), decodeEntities((l || t).trim()))));
+  h = replaceInGaps(h, (gap) => gap.replace(WIKI_RE2_LINK, (_, t, l) => resolve7(decodeEntities(t.trim()), decodeEntities((l || t).trim()))));
   return h.replace(/\uE000(\d+)\uE001/g, (_, i) => slots[+i]);
 }
 var escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -22534,22 +22534,79 @@ function deriveLayout(model) {
 var R = 7;
 var groupColor = (g) => "hsl(" + hash32(g) % 360 + ", 32%, 56%)";
 var fin = (v, d = 0) => Number.isFinite(v) ? v : Number.isFinite(+v) ? +v : d;
-function renderGraphSvg(layout, model) {
+var STATE_FILL = {
+  unbacked: "var(--rust-deep, #a8322a)",
+  unauthorized: "var(--rust-deep, #a8322a)",
+  stale: "var(--rust-deep, #a8322a)",
+  "needs-review": "#b57c14",
+  modified: "var(--accent-deep, #4a5d6e)",
+  current: "var(--ink-soft, #6b7280)"
+};
+function nodeState(st) {
+  if (!st) return "current";
+  if (st.flag === "unbacked" || st.flag === "unauthorized") return st.flag;
+  const f = st.freshness;
+  if (f === "stale" || f === "needs-review" || f === "modified") return f;
+  return "current";
+}
+function renderGraphSvg(layout, model, state = null) {
   const W2 = fin(layout.width, 100) || 100, H2 = fin(layout.height, 100) || 100;
-  let s = '<svg viewBox="0 0 ' + W2 + " " + H2 + '" width="' + W2 + '" height="' + H2 + '" xmlns="http://www.w3.org/2000/svg" font-family="var(--sans)">';
+  let s = '<svg viewBox="0 0 ' + W2 + " " + H2 + '" width="' + W2 + '" height="' + H2 + '" xmlns="http://www.w3.org/2000/svg" font-family="var(--sans)" class="wb-canvas">';
   const placed = (k) => Object.prototype.hasOwnProperty.call(layout.nodes, k);
   for (const e of layout.edges) {
     const a = placed(e.source) ? layout.nodes[e.source] : null, b = placed(e.target) ? layout.nodes[e.target] : null;
     if (!a || !b) continue;
     s += '<line x1="' + fin(a.x) + '" y1="' + fin(a.y) + '" x2="' + fin(b.x) + '" y2="' + fin(b.y) + '" stroke="var(--line-strong)" stroke-width="1" opacity="0.7"/>';
   }
-  for (const id of Object.keys(layout.nodes)) {
+  const ids = Object.keys(layout.nodes);
+  const stateOf = (id) => nodeState(state && Object.prototype.hasOwnProperty.call(state, id) ? state[id] : null);
+  const fillOf = (id) => STATE_FILL[stateOf(id)] || STATE_FILL.current;
+  const box = {};
+  for (const id of ids) {
+    const nd = layout.nodes[id], g = nd.group;
+    const b = box[g] ||= { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity, n: 0, bad: 0 };
+    b.minX = Math.min(b.minX, fin(nd.x));
+    b.minY = Math.min(b.minY, fin(nd.y));
+    b.maxX = Math.max(b.maxX, fin(nd.x));
+    b.maxY = Math.max(b.maxY, fin(nd.y));
+    b.n++;
+    if (stateOf(id) !== "current") b.bad++;
+  }
+  s += '<g class="lod lod--far">';
+  for (const g of Object.keys(box).sort()) {
+    const b = box[g], pad = R * 3;
+    const x = b.minX - pad, y = b.minY - pad, w = b.maxX - b.minX + pad * 2, h = b.maxY - b.minY + pad * 2;
+    s += '<rect x="' + fin(x) + '" y="' + fin(y) + '" width="' + fin(w) + '" height="' + fin(h) + '" rx="10" fill="none" stroke="' + groupColor(g) + '" stroke-width="2" opacity="0.65"/>';
+    s += '<text x="' + fin(x + 8) + '" y="' + fin(y + 20) + '" font-size="15" font-weight="600" fill="var(--ink-soft)">' + escapeHtml2(g || "root") + (b.bad ? " \xB7 " + b.bad + "/" + b.n + " need attention" : " \xB7 " + b.n) + "</text>";
+  }
+  for (const id of ids) {
+    const nd = layout.nodes[id];
+    s += '<circle cx="' + fin(nd.x) + '" cy="' + fin(nd.y) + '" r="' + (R - 2) + '" fill="' + fillOf(id) + '" opacity="0.9"/>';
+  }
+  s += "</g>";
+  s += '<g class="lod lod--mid">';
+  for (const id of ids) {
     const nd = layout.nodes[id];
     const title = model.nodes[id] && model.nodes[id].title || id;
     const nx = fin(nd.x), ny = fin(nd.y);
-    s += '<circle cx="' + nx + '" cy="' + ny + '" r="' + R + '" fill="' + groupColor(nd.group) + '" stroke="var(--paper)" stroke-width="1.5"/>';
+    s += '<circle cx="' + nx + '" cy="' + ny + '" r="' + R + '" fill="' + fillOf(id) + '" stroke="' + groupColor(nd.group) + '" stroke-width="2"/>';
     s += '<text x="' + (nx + R + 3) + '" y="' + (ny + 4) + '" font-size="11" fill="var(--ink-soft)">' + escapeHtml2(title) + "</text>";
   }
+  s += "</g>";
+  s += '<g class="lod lod--near">';
+  for (const id of ids) {
+    const nd = layout.nodes[id];
+    const title = model.nodes[id] && model.nodes[id].title || id;
+    const st = state && Object.prototype.hasOwnProperty.call(state, id) ? state[id] : null;
+    const tier = st && st.trust || model.nodes[id] && (model.nodes[id].trust || model.nodes[id].status) || null;
+    const word = stateOf(id);
+    const nx = fin(nd.x), ny = fin(nd.y);
+    s += '<circle cx="' + nx + '" cy="' + ny + '" r="' + (R + 1) + '" fill="' + fillOf(id) + '" stroke="' + groupColor(nd.group) + '" stroke-width="2"/>';
+    s += '<text x="' + (nx + R + 5) + '" y="' + (ny + 1) + '" font-size="11" font-weight="600" fill="var(--ink)">' + escapeHtml2(title) + "</text>";
+    const sub = [tier ? String(tier) : null, word !== "current" ? word : null].filter(Boolean).join(" \xB7 ");
+    if (sub) s += '<text x="' + (nx + R + 5) + '" y="' + (ny + 13) + '" font-size="9" fill="var(--ink-soft)">' + escapeHtml2(sub) + "</text>";
+  }
+  s += "</g>";
   s += "</svg>";
   return s;
 }
@@ -23996,7 +24053,7 @@ function nfc2(s) {
   return s == null ? s : String(s).normalize("NFC");
 }
 function makeResolve(docs, selfId) {
-  return function resolve6(target, label) {
+  return function resolve7(target, label) {
     const hi = String(target).indexOf("#");
     const sameDoc = hi === 0;
     let docName = hi < 0 ? target : target.slice(0, hi);
@@ -24375,11 +24432,27 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
     if (realTitles.has(nfc(GRAPH_TITLE))) throw new Error('generated-doc title collides with a real document: "' + GRAPH_TITLE + '"');
     layout = deriveLayout(model);
     if (!groups.some((g) => g.id === "graph")) groups.push({ id: "graph", label: "Graph" });
+    const flagByPage = /* @__PURE__ */ new Map();
+    for (const r of fresh.authority && fresh.authority.unauthorized || []) flagByPage.set(r.page, "unauthorized");
+    for (const r of fresh.authority && fresh.authority.unbacked || []) flagByPage.set(r.page, "unbacked");
+    const canvasState = {};
+    for (const key of Object.keys(model.nodes)) {
+      const n = model.nodes[key];
+      canvasState[key] = {
+        freshness: fresh.byKey.get(key) || "current",
+        trust: n.trust || n.status || null,
+        flag: flagByPage.get(key) || null
+      };
+    }
+    const unhealthy = Object.values(canvasState).filter((v) => v.flag || v.freshness && v.freshness !== "current").length;
     docs[nfc(GRAPH_TITLE)] = {
       group: "graph",
       icon: "share",
-      meta: { type: "relationship graph", status: model.nodeCount + " nodes \xB7 " + model.edges.length + " edges" },
-      svg: renderGraphSvg(layout, model)
+      meta: {
+        type: "relationship graph",
+        status: model.nodeCount + " nodes \xB7 " + model.edges.length + " edges" + (unhealthy ? " \xB7 " + unhealthy + " need attention" : "")
+      },
+      svg: renderGraphSvg(layout, model, canvasState)
     };
   }
   for (const cf of corpus.canvasFiles) {
@@ -24926,11 +24999,108 @@ function renderMetricsText(r) {
   return L.join("\n");
 }
 
+// src/core/workspace-map.mjs
+import { existsSync as existsSync9, readFileSync as readFileSync12, statSync as statSync2, lstatSync as lstatSync10, realpathSync as realpathSync4 } from "fs";
+import { join as join13, resolve as resolve4, sep as sep5 } from "path";
+import { homedir } from "os";
+var ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+var MARKER = "bureau.json";
+var ID_FILE = ".bureau-id";
+var safe = (fn, dflt = null) => {
+  try {
+    return fn();
+  } catch {
+    return dflt;
+  }
+};
+var myUid = () => typeof process.getuid === "function" ? process.getuid() : null;
+var groupOrOtherWritable = (mode) => (mode & 18) !== 0;
+function configPath() {
+  const xdg = process.env.XDG_CONFIG_HOME;
+  const base2 = xdg && xdg.startsWith("/") ? xdg : join13(homedir(), ".config");
+  return join13(base2, "bureau", "workspaces.json");
+}
+function pairHint(id) {
+  return "bureau:pair " + id + "  (adds " + id + " \u2192 <path> to " + configPath() + ")";
+}
+function readBureauId(cwd) {
+  const f = join13(cwd, ID_FILE);
+  if (!existsSync9(f) || safe(() => lstatSync10(f).isSymbolicLink(), false)) return null;
+  const raw = safe(() => readFileSync12(f, "utf8"));
+  if (raw == null) return null;
+  const id = raw.trim();
+  return ID_RE.test(id) ? id : null;
+}
+function expandTilde(p) {
+  return p === "~" ? homedir() : p.startsWith("~/") ? join13(homedir(), p.slice(2)) : p;
+}
+function allowlistRoots(rawConfig) {
+  const wanted = [join13(homedir(), "bureaus")];
+  if (rawConfig && Array.isArray(rawConfig.roots)) {
+    for (const r of rawConfig.roots) if (typeof r === "string" && r) wanted.push(expandTilde(r));
+  }
+  const out = [];
+  for (const r of wanted) {
+    const rp = safe(() => realpathSync4(resolve4(r)));
+    if (rp) out.push(rp);
+  }
+  return out;
+}
+function loadWorkspaceMap() {
+  const f = configPath();
+  if (!existsSync9(f)) return { entries: {}, raw: {}, present: false };
+  if (safe(() => lstatSync10(f).isSymbolicLink(), false)) throw new Error(configPath() + " is a symlink (refused)");
+  const st = safe(() => statSync2(f));
+  if (!st) throw new Error("cannot stat " + configPath());
+  const uid = myUid();
+  if (uid != null && st.uid !== uid) throw new Error(configPath() + " is not owned by the current user (refused)");
+  if (groupOrOtherWritable(st.mode)) throw new Error(configPath() + " is group/other-writable \u2014 run `chmod 600 " + configPath() + "`");
+  const v = safe(() => JSON.parse(readFileSync12(f, "utf8")));
+  if (v == null || typeof v !== "object" || Array.isArray(v)) throw new Error(configPath() + " must be a JSON object");
+  const entries = v.workspaces && typeof v.workspaces === "object" && !Array.isArray(v.workspaces) ? v.workspaces : {};
+  return { entries, raw: v, present: true };
+}
+function validateWorkspaceTarget(rawPath, rawConfig) {
+  const p = resolve4(expandTilde(String(rawPath)));
+  if (!existsSync9(p)) return { ok: false, reason: "mapped workspace does not exist: " + p };
+  if (safe(() => lstatSync10(p).isSymbolicLink(), false)) return { ok: false, reason: "mapped workspace is a symlink (refused): " + p };
+  const real = safe(() => realpathSync4(p));
+  if (!real) return { ok: false, reason: "cannot resolve mapped workspace: " + p };
+  const roots = allowlistRoots(rawConfig);
+  if (!roots.some((r) => real === r || real.startsWith(r + sep5))) return { ok: false, reason: "mapped workspace is outside the allowed roots [" + roots.join(", ") + "]: " + real };
+  const markerPath = join13(real, MARKER);
+  if (!existsSync9(markerPath) || safe(() => lstatSync10(markerPath).isSymbolicLink(), true) || !safe(() => statSync2(markerPath).isFile(), false)) return { ok: false, reason: "mapped path has no real " + MARKER + " marker (not a workspace): " + real };
+  const st = safe(() => statSync2(real));
+  if (!st) return { ok: false, reason: "cannot stat mapped workspace: " + real };
+  const uid = myUid();
+  if (uid != null && st.uid !== uid) return { ok: false, reason: "mapped workspace is not owned by the current user (refused): " + real };
+  if (groupOrOtherWritable(st.mode)) return { ok: false, reason: "mapped workspace is group/other-writable \u2014 run `chmod 755 " + real + "`" };
+  return { ok: true, dir: real };
+}
+function resolveWorkspace(cwd) {
+  const id = readBureauId(cwd);
+  if (!id) {
+    if (existsSync9(join13(cwd, ID_FILE))) return { mode: "rejected", id: null, reason: ".bureau-id is present but not a valid opaque token (must be a real file holding one [A-Za-z0-9._-] id)" };
+    return { mode: "in-repo" };
+  }
+  let loaded;
+  try {
+    loaded = loadWorkspaceMap();
+  } catch (e) {
+    return { mode: "rejected", id, reason: e.message };
+  }
+  const entry = loaded.entries[id];
+  if (!entry || typeof entry.path !== "string") return { mode: "unpaired", id, hint: pairHint(id) };
+  const check = validateWorkspaceTarget(entry.path, loaded.raw);
+  if (!check.ok) return { mode: "rejected", id, reason: check.reason };
+  return { mode: "external", dir: check.dir, id };
+}
+
 // src/engine/versions.mjs
 import { execFileSync as execFileSync3 } from "child_process";
-import { mkdtempSync, rmSync as rmSync2, existsSync as existsSync9, readFileSync as readFileSync12, writeFileSync as writeFileSync6, renameSync as renameSync6, lstatSync as lstatSync10, realpathSync as realpathSync4 } from "fs";
+import { mkdtempSync, rmSync as rmSync2, existsSync as existsSync10, readFileSync as readFileSync13, writeFileSync as writeFileSync6, renameSync as renameSync6, lstatSync as lstatSync11, realpathSync as realpathSync5 } from "fs";
 import { tmpdir } from "os";
-import { join as join13, relative as relative4, resolve as resolve4, sep as sep5, isAbsolute as isAbsolute2 } from "path";
+import { join as join14, relative as relative4, resolve as resolve5, sep as sep6, isAbsolute as isAbsolute2 } from "path";
 var SNAPSHOTS_BASENAME = "_snapshots.json";
 var GIT_MAXBUF = 64 * 1024 * 1024;
 var gitText = (root, args) => execFileSync3("git", ["-C", root, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: GIT_MAXBUF });
@@ -24941,11 +25111,19 @@ function resolveRef(root, ref) {
     throw new Error("not a valid git ref: " + ref);
   }
 }
+function gitRootFor(workspaceAbs) {
+  try {
+    return gitText(workspaceAbs, ["rev-parse", "--show-toplevel"]).trim();
+  } catch {
+    throw new Error("workspace is not inside a git repository: " + workspaceAbs);
+  }
+}
 function repoObjectPath(root, absPath) {
-  const top = realpathSync4(gitText(root, ["rev-parse", "--show-toplevel"]).trim());
-  const rel = relative4(top, realpathSync4(resolve4(absPath)));
-  if (rel === "" || rel.startsWith("..") || isAbsolute2(rel)) throw new Error("path is outside the git repository: " + absPath);
-  return rel.split(sep5).join("/");
+  const top = realpathSync5(gitText(root, ["rev-parse", "--show-toplevel"]).trim());
+  const rel = relative4(top, realpathSync5(resolve5(absPath)));
+  if (rel === "") throw new Error("the workspace is the git top-level (" + top + ") \u2014 nest it under a git root so it is a child (e.g. PROJ/canon); the versioned board addresses the workspace as a path inside its repo, and the root itself has no such path");
+  if (rel.startsWith("..") || isAbsolute2(rel)) throw new Error("path is outside the git repository: " + absPath);
+  return rel.split(sep6).join("/");
 }
 function showFile(root, ref, objectPath) {
   try {
@@ -24975,12 +25153,12 @@ function readLogAt(root, ref, objectPath) {
 }
 var logHead = (events) => events.length ? events[events.length - 1].seq : 0;
 function overlaps(a, b) {
-  const A = resolve4(a), B = resolve4(b);
-  return A === B || A.startsWith(B + sep5) || B.startsWith(A + sep5);
+  const A = resolve5(a), B = resolve5(b);
+  return A === B || A.startsWith(B + sep6) || B.startsWith(A + sep6);
 }
 function within(child, parent) {
-  const C = resolve4(child), P = resolve4(parent);
-  return C === P || C.startsWith(P + sep5);
+  const C = resolve5(child), P = resolve5(parent);
+  return C === P || C.startsWith(P + sep6);
 }
 function buildAtRef({ root, ref, docsDirAbs, dataDirAbs, outDirAbs, now, buildSite: buildSite2 }) {
   const sha = resolveRef(root, ref);
@@ -24988,13 +25166,13 @@ function buildAtRef({ root, ref, docsDirAbs, dataDirAbs, outDirAbs, now, buildSi
   if (overlaps(outDirAbs, docsDirAbs)) throw new Error("refusing build --at: --out overlaps the live content dir (" + docsDirAbs + ")");
   if (dataDirAbs && overlaps(outDirAbs, dataDirAbs)) throw new Error("refusing build --at: --out overlaps the live data dir (" + dataDirAbs + ")");
   if (within(root, outDirAbs)) throw new Error("refusing build --at: --out is the repo root or an ancestor of it (" + outDirAbs + ")");
-  const parent = mkdtempSync(join13(tmpdir(), "bureau-at-"));
-  const wt = join13(parent, "wt");
+  const parent = mkdtempSync(join14(tmpdir(), "bureau-at-"));
+  const wt = join14(parent, "wt");
   try {
     execFileSync3("git", ["-C", root, "worktree", "add", "--detach", "--quiet", wt, sha], { stdio: ["ignore", "ignore", "pipe"] });
-    const wtDocs = join13(wt, ...objectPath.split("/"));
-    if (!existsSync9(wtDocs)) throw new Error("content dir '" + objectPath + "' does not exist at " + ref + " (" + sha.slice(0, 8) + ")");
-    const wtData = dataDirAbs ? join13(wt, ...objectPath.split("/"), "_data") : void 0;
+    const wtDocs = join14(wt, ...objectPath.split("/"));
+    if (!existsSync10(wtDocs)) throw new Error("content dir '" + objectPath + "' does not exist at " + ref + " (" + sha.slice(0, 8) + ")");
+    const wtData = dataDirAbs ? join14(wt, ...objectPath.split("/"), "_data") : void 0;
     return { ...buildSite2({ root: wt, docsDir: wtDocs, dataDir: wtData, outDir: outDirAbs, now, force: true }), ref, commit: sha };
   } finally {
     try {
@@ -25046,17 +25224,17 @@ function logDiff({ root, refA, refB, docsDirAbs }) {
   return { commitA: shaA, commitB: shaB, fromSeq: logHead(a), toSeq: logHead(b), newEvents: fresh.length, by, artifactDrift };
 }
 function snapshotsPath(docsDirAbs) {
-  return join13(docsDirAbs, SNAPSHOTS_BASENAME);
+  return join14(docsDirAbs, SNAPSHOTS_BASENAME);
 }
 function validSnapshot(s) {
   return s && typeof s === "object" && !Array.isArray(s) && typeof s.name === "string" && typeof s.commit === "string" && s.commit.length >= 7;
 }
 function readSnapshots(docsDirAbs) {
   const p = snapshotsPath(docsDirAbs);
-  if (!existsSync9(p)) return [];
+  if (!existsSync10(p)) return [];
   let v;
   try {
-    v = JSON.parse(readFileSync12(p, "utf8"));
+    v = JSON.parse(readFileSync13(p, "utf8"));
   } catch (e) {
     throw new Error(SNAPSHOTS_BASENAME + " is not valid JSON: " + e.message);
   }
@@ -25074,7 +25252,7 @@ function snapshotCreate({ root, docsDirAbs, name, note, digest }) {
   const dirty = gitText(root, ["status", "--porcelain", "--", objectPath]).split("\n").filter((l) => l.trim() && !l.trimEnd().endsWith("/" + SNAPSHOTS_BASENAME));
   if (dirty.length) throw new Error("workspace has uncommitted changes \u2014 commit before snapshotting (a snapshot pins a commit):\n" + dirty.join("\n"));
   const file = snapshotsPath(docsDirAbs);
-  if (existsSync9(file) && lstatSync10(file).isSymbolicLink()) throw new Error(SNAPSHOTS_BASENAME + " is a symlink (refused)");
+  if (existsSync10(file) && lstatSync11(file).isSymbolicLink()) throw new Error(SNAPSHOTS_BASENAME + " is a symlink (refused)");
   return withLock(file, () => {
     const snaps = readSnapshots(docsDirAbs);
     if (snaps.some((s) => s.name === name)) throw new Error('snapshot "' + name + '" already exists');
@@ -25112,9 +25290,13 @@ function dirArg() {
 function contentDir() {
   const explicit = dirArg();
   if (explicit) return explicit;
+  const res = resolveWorkspace(process.cwd());
+  if (res.mode === "external") return res.dir;
+  if (res.mode === "unpaired") die("this repo's bureau workspace is external but its .bureau-id ('" + res.id + "') is not paired on this machine \u2014 run: " + res.hint);
+  if (res.mode === "rejected") die("this repo's external bureau workspace was refused: " + res.reason);
   try {
     const root = process.cwd();
-    const ws = readdirSync5(root, { withFileTypes: true }).filter((d) => d.isDirectory() && !d.name.startsWith(".") && existsSync10(join14(root, d.name, "bureau.json"))).map((d) => d.name);
+    const ws = readdirSync5(root, { withFileTypes: true }).filter((d) => d.isDirectory() && !d.name.startsWith(".") && existsSync11(join15(root, d.name, "bureau.json"))).map((d) => d.name);
     if (ws.length === 1) return ws[0];
   } catch {
   }
@@ -25185,7 +25367,7 @@ function watchTree(dir, cb) {
     for (const ent of entries) {
       if (!ent.isDirectory() || ent.isSymbolicLink()) continue;
       if (ent.name.startsWith("_") || ent.name.startsWith(".") || ent.name === "dist" || ent.name === "node_modules") continue;
-      walk4(join14(d, ent.name));
+      walk4(join15(d, ent.name));
     }
   };
   walk4(dir);
@@ -25193,8 +25375,8 @@ function watchTree(dir, cb) {
 }
 function runWatch() {
   const root = process.cwd();
-  const docsDir = resolve5(root, contentDir());
-  const dataDir = dataArg() ? resolve5(root, dataArg()) : void 0;
+  const docsDir = resolve6(root, contentDir());
+  const dataDir = dataArg() ? resolve6(root, dataArg()) : void 0;
   const build = () => {
     try {
       const r = buildSite({ root, docsDir, dataDir, outDir: opt("out"), now: nowArg(), force: true });
@@ -25209,10 +25391,10 @@ function runWatch() {
     clearTimeout(timer);
     timer = setTimeout(build, 150);
   };
-  if (existsSync10(docsDir)) watchTree(docsDir, trigger);
+  if (existsSync11(docsDir)) watchTree(docsDir, trigger);
   for (const f of ["theme.json", "theme.css"]) {
-    const p = join14(root, f);
-    if (existsSync10(p)) watch(p, trigger);
+    const p = join15(root, f);
+    if (existsSync11(p)) watch(p, trigger);
   }
   console.log("\u{1F440} watching " + relative5(root, docsDir) + " + theme (Ctrl-C to stop)");
 }
@@ -25220,7 +25402,7 @@ function runRename() {
   const from = argv[1], to = argv[2];
   if (!from || !to || from.startsWith("--") || to.startsWith("--")) die('usage: gazette rename "<old title>" "<new title>" [--dry]');
   try {
-    const docsDir = resolve5(process.cwd(), contentDir());
+    const docsDir = resolve6(process.cwd(), contentDir());
     const plan = planRename({ docsDir, from, to });
     if (!plan.edits.length) {
       console.log("no changes.");
@@ -25240,8 +25422,8 @@ function runRename() {
 function runDoctor() {
   try {
     const root = process.cwd();
-    const docsDir = resolve5(root, contentDir());
-    const { model, health } = computeHealth({ docsDir, dataDir: dataArg() ? resolve5(root, dataArg()) : void 0, now: nowArg() });
+    const docsDir = resolve6(root, contentDir());
+    const { model, health } = computeHealth({ docsDir, dataDir: dataArg() ? resolve6(root, dataArg()) : void 0, now: nowArg() });
     const fixes = buildRepairPlan(model, health);
     const applied = argv.includes("--apply") ? applySafe(docsDir, fixes, model) : [];
     console.log(renderRepairText(fixes, applied));
@@ -25254,8 +25436,8 @@ function runHealth() {
   try {
     const root = process.cwd();
     const { health } = computeHealth({
-      docsDir: resolve5(root, contentDir()),
-      dataDir: dataArg() ? resolve5(root, dataArg()) : void 0,
+      docsDir: resolve6(root, contentDir()),
+      dataDir: dataArg() ? resolve6(root, dataArg()) : void 0,
       now: nowArg()
     });
     console.log(renderHealthText(health));
@@ -25267,15 +25449,15 @@ function runHealth() {
 function runInit() {
   const root = process.cwd();
   const base2 = dirArg() || "gazette";
-  const dir = resolve5(root, base2);
+  const dir = resolve6(root, base2);
   try {
-    if (lstatSync11(dir).isSymbolicLink()) die("content directory is a symlink (refused): " + base2);
+    if (lstatSync12(dir).isSymbolicLink()) die("content directory is a symlink (refused): " + base2);
   } catch {
   }
   mkdirSync3(dir, { recursive: true });
   const writeIf = (rel, content) => {
-    const p = join14(dir, rel);
-    if (existsSync10(p)) {
+    const p = join15(dir, rel);
+    if (existsSync11(p)) {
       console.log("\xB7 exists, skipping: " + base2 + "/" + rel);
       return;
     }
@@ -25295,19 +25477,19 @@ function runInit() {
     "</article>",
     ""
   ].join("\n"));
-  writeIf(join14("characters", "lin.html"), [
+  writeIf(join15("characters", "lin.html"), [
     '<article data-icon="user" data-status="draft">',
     "  <h1>Lin</h1>",
     "  <p>A doc in <code>characters/</code> \u2192 the \u201CCharacters\u201D sidebar section. Back to [[Overview]].</p>",
     "</article>",
     ""
   ].join("\n"));
-  const giPath = join14(root, ".gitignore");
+  const giPath = join15(root, ".gitignore");
   try {
-    if (lstatSync11(giPath).isSymbolicLink()) die(".gitignore is a symlink (refused): " + giPath);
+    if (lstatSync12(giPath).isSymbolicLink()) die(".gitignore is a symlink (refused): " + giPath);
   } catch {
   }
-  const has2 = existsSync10(giPath) && readFileSync13(giPath, "utf8").split(/\r?\n/).some((l) => l.trim() === "dist/");
+  const has2 = existsSync11(giPath) && readFileSync14(giPath, "utf8").split(/\r?\n/).some((l) => l.trim() === "dist/");
   if (!has2) {
     appendFileSync2(giPath, "dist/\n");
     console.log("+ .gitignore: dist/");
@@ -25320,17 +25502,17 @@ function runNew() {
   const titleArg = argv[2] && !argv[2].startsWith("--") ? argv[2] : null;
   const root = process.cwd();
   const base2 = dirArg() || "gazette";
-  const dir = resolve5(root, base2);
-  if (!existsSync10(dir)) die("no " + base2 + "/ here \u2014 run `gazette init` first");
+  const dir = resolve6(root, base2);
+  if (!existsSync11(dir)) die("no " + base2 + "/ here \u2014 run `gazette init` first");
   const rel = target.replace(/\\/g, "/").replace(/\.html$/, "") + ".html";
-  const fp = resolve5(dir, rel);
-  if (!(fp === dir || fp.startsWith(dir + sep6))) die("path escapes the content dir: " + target);
-  if (existsSync10(fp)) die("already exists: " + base2 + "/" + rel);
-  const dirReal = realpathSync5(dir);
+  const fp = resolve6(dir, rel);
+  if (!(fp === dir || fp.startsWith(dir + sep7))) die("path escapes the content dir: " + target);
+  if (existsSync11(fp)) die("already exists: " + base2 + "/" + rel);
+  const dirReal = realpathSync6(dir);
   let anc = dirname4(fp);
-  while (!existsSync10(anc) && anc !== dirname4(anc)) anc = dirname4(anc);
-  const ancReal = realpathSync5(anc);
-  if (!(ancReal === dirReal || ancReal.startsWith(dirReal + sep6))) die("path escapes the content dir (via symlink): " + target);
+  while (!existsSync11(anc) && anc !== dirname4(anc)) anc = dirname4(anc);
+  const ancReal = realpathSync6(anc);
+  if (!(ancReal === dirReal || ancReal.startsWith(dirReal + sep7))) die("path escapes the content dir (via symlink): " + target);
   const title = titleArg || prettify(rel.split("/").pop().replace(/\.html$/, ""));
   mkdirSync3(dirname4(fp), { recursive: true });
   writeFileSync7(fp, '<article data-updated="' + today() + '">\n  <h1>' + escapeHtml2(title) + "</h1>\n  <p></p>\n</article>\n");
@@ -25338,7 +25520,7 @@ function runNew() {
 }
 function runOpen() {
   const r = runBuild();
-  const idx = join14(r.outDir, "index.html");
+  const idx = join15(r.outDir, "index.html");
   const win = process.platform === "win32";
   const opener = process.platform === "darwin" ? "open" : win ? "rundll32" : "xdg-open";
   const args = win ? ["url.dll,FileProtocolHandler", idx] : [idx];
@@ -25373,9 +25555,9 @@ function runServe() {
   const port = +opt("port", "8080");
   if (!Number.isInteger(port) || port < 1 || port > 65535) die("--port must be an integer in 1-65535 (got: " + opt("port", "8080") + ")");
   const root = process.cwd();
-  const docsDir = resolve5(root, contentDir());
-  const dataDir = dataArg() ? resolve5(root, dataArg()) : void 0;
-  const out = resolve5(root, opt("out") || "dist");
+  const docsDir = resolve6(root, contentDir());
+  const dataDir = dataArg() ? resolve6(root, dataArg()) : void 0;
+  const out = resolve6(root, opt("out") || "dist");
   const doBuild = () => {
     try {
       return buildSite({ root, docsDir, dataDir, outDir: opt("out"), now: nowArg(), force: true });
@@ -25385,8 +25567,8 @@ function runServe() {
     }
   };
   if (!doBuild()) die("initial build failed \u2014 fix the error above and re-run");
-  const outReal = realpathSync5(out);
-  const within2 = (q, base2) => q === base2 || q.startsWith(base2 + sep6);
+  const outReal = realpathSync6(out);
+  const within2 = (q, base2) => q === base2 || q.startsWith(base2 + sep7);
   const clients = /* @__PURE__ */ new Set();
   const server = createServer((req, res) => {
     const url = (req.url || "/").split("?")[0];
@@ -25416,31 +25598,31 @@ function runServe() {
     }
     try {
       if (p === "/" || p.endsWith("/")) p += "index.html";
-      const fp = resolve5(out, "." + p);
-      if (!within2(fp, out) || !existsSync10(fp) || statSync2(fp).isDirectory()) {
+      const fp = resolve6(out, "." + p);
+      if (!within2(fp, out) || !existsSync11(fp) || statSync3(fp).isDirectory()) {
         res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
         res.end("404 " + p);
         return;
       }
-      const real = realpathSync5(fp);
+      const real = realpathSync6(fp);
       if (!within2(real, outReal)) {
         res.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
         res.end("403");
         return;
       }
-      if (!statSync2(real).isFile()) {
+      if (!statSync3(real).isFile()) {
         res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
         res.end("404 " + p);
         return;
       }
       if (extname2(real) === ".html") {
-        const html = readFileSync13(real, "utf8").replace("connect-src 'none'", "connect-src 'self'").replace("</body>", '<script src="/__wb_reload.js"></script></body>');
+        const html = readFileSync14(real, "utf8").replace("connect-src 'none'", "connect-src 'self'").replace("</body>", '<script src="/__wb_reload.js"></script></body>');
         res.writeHead(200, { "content-type": MIME[".html"] });
         res.end(html);
         return;
       }
       res.writeHead(200, { "content-type": MIME[extname2(real)] || "application/octet-stream" });
-      res.end(readFileSync13(real));
+      res.end(readFileSync14(real));
     } catch (e) {
       res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
       res.end("500");
@@ -25463,21 +25645,21 @@ function runServe() {
       }
     }, 150);
   };
-  if (existsSync10(docsDir)) watchTree(docsDir, trigger);
+  if (existsSync11(docsDir)) watchTree(docsDir, trigger);
   for (const f of ["theme.json", "theme.css"]) {
-    const p = join14(root, f);
-    if (existsSync10(p)) watch(p, trigger);
+    const p = join15(root, f);
+    if (existsSync11(p)) watch(p, trigger);
   }
 }
 function engineDir() {
-  return resolve5(process.cwd(), contentDir());
+  return resolve6(process.cwd(), contentDir());
 }
 function runBuildAt(ref) {
   try {
-    const root = process.cwd();
     const docsDirAbs = engineDir();
+    const root = gitRootFor(docsDirAbs);
     const sha = resolveSnapshotOrRef({ root, docsDirAbs, ref });
-    const outDirAbs = resolve5(root, opt("out") || "dist-at-" + sha.slice(0, 12));
+    const outDirAbs = resolve6(process.cwd(), opt("out") || "dist-at-" + sha.slice(0, 12));
     const r = buildAtRef({ root, ref: sha, docsDirAbs, outDirAbs, now: nowArg(), buildSite });
     console.log("\u2713 build @" + ref + " (" + r.commit.slice(0, 8) + "): " + r.fileDocCount + " documents (" + r.totalDocs + " pages) -> " + r.outDir);
   } catch (e) {
@@ -25488,7 +25670,8 @@ function runDiff() {
   try {
     const a = argv[1], b = argv[2];
     if (!a || !b || a.startsWith("--") || b.startsWith("--")) die("usage: gazette diff <refA|snapshot> <refB|snapshot>");
-    const d = logDiff({ root: process.cwd(), refA: a, refB: b, docsDirAbs: engineDir() });
+    const docsDirAbs = engineDir();
+    const d = logDiff({ root: gitRootFor(docsDirAbs), refA: a, refB: b, docsDirAbs });
     console.log("diff " + a + " (" + d.commitA.slice(0, 8) + ", seq " + d.fromSeq + ") \u2192 " + b + " (" + d.commitB.slice(0, 8) + ", seq " + d.toSeq + "): " + d.newEvents + " new log event(s)");
     for (const t of ["introduce", "edit", "delete", "rename", "split", "confirm-edge", "approve", "reject", "resolve"]) {
       const evs = d.by[t];
@@ -25505,11 +25688,11 @@ function runDiff() {
 function runSnapshot() {
   try {
     const action = argv[1];
-    const root = process.cwd(), docsDirAbs = engineDir();
+    const docsDirAbs = engineDir(), root = gitRootFor(docsDirAbs);
     if (action === "create") {
       const name = argv[2];
       if (!name || name.startsWith("--")) die('usage: gazette snapshot create <name> [--note "\u2026"]');
-      const digest = existsSync10(logPath(docsDirAbs)) ? fsck({ docsDir: docsDirAbs, write: false }).digest : null;
+      const digest = existsSync11(logPath(docsDirAbs)) ? fsck({ docsDir: docsDirAbs, write: false }).digest : null;
       const e = snapshotCreate({ root, docsDirAbs, name, note: opt("note"), digest });
       console.log('\u2713 snapshot "' + e.name + '" \u2192 commit ' + e.commit.slice(0, 8) + ", log seq " + e.seq + (e.digest ? ", digest " + e.digest.slice(0, 12) : "") + "  (commit + push to preserve)");
     } else if (action === "list" || action == null) {

@@ -15,6 +15,9 @@
 //     headless-`claude -p` summary written BEFORE the context thins.
 import { existsSync, mkdirSync, writeFileSync, readSync, writeSync, statSync, realpathSync, openSync, closeSync, lstatSync, opendirSync, constants as FS } from "fs";
 import { join, dirname, sep } from "path";
+// ADR-0003: resolve an EXTERNAL workspace from the user-local mapping keyed by the repo's path-free
+// .bureau-id. Builtin-only import — safe for this standalone hook. No .bureau-id ⇒ in-repo mode.
+import { resolveWorkspace } from "../press/src/core/workspace-map.mjs";
 
 // O_NOFOLLOW closes the lstat→use race atomically: open fails outright if the final path component
 // is a symlink, so a link swapped in after the pre-check can't redirect the read/append. It's POSIX;
@@ -77,7 +80,14 @@ function main() {
   const p = readPayload();
   if ((p.source || p.trigger) !== "compact") return; // only act on a post-compaction start
   const cwd = process.cwd(); // TRUSTED working dir, not payload
-  const wsDir = workspaceDir(cwd); // auto-detected by the bureau.json marker
+  // No .bureau-id → in-tree scan (unchanged). A .bureau-id → the user-local mapping (ADR-0003): the
+  // validated EXTERNAL target; unpaired/rejected ⇒ no-op (say why on stderr), never the cwd fallback.
+  const res = safe(() => resolveWorkspace(cwd), { mode: "in-repo" });
+  let wsDir = null;
+  if (res.mode === "external") wsDir = res.dir;
+  else if (res.mode === "in-repo") wsDir = workspaceDir(cwd);
+  else if (res.mode === "unpaired") { safe(() => process.stderr.write("bureau scribe-checkpoint: .bureau-id '" + res.id + "' is not paired — run: " + res.hint + "\n"), null); return; }
+  else { safe(() => process.stderr.write("bureau scribe-checkpoint: external workspace refused (" + res.reason + ")\n"), null); return; }
   if (!wsDir) return; // not a bureau workspace (or ambiguous) → no-op
 
   const sessionId = safeId(p.session_id || p.sessionId);

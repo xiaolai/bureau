@@ -196,3 +196,15 @@ body {
 .wb-embed-body > :first-child { margin-top: 12px; }
 .wb-embed-img { max-width: 100%; height: auto; border-radius: 8px; display: block; margin: 16px auto; box-shadow: var(--shadow); }
 .wb-embed-missing { font-family: var(--sans); font-size: 13px; color: var(--rust); }
+
+/* ── canvas projection: level-of-detail tiers (ADR-0002) ─────────────────────────────
+   All three tiers ship in the one static SVG; the runtime sets data-lod on the pan/zoom
+   host from the current zoom scale. DEFAULT (no JS, no data-lod) = mid, which is exactly
+   the pre-LOD render — the projection is strictly additive, never a regression. */
+.wb-canvas .lod { display: none; }
+.wb-canvas .lod--mid { display: inline; }
+.mmd-has-pz[data-lod="far"] .wb-canvas .lod--far { display: inline; }
+.mmd-has-pz[data-lod="far"] .wb-canvas .lod--mid { display: none; }
+.mmd-has-pz[data-lod="mid"] .wb-canvas .lod--mid { display: inline; }
+.mmd-has-pz[data-lod="near"] .wb-canvas .lod--near { display: inline; }
+.mmd-has-pz[data-lod="near"] .wb-canvas .lod--mid { display: none; }

@@ -84,7 +84,7 @@ See [`live-and-versioned-board.md`](live-and-versioned-board.md).
 | path | class | committed? |
 |---|---|---|
 | `<workspace>/*.md`, `_config.json`, `bureau.json` | **source** | yes |
-| `<workspace>/_log.jsonl` | **source of truth** (decision log; tamper-evident) | yes |
+| `<workspace>/_log.jsonl` | **source of truth** (decision log; hash-chained — detects naive edits, unsigned) | yes |
 | `<workspace>/_verify.json`, `_compile-state.json`, `_snapshots.json` | **decision inputs** (trust ledgers, snapshot manifest) | yes |
 | `.bureau-cache/` (repo-root sibling) | **derived** gate cache (regenerable by `fsck`) | **no** (gitignored) |
 | `<board>/` (default `gazette/`) | **derived** rendered board | **no** (gitignored) |

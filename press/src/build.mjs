@@ -334,10 +334,29 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
     if (realTitles.has(nfc(GRAPH_TITLE))) throw new Error('generated-doc title collides with a real document: "' + GRAPH_TITLE + '"');
     layout = deriveLayout(model);
     if (!groups.some((g) => g.id === "graph")) groups.push({ id: "graph", label: "Graph" });
+    // Canvas-projection state (ADR-0002): freshness + tier + an unearned-canonical flag, per node.
+    // Built from the SAME liveFreshness snapshot that drives the badges and the Health page, so the
+    // map can never disagree with the rest of the board.
+    const flagByPage = new Map();
+    for (const r of (fresh.authority && fresh.authority.unauthorized) || []) flagByPage.set(r.page, "unauthorized");
+    for (const r of (fresh.authority && fresh.authority.unbacked) || []) flagByPage.set(r.page, "unbacked");
+    const canvasState = {};
+    for (const key of Object.keys(model.nodes)) {
+      const n = model.nodes[key];
+      canvasState[key] = {
+        freshness: fresh.byKey.get(key) || "current",
+        trust: n.trust || n.status || null,
+        flag: flagByPage.get(key) || null,
+      };
+    }
+    const unhealthy = Object.values(canvasState).filter((v) => v.flag || (v.freshness && v.freshness !== "current")).length;
     docs[nfc(GRAPH_TITLE)] = {
       group: "graph", icon: "share",
-      meta: { type: "relationship graph", status: model.nodeCount + " nodes · " + model.edges.length + " edges" },
-      svg: renderGraphSvg(layout, model),
+      meta: {
+        type: "relationship graph",
+        status: model.nodeCount + " nodes · " + model.edges.length + " edges" + (unhealthy ? " · " + unhealthy + " need attention" : ""),
+      },
+      svg: renderGraphSvg(layout, model, canvasState),
     };
   }
 

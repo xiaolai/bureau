@@ -177,6 +177,38 @@ consistent. Run `bureau:serve --watch` to rebuild the gazette as you edit.
 
 ---
 
+## Generated views — pages the press builds for you
+
+Besides your dossiers, the board carries pages the press *generates*. They are read-only and rebuilt
+every time; you never author them by hand. Each renders to an SVG you can **pan and zoom** in the
+gazette.
+
+| View | Where it comes from | On by default? |
+|---|---|---|
+| **Graph** | your `[[wiki-links]]` — the press derives the topology and lays it out deterministically | yes (set `graph.enabled: false` in `_config.json` to hide it; a WebGL/semantic-zoom upgrade kicks in past ~500 nodes) |
+| **Canvas · \<name\>** | a `.canvas` file you put in the workspace — see below | yes, one page per `.canvas` file |
+| **Code map** | a module-LOC treemap + an import-dependency graph of a code directory | no — set `code.dir` in `_config.json` to point at a code dir |
+| **Evolution** | git history of the workspace | no — set `temporal.enabled` (the signal is thin below ~200 commits) |
+
+### Curated canvases (`.canvas`)
+
+Drop a **[JSON Canvas](https://jsoncanvas.org)** file — the open format Obsidian Canvas writes —
+anywhere in the workspace and it becomes a board page titled `Canvas · <path>`, filed under a
+**Canvas** sidebar group.
+
+- **Your layout is the truth.** Node positions are rendered exactly as authored — never re-laid-out.
+  This is the deliberate opposite of the **Graph** view, which the press lays out itself. Use Canvas
+  when the *arrangement* carries meaning; use Graph when you want the link structure discovered for you.
+- **Read-only in bureau.** The gazette renders and pans/zooms a canvas; it does not edit one. Author
+  it in whatever tool writes JSON Canvas, commit the file, and the board picks it up.
+- Files starting with `_` are skipped (same rule as dossiers). A malformed `.canvas` is skipped with a
+  warning rather than failing the build — so a broken file costs you that one page, not the gazette.
+- A canvas is **not** part of the canon: it carries no trust tier, no `rests_on` edges, and the
+  recursion engine ignores it. It is presentation, not a claim. Anything durable it depicts still has
+  to reach the canon the normal way — capture → compile → review.
+
+---
+
 ## Maintenance
 
 - **`bureau:status`** is your dashboard: how many sessions are uncompiled, how many dossiers await
@@ -218,6 +250,7 @@ your-repo/
   canon/               the workspace (committed — this IS your memory; default name)
     decisions/ …       cabinet drawers (the canon)
     logbook/           append-only session history
+    *.canvas           optional JSON Canvas files → read-only "Canvas · …" board pages
     _config.json       render config (title/home/provenance + sidebar order — see below)
     _log.jsonl         the decision log (committed — source of truth for the freshness engine)
   bureau/crew/         the crew you enabled/authored — bureau's control dir, never rendered
