@@ -16,8 +16,11 @@ the answer so an unverified claim can never masquerade as fact.
    `bureau:init` first and stop.
 2. **Find the pages that bear on it.** Search the cabinet drawers for pages on the question — by
    title, by drawer topic, and by following `[[links]]` between pages. EXCLUDE `logbook/`,
-   `board/`, `lint/`, and every `_`-prefixed entry (those are history, output, or state, not
-   canon).
+   `lint/`, `crew/`, and every `_`-prefixed entry (history, source-of-agents, or state, not canon)
+   — plus, **only in the contained layout** (a workspace named `bureau`), the
+   configured board dir (`bureau.json.board`, default `gazette`), which there nests inside the
+   workspace. In a default-layout workspace the board renders outside, so a same-named child is
+   ordinary content — do NOT exclude it.
 3. **Check freshness (the recursion engine).** Run
    `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" gate --dir <workspace>` and note which of the
    pages you're about to use are `needs-review` (they rest on a changed upstream claim) or `stale`

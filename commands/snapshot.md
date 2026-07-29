@@ -15,7 +15,9 @@ separately — no shell string interpolation.
 
 ## Sub-actions
 
-Parse `$ARGUMENTS`. The first token selects the action; default (no args) is `list`.
+Parse `$ARGUMENTS`. The first token selects the action; default (no args) is `list`. If the first
+token isn't one of `list`, `create`, `diff`, or `at`, report the valid actions and stop — never
+guess at a near match.
 
 ### `list` (default)
 
@@ -83,5 +85,5 @@ assistant: "Between v1.0 (seq 20) and v1.1 (seq 27): 7 new log events — 4 span
 ## Scope note
 
 This command ONLY versions the board (render-at / diff / pin). It does not capture, compile, review,
-or lint — those move claims through the gate. It is invoked by `bureau:snapshot` and wraps the press's
-`build --at`, `diff`, and `snapshot` verbs.
+or lint — those move claims through the gate. Invoked as the `/bureau:snapshot` slash command, it
+wraps the press's `build --at`, `diff`, and `snapshot` verbs.

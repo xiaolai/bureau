@@ -120,3 +120,19 @@ test("crew: unsafe names refused at every entry point; a bad pre-existing dir fa
   assert.equal(c.status, 1, "unsafe pre-existing member dir fails check");
   assert.match(c.stdout, /unsafe member dir/);
 });
+
+test("crew: contained layout — a workspace NAMED `bureau` (marker-based) resolves for {{WORKSPACE}}", (t) => {
+  // No canon/: the repo's single marker-carrying dir IS `bureau/` (the contained layout, where the
+  // crew source nests inside the workspace at bureau/crew/). detectWorkspace must resolve it by its
+  // bureau.json marker — not exclude it by name and silently fall back to the `canon` default.
+  const r = mkdtempSync(join(tmpdir(), "bureau-crew-contained-"));
+  t.after(() => rmSync(r, { recursive: true, force: true }));
+  mkdirSync(join(r, "bureau"), { recursive: true });
+  writeFileSync(join(r, "bureau", "bureau.json"), JSON.stringify({ workspace: "bureau", board: "gazette" }));
+  writeFileSync(join(r, "BUREAU.md"), "# bureau\n\nrepo instructions.\n");
+  assert.equal(crew(r, "enable", "auditor").status, 0);
+  const brief = readFileSync(join(r, "bureau", "crew", "auditor", "brief.md"), "utf8");
+  assert.match(brief, /`bureau\/`/, "{{WORKSPACE}} substituted with the contained workspace name");
+  assert.ok(!/canon\//.test(brief), "did not fall back to the `canon` default");
+  assert.equal(crew(r, "check").status, 0, "contained-layout crew is in sync");
+});

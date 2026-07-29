@@ -17,14 +17,16 @@ plugin (`${CLAUDE_PLUGIN_ROOT}/press/`), so there is nothing else to install.
    `bureau:init` first.
 
 2. **Read + validate config.** From `<workspace>/bureau.json` read `board` (default `gazette`)
-   and validate it as a safe single path segment under the repo root — reject `..`/absolute
-   paths so output can't escape the repo. The gazette MUST be outside the workspace (the press's
-   `guardOutDir` enforces this too).
+   and validate it as a safe single path segment — reject `..`/absolute paths so output can't
+   escape the repo. Then resolve the **board path**: `<workspace>/<board>` when the workspace is
+   named `bureau` (the **contained layout** — the one case where the board lives inside the
+   workspace; the press skips that child as content), else `<board>` at the repo root. The press's
+   `guardOutDir` enforces the same rule — any other overlap with the workspace is refused.
 
 3. **Build with the bundled press** — passing each argument separately (no shell string
    interpolation):
    ```
-   node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" build --dir <workspace> --out <board>
+   node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" build --dir <workspace> --out <board-path>
    ```
    The press is a self-contained Node bundle (no `node_modules`, Node ≥18). Report the dossier
    count from the build output.
@@ -34,7 +36,8 @@ plugin (`${CLAUDE_PLUGIN_ROOT}/press/`), so there is nothing else to install.
    `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" health --dir <workspace>` and surface
    those. (Semantic findings are a separate concern — `bureau:lint`.)
 
-5. **Open.** Open `<board>/index.html` (the gazette), or print the path if no opener is available.
+5. **Open.** Open `<board-path>/index.html` (the gazette), or print the path if no opener is
+   available.
 
 ## Notes
 

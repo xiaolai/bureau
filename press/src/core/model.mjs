@@ -69,7 +69,7 @@ export function safeDocPath(docsDir, file) {
 }
 
 // Read + validate every doc once. Throws loudly on any boundary violation.
-export function loadCorpus({ docsDir, dataDir = null } = {}) {
+export function loadCorpus({ docsDir, dataDir = null, topSkip = null } = {}) {
   if (!existsSync(docsDir)) throw new Error("docs directory not found: " + docsDir + " (run `gazette init`)");
   // The whole reader refuses to follow symlinks out of the content tree (safeDocPath, readConfig,
   // discovery). A symlinked ROOT is the one hole that posture left open — it would let the content
@@ -78,7 +78,7 @@ export function loadCorpus({ docsDir, dataDir = null } = {}) {
   const { meta, groups: cfgGroups } = readConfig(docsDir);
   const cfgById = new Map(cfgGroups.map((g) => [g.id, g])); // optional label/icon overrides
 
-  const src = discover({ docsDir, dataDir });
+  const src = discover({ docsDir, dataDir, topSkip }); // a build passes its one board snapshot; null → resolve here
   const types = loadTypes(src.typesDir, src.typeFiles);
   const files = src.docFiles;
 

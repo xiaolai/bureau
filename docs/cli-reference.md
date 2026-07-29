@@ -90,4 +90,7 @@ See [`live-and-versioned-board.md`](live-and-versioned-board.md).
 | `<board>/` (default `gazette/`) | **derived** rendered board | **no** (gitignored) |
 | `dist-at-<commit>/` | **derived** historical board | no |
 
-The workspace holds only source + committed decisions; everything derived lives outside it.
+The workspace holds only source + committed decisions; everything derived lives outside it. (The
+one exception is bureau's **contained layout** — a workspace named `bureau` renders its board at
+`<workspace>/<board>`; the press skips that child, plus a top-level `crew/`, as content and
+excludes both from the incremental input hash.)

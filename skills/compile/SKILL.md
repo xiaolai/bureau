@@ -15,7 +15,7 @@ and topical. Compile is the bridge — it consolidates many sessions into one cu
 
 ## Inputs
 
-- The workspace (discover a `bureau.json`; default `bureau`).
+- The workspace (discover a `bureau.json`; default `canon`).
 - The set of minutes to process: every entry under `logbook/` whose session id is not
   yet recorded in `<workspace>/_compile-state.json`, narrowed by `--since <YYYY-MM-DD>` when
   given. `_compile-state.json` is the watermark: `{ "compiled": ["<session-id>", …] }`. It is

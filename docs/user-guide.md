@@ -261,11 +261,15 @@ your-repo/
   .claude/agents/      crew agents, materialized by bureau:crew (generated — edit the source)
 ```
 
-`canon/` is the content (rename-able via `--workspace`, just not to a reserved name like `bureau`
-or `crew`); `bureau/` is reserved for bureau's machinery — the two are always separate directories.
+`canon/` is the content (rename-able via `--workspace`, just not to a reserved name like `crew`
+or `gazette`); `bureau/` is bureau's machinery — normally a separate directory. The exception is
+the **contained layout** (`bureau:init --workspace bureau`): the workspace and the machinery become
+one `bureau/` dir — content at `bureau/`, the crew at `bureau/crew/`, and the board rendered at
+`bureau/gazette/` (gitignored), with the press skipping `crew/` and the board dir as content.
 The workspace holds only **source + committed decisions** (pages, `_log.jsonl`, the ledgers,
 `_config.json`); every **derived** artifact lives *outside* it — the rendered board in `gazette/`,
-the engine's gate cache in `.bureau-cache/`, both gitignored and rebuildable any time.
+the engine's gate cache in `.bureau-cache/`, both gitignored and rebuildable any time (in the
+contained layout the board is the one derived artifact nested inside, and it is never read back).
 
 ### Sidebar order
 

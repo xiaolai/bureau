@@ -11997,7 +11997,7 @@ var require_source_map = __commonJS({
 var require_previous_map = __commonJS({
   "node_modules/postcss/lib/previous-map.js"(exports, module) {
     "use strict";
-    var { existsSync: existsSync12, readFileSync: readFileSync15 } = __require("fs");
+    var { existsSync: existsSync12, readFileSync: readFileSync16 } = __require("fs");
     var { dirname: dirname5, join: join16 } = __require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     function fromBase64(str) {
@@ -12069,7 +12069,7 @@ var require_previous_map = __commonJS({
         this.root = dirname5(path);
         if (existsSync12(path)) {
           this.mapFile = path;
-          return readFileSync15(path, "utf-8").toString().trim();
+          return readFileSync16(path, "utf-8").toString().trim();
         }
       }
       loadMap(file, prev) {
@@ -15918,20 +15918,20 @@ and ensure you are accounting for this risk.
 });
 
 // bin/cli.mjs
-import { existsSync as existsSync11, mkdirSync as mkdirSync3, writeFileSync as writeFileSync7, appendFileSync as appendFileSync2, readFileSync as readFileSync14, statSync as statSync3, lstatSync as lstatSync12, readdirSync as readdirSync5, realpathSync as realpathSync6, watch } from "fs";
+import { existsSync as existsSync11, mkdirSync as mkdirSync3, writeFileSync as writeFileSync7, appendFileSync as appendFileSync2, readFileSync as readFileSync15, statSync as statSync3, lstatSync as lstatSync12, readdirSync as readdirSync5, realpathSync as realpathSync6, watch } from "fs";
 import { join as join15, resolve as resolve6, dirname as dirname4, extname as extname2, sep as sep7, relative as relative5 } from "path";
 import { createServer } from "http";
 import { spawn } from "child_process";
 
 // src/build.mjs
-import { readFileSync as readFileSync8, writeFileSync as writeFileSync2, existsSync as existsSync7, mkdirSync, copyFileSync, cpSync, rmSync, renameSync as renameSync2, readdirSync as readdirSync4, lstatSync as lstatSync7, realpathSync as realpathSync3, unlinkSync as unlinkSync2 } from "fs";
+import { readFileSync as readFileSync9, writeFileSync as writeFileSync2, existsSync as existsSync7, mkdirSync, copyFileSync, cpSync, rmSync, renameSync as renameSync2, readdirSync as readdirSync4, lstatSync as lstatSync7, realpathSync as realpathSync3, unlinkSync as unlinkSync2 } from "fs";
 import { join as join10, dirname as dirname2, resolve as resolve2, sep as sep4, relative as relative3 } from "path";
 import { fileURLToPath } from "url";
 import { createHash as createHash4 } from "crypto";
 import { execFileSync as execFileSync2 } from "child_process";
 
 // src/core/model.mjs
-import { readFileSync as readFileSync2, existsSync as existsSync2, realpathSync, lstatSync as lstatSync2 } from "fs";
+import { readFileSync as readFileSync3, existsSync as existsSync2, realpathSync, lstatSync as lstatSync2 } from "fs";
 import { join as join3, sep as sep2 } from "path";
 
 // src/core/parse.mjs
@@ -21855,13 +21855,55 @@ function rewriteTitle(html, from, to) {
 }
 
 // src/core/sources.mjs
-import { readdirSync, existsSync, lstatSync } from "fs";
-import { join, relative, sep } from "path";
+import { readdirSync, existsSync, lstatSync, readFileSync } from "fs";
+import { join, relative, sep, basename } from "path";
 var skipDir = (n) => n.startsWith("_") || n.startsWith(".") || n === "dist" || n === "node_modules";
 var relPosix = (base2, p) => relative(base2, p).split(sep).join("/");
-function walk(dir, base2, pred, acc) {
+var RESERVED_BOARD = /* @__PURE__ */ new Set(["crew", "logbook", "lint", "dist", "node_modules", "bureau.json"]);
+var safeBoard = (b) => typeof b === "string" && /^[A-Za-z0-9._-]+$/.test(b) && b !== "." && b !== ".." && !b.startsWith("_") && !b.startsWith(".") && !RESERVED_BOARD.has(b) ? b : "gazette";
+function boardDirName(docsDir) {
+  const p = join(docsDir, "bureau.json");
+  let st;
+  try {
+    st = lstatSync(p);
+  } catch {
+    return null;
+  }
+  if (st.isSymbolicLink()) return null;
+  let cfg;
+  try {
+    cfg = JSON.parse(readFileSync(p, "utf8"));
+  } catch {
+    return null;
+  }
+  if (!cfg || typeof cfg !== "object" || Array.isArray(cfg)) return null;
+  return safeBoard(cfg.board);
+}
+function containedBoardDir(docsDir) {
+  if (basename(docsDir) !== "bureau") return null;
+  try {
+    if (lstatSync(docsDir).isSymbolicLink()) return null;
+  } catch {
+    return null;
+  }
+  return boardDirName(docsDir);
+}
+function topLevelSkipsFor(board) {
+  const skips = /* @__PURE__ */ new Set(["crew"]);
+  if (board) {
+    skips.add(board);
+    skips.add(board + ".tmp");
+    skips.add(board + ".bak");
+  }
+  return skips;
+}
+function topLevelSkips(docsDir) {
+  return topLevelSkipsFor(containedBoardDir(docsDir));
+}
+function walk(dir, base2, pred, acc, topSkip) {
   if (!existsSync(dir)) return acc;
   for (const name of readdirSync(dir).sort()) {
+    if (dir === base2 && topSkip.has(name)) continue;
     const p = join(dir, name);
     let st;
     try {
@@ -21871,12 +21913,12 @@ function walk(dir, base2, pred, acc) {
     }
     if (st.isSymbolicLink()) continue;
     if (st.isDirectory()) {
-      if (!skipDir(name) && !(name === "crew" && dir === base2)) walk(p, base2, pred, acc);
+      if (!skipDir(name)) walk(p, base2, pred, acc, topSkip);
     } else if (st.isFile() && pred(name)) acc.push(relPosix(base2, p));
   }
   return acc;
 }
-function discover({ docsDir, dataDir }) {
+function discover({ docsDir, dataDir, topSkip = null }) {
   const typesDir = join(docsDir, "_types");
   const ddir = dataDir || join(docsDir, "_data");
   const isFile = (dir) => (f) => {
@@ -21894,26 +21936,27 @@ function discover({ docsDir, dataDir }) {
     }
   };
   const lsTop = (dir, pred) => realDir(dir) ? readdirSync(dir).filter((f) => pred(f) && isFile(dir)(f)).sort() : [];
+  const skip = topSkip || topLevelSkips(docsDir);
   return {
     docsDir,
     typesDir,
     dataDir: ddir,
-    docFiles: walk(docsDir, docsDir, (f) => (f.endsWith(".html") || f.endsWith(".md")) && !f.startsWith("_"), []),
+    docFiles: walk(docsDir, docsDir, (f) => (f.endsWith(".html") || f.endsWith(".md")) && !f.startsWith("_"), [], skip),
     // HTML + Markdown, recursive
-    canvasFiles: walk(docsDir, docsDir, (f) => f.endsWith(".canvas") && !f.startsWith("_"), []),
+    canvasFiles: walk(docsDir, docsDir, (f) => f.endsWith(".canvas") && !f.startsWith("_"), [], skip),
     typeFiles: lsTop(typesDir, (f) => f.endsWith(".html")),
     dataFiles: lsTop(ddir, (f) => !f.startsWith("."))
   };
 }
 
 // src/core/types.mjs
-import { readFileSync } from "fs";
+import { readFileSync as readFileSync2 } from "fs";
 import { join as join2 } from "path";
 var asList = (v) => v == null ? [] : Array.isArray(v) ? v.map(String) : [String(v)];
 function loadTypes(typesDir, typeFiles) {
   const schemas = /* @__PURE__ */ Object.create(null);
   for (const f of typeFiles) {
-    const { frontmatter: fm } = splitFrontmatter(readFileSync(join2(typesDir, f), "utf8"));
+    const { frontmatter: fm } = splitFrontmatter(readFileSync2(join2(typesDir, f), "utf8"));
     if (!fm || !fm.applies) continue;
     const applies = String(fm.applies);
     if (Object.prototype.hasOwnProperty.call(schemas, applies)) {
@@ -21957,7 +22000,7 @@ function readConfig(docsDir) {
   if (lstatSync2(p).isSymbolicLink()) return { meta: {}, groups: [] };
   let cfg;
   try {
-    cfg = JSON.parse(readFileSync2(p, "utf8"));
+    cfg = JSON.parse(readFileSync3(p, "utf8"));
   } catch (e) {
     throw new Error("_config.json is not valid JSON (" + p + "): " + e.message);
   }
@@ -21988,12 +22031,12 @@ function safeDocPath(docsDir, file) {
   if (!lstatSync2(abs).isFile()) throw new Error("doc path is not a regular file: " + file);
   return abs;
 }
-function loadCorpus({ docsDir, dataDir = null } = {}) {
+function loadCorpus({ docsDir, dataDir = null, topSkip = null } = {}) {
   if (!existsSync2(docsDir)) throw new Error("docs directory not found: " + docsDir + " (run `gazette init`)");
   if (lstatSync2(docsDir).isSymbolicLink()) throw new Error("content directory is a symlink (refused): " + docsDir);
   const { meta, groups: cfgGroups } = readConfig(docsDir);
   const cfgById = new Map(cfgGroups.map((g) => [g.id, g]));
-  const src = discover({ docsDir, dataDir });
+  const src = discover({ docsDir, dataDir, topSkip });
   const types = loadTypes(src.typesDir, src.typeFiles);
   const files = src.docFiles;
   const entries = [];
@@ -22003,7 +22046,7 @@ function loadCorpus({ docsDir, dataDir = null } = {}) {
   const groupSeen = /* @__PURE__ */ new Set();
   for (const file of files) {
     const isMd = file.endsWith(".md");
-    const raw = readFileSync2(safeDocPath(docsDir, file), "utf8");
+    const raw = readFileSync3(safeDocPath(docsDir, file), "utf8");
     let parsed;
     try {
       parsed = (isMd ? parseMarkdownDoc : parseHtmlDoc)(raw);
@@ -22339,7 +22382,7 @@ function healthTotal(health) {
 }
 
 // src/derive/timeline.mjs
-import { existsSync as existsSync3, readFileSync as readFileSync3, lstatSync as lstatSync3 } from "fs";
+import { existsSync as existsSync3, readFileSync as readFileSync4, lstatSync as lstatSync3 } from "fs";
 import { join as join4 } from "path";
 
 // src/cold-events.mjs
@@ -22444,7 +22487,7 @@ function deriveTimeline(dataDir) {
     st = null;
   }
   if (st && st.isFile()) {
-    const events = parseCold(readFileSync3(coldPath, "utf8"));
+    const events = parseCold(readFileSync4(coldPath, "utf8"));
     if (events.length) {
       Object.assign(docs, coldEventDocs(events));
       count = events.length;
@@ -22775,7 +22818,7 @@ function renderTemporalHtml(git) {
 }
 
 // src/code/scan.mjs
-import { readdirSync as readdirSync2, lstatSync as lstatSync4, readFileSync as readFileSync4 } from "fs";
+import { readdirSync as readdirSync2, lstatSync as lstatSync4, readFileSync as readFileSync5 } from "fs";
 import { join as join5, relative as relative2, dirname, extname } from "path";
 var CODE_EXT = /* @__PURE__ */ new Set([".mjs", ".js", ".cjs", ".ts", ".tsx", ".jsx"]);
 var SKIP_DIR = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "coverage", ".next", "vendor"]);
@@ -22829,7 +22872,7 @@ function scanCode({ dir }) {
   const files = [];
   const edges = [];
   for (const p of abs) {
-    const src = readFileSync4(p, "utf8");
+    const src = readFileSync5(p, "utf8");
     const loc = src === "" ? 0 : src.replace(/\n$/, "").split("\n").length;
     const rel = relative2(dir, p);
     const top = rel.split(/[\\/]/)[0] || ".";
@@ -23078,7 +23121,7 @@ function renderHealthText(health) {
 }
 
 // src/engine/log.mjs
-import { existsSync as existsSync4, readFileSync as readFileSync5, appendFileSync, openSync, closeSync, unlinkSync, statSync } from "fs";
+import { existsSync as existsSync4, readFileSync as readFileSync6, appendFileSync, openSync, closeSync, unlinkSync, statSync } from "fs";
 import { join as join6 } from "path";
 import { createHash } from "crypto";
 var LOG_BASENAME = "_log.jsonl";
@@ -23121,7 +23164,7 @@ function verifyIntegrity(events) {
 }
 function readLog(logFile, { verify = true } = {}) {
   if (!existsSync4(logFile)) return [];
-  const events = parseRaw(readFileSync5(logFile, "utf8"));
+  const events = parseRaw(readFileSync6(logFile, "utf8"));
   if (verify) {
     const v = verifyIntegrity(events);
     if (!v.ok) throw new Error("decision log integrity check failed at seq " + v.badSeq + ": " + v.reason + " (" + logFile + ")");
@@ -23247,7 +23290,7 @@ function spanRevision(spans, uid, span) {
 }
 
 // src/engine/policy.mjs
-import { existsSync as existsSync5, readFileSync as readFileSync6, openSync as openSync2, closeSync as closeSync2, fstatSync, constants } from "fs";
+import { existsSync as existsSync5, readFileSync as readFileSync7, openSync as openSync2, closeSync as closeSync2, fstatSync, constants } from "fs";
 import { join as join7 } from "path";
 var DECISIONS = Object.freeze(["approve", "confirm-edge", "resolve"]);
 var AUTHORITIES = Object.freeze(["human", "scan", "invariant", "llm"]);
@@ -23305,7 +23348,7 @@ function loadPolicy(workspaceDir) {
   try {
     fd = openSync2(p, constants.O_RDONLY | constants.O_NOFOLLOW);
     if (!fstatSync(fd).isFile()) return DEFAULT_POLICY;
-    text2 = readFileSync6(fd, "utf8");
+    text2 = readFileSync7(fd, "utf8");
   } catch (e) {
     if (e && (e.code === "ELOOP" || e.code === "EMLINK")) return DEFAULT_POLICY;
     throw e;
@@ -23613,7 +23656,7 @@ function liveFreshness({ corpus, docsDir, model, policy }) {
 }
 
 // src/engine/ledgers.mjs
-import { existsSync as existsSync6, readFileSync as readFileSync7, writeFileSync, renameSync, realpathSync as realpathSync2, lstatSync as lstatSync5, openSync as openSync3, closeSync as closeSync3, fstatSync as fstatSync2, readSync, constants as constants2 } from "fs";
+import { existsSync as existsSync6, readFileSync as readFileSync8, writeFileSync, renameSync, realpathSync as realpathSync2, lstatSync as lstatSync5, openSync as openSync3, closeSync as closeSync3, fstatSync as fstatSync2, readSync, constants as constants2 } from "fs";
 import { join as join8, resolve, sep as sep3, isAbsolute } from "path";
 import { createHash as createHash3 } from "crypto";
 var VERIFY_BASENAME = "_verify.json";
@@ -23628,7 +23671,7 @@ function readJsonObject(file) {
   if (!existsSync6(file)) return null;
   let v;
   try {
-    v = JSON.parse(readFileSync7(file, "utf8"));
+    v = JSON.parse(readFileSync8(file, "utf8"));
   } catch (e) {
     throw new Error(file + " is not valid JSON: " + e.message);
   }
@@ -24164,9 +24207,12 @@ function physicalPath(p) {
   }
   return tail.length ? join10(realpathSync3(anc), ...tail) : realpathSync3(anc);
 }
-function guardOutDir(root, outDir, docsDir, dataDir) {
+function guardOutDir(root, outDir, docsDir, dataDir, containedBoard) {
   const withSep = (p) => p.endsWith(sep4) ? p : p + sep4;
   const rootP = physicalPath(root), docsP = docsDir && physicalPath(docsDir), dataP = dataDir && physicalPath(dataDir);
+  const board = containedBoard !== void 0 ? containedBoard : docsDir ? containedBoardDir(docsDir) : null;
+  const boardOut = board && docsP ? join10(docsP, board) : null;
+  const allowedOut = new Set(boardOut ? [boardOut, boardOut + ".tmp", boardOut + ".bak"] : []);
   const targets = [["--out", outDir], ["--out temp dir", outDir + ".tmp"], ["--out backup dir", outDir + ".bak"]];
   for (const [olabel, o] of targets) {
     const oP = physicalPath(o);
@@ -24175,6 +24221,7 @@ function guardOutDir(root, outDir, docsDir, dataDir) {
     }
     for (const [label, src] of [["content dir", docsP], ["data dir", dataP]]) {
       if (!src) continue;
+      if (label === "content dir" && allowedOut.has(oP)) continue;
       if (oP === src || withSep(oP).startsWith(withSep(src)) || withSep(src).startsWith(withSep(oP))) {
         throw new Error("Refusing to build: " + olabel + " (" + o + ") overlaps the " + label + " (" + src + ") \u2014 output would overwrite source content.");
       }
@@ -24274,13 +24321,13 @@ function transcludeEmbeds(html, source) {
   };
   return replaceOutsideRaw(html, (h) => h.replace(EMBED_BLOCK, (m, t, hd) => make(t, hd)).replace(EMBED_INLINE, (m, t, hd) => make(t, hd)));
 }
-function hashInputs({ root, docsDir, dataDir, now }) {
+function hashInputs({ root, docsDir, dataDir, now, topSkip = null }) {
   const h = createHash4("sha256");
   h.update("schema:" + SCHEMA_VERSION + "|now:" + (now || ""));
-  for (const f of [...ENGINE_LIB, "theme.css"]) h.update(readFileSync8(join10(TEMPLATE_DIR, "lib", f)));
-  h.update(readFileSync8(join10(TEMPLATE_DIR, "index.html")));
-  h.update(readFileSync8(fileURLToPath(import.meta.url)));
-  const addDir = (dir) => {
+  for (const f of [...ENGINE_LIB, "theme.css"]) h.update(readFileSync9(join10(TEMPLATE_DIR, "lib", f)));
+  h.update(readFileSync9(join10(TEMPLATE_DIR, "index.html")));
+  h.update(readFileSync9(fileURLToPath(import.meta.url)));
+  const addDir = (dir, topSkip2 = null) => {
     if (!existsSync7(dir)) return;
     try {
       if (lstatSync7(dir).isSymbolicLink()) return;
@@ -24288,6 +24335,7 @@ function hashInputs({ root, docsDir, dataDir, now }) {
       return;
     }
     for (const name of readdirSync4(dir).sort()) {
+      if (topSkip2 && topSkip2.has(name)) continue;
       const p = join10(dir, name);
       let st;
       try {
@@ -24299,7 +24347,7 @@ function hashInputs({ root, docsDir, dataDir, now }) {
       if (st.isDirectory()) addDir(p);
       else if (st.isFile()) {
         try {
-          const buf = readFileSync8(p);
+          const buf = readFileSync9(p);
           h.update("\0" + relative3(root, p) + "\0");
           h.update(buf);
         } catch {
@@ -24307,17 +24355,17 @@ function hashInputs({ root, docsDir, dataDir, now }) {
       }
     }
   };
-  addDir(docsDir);
+  addDir(docsDir, topSkip || topLevelSkips(docsDir));
   addDir(dataDir);
   addDir(join10(root, "assets"));
   for (const f of ["theme.json", "theme.css"]) {
     const p = join10(root, f);
-    if (existsSync7(p)) h.update(readFileSync8(p));
+    if (existsSync7(p)) h.update(readFileSync9(p));
   }
   let meta = {};
   try {
     const cfgPath = join10(docsDir, "_config.json");
-    if (!lstatSync7(cfgPath).isSymbolicLink()) meta = JSON.parse(readFileSync8(cfgPath, "utf8")).meta || {};
+    if (!lstatSync7(cfgPath).isSymbolicLink()) meta = JSON.parse(readFileSync9(cfgPath, "utf8")).meta || {};
   } catch {
   }
   if (meta.code && meta.code.dir) {
@@ -24354,9 +24402,9 @@ function hashInputs({ root, docsDir, dataDir, now }) {
   h.update("\0artifacts\0" + artifactInputDigest({ workspaceDir: docsDir, root }));
   return h.digest("hex");
 }
-function computeHealth({ docsDir, dataDir, now = null }) {
+function computeHealth({ docsDir, dataDir, now = null, topSkip = null }) {
   dataDir = dataDir || join10(docsDir, "_data");
-  const corpus = loadCorpus({ docsDir, dataDir });
+  const corpus = loadCorpus({ docsDir, dataDir, topSkip });
   const model = buildModel({ corpus });
   const backlinks = deriveBacklinks(model);
   const timeline = deriveTimeline(dataDir);
@@ -24365,7 +24413,7 @@ function computeHealth({ docsDir, dataDir, now = null }) {
   if (corpus.meta?.graph?.enabled !== false && model.nodeCount > 0) knownTargets.add(nfc("Graph"));
   for (const cf of corpus.canvasFiles || []) {
     try {
-      JSON.parse(readFileSync8(join10(docsDir, cf), "utf8"));
+      JSON.parse(readFileSync9(join10(docsDir, cf), "utf8"));
     } catch {
       continue;
     }
@@ -24383,17 +24431,19 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
   docsDir = resolve2(root, docsDir || "gazette");
   dataDir = resolve2(root, dataDir || join10(docsDir, "_data"));
   outDir = resolve2(root, outDir || "dist");
-  guardOutDir(root, outDir, docsDir, dataDir);
-  const hash = hashInputs({ root, docsDir, dataDir, now });
+  const containedBoard = containedBoardDir(docsDir);
+  const topSkip = topLevelSkipsFor(containedBoard);
+  guardOutDir(root, outDir, docsDir, dataDir, containedBoard);
+  const hash = hashInputs({ root, docsDir, dataDir, now, topSkip });
   const metaPath = join10(outDir, ".buildmeta.json");
   if (!force && existsSync7(metaPath) && existsSync7(join10(outDir, "index.html"))) {
     try {
-      const meta = JSON.parse(readFileSync8(metaPath, "utf8"));
+      const meta = JSON.parse(readFileSync9(metaPath, "utf8"));
       if (meta.hash === hash) return { ...meta.summary, outDir, cached: true };
     } catch {
     }
   }
-  const { corpus, model, health, timeline } = computeHealth({ docsDir, dataDir, now });
+  const { corpus, model, health, timeline } = computeHealth({ docsDir, dataDir, now, topSkip });
   const fresh = liveFreshness({ corpus, docsDir, model });
   const arts = liveArtifacts({ workspaceDir: docsDir, root, corpus, model });
   let converge = null, convergeError = null;
@@ -24458,7 +24508,7 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
   for (const cf of corpus.canvasFiles) {
     let canvasJson;
     try {
-      canvasJson = JSON.parse(readFileSync8(join10(docsDir, cf), "utf8"));
+      canvasJson = JSON.parse(readFileSync9(join10(docsDir, cf), "utf8"));
     } catch {
       console.warn("\u26A0 skipping invalid .canvas: " + cf);
       continue;
@@ -24538,14 +24588,14 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
   const tokensPath = join10(root, "theme.json");
   if (existsSync7(tokensPath)) {
     try {
-      projectTokens = JSON.parse(readFileSync8(tokensPath, "utf8"));
+      projectTokens = JSON.parse(readFileSync9(tokensPath, "utf8"));
     } catch (e) {
       throw new Error("theme.json is not valid JSON: " + e.message);
     }
   }
-  const themeCss = readFileSync8(join10(TEMPLATE_DIR, "lib", "theme.css"), "utf8").replace("/*@TOKENS@*/", emitCssVars(resolveTokens(projectTokens)).trim());
+  const themeCss = readFileSync9(join10(TEMPLATE_DIR, "lib", "theme.css"), "utf8").replace("/*@TOKENS@*/", emitCssVars(resolveTokens(projectTokens)).trim());
   writeFileSync2(join10(tmp, "lib", "theme.css"), themeCss);
-  let html = readFileSync8(join10(TEMPLATE_DIR, "index.html"), "utf8");
+  let html = readFileSync9(join10(TEMPLATE_DIR, "index.html"), "utf8");
   const title = [corpus.meta?.title, corpus.meta?.subtitle].filter(Boolean).join(" \xB7 ") || "gazette";
   html = html.replace("<!--TITLE-->", escapeHtml2(title)).replace("<!--CSP-->", cspMeta());
   let themeOverride = false;
@@ -24607,7 +24657,7 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
     convergence: converge ? converge.stabilization.verdict : null
     // drained/stabilizing/thrashing (null ⇒ suppressed)
   };
-  const hashAfter = hashInputs({ root, docsDir, dataDir, now });
+  const hashAfter = hashInputs({ root, docsDir, dataDir, now, topSkip });
   if (hashAfter === hash) writeFileSync2(metaPath, JSON.stringify({ hash, summary }));
   else {
     try {
@@ -24619,7 +24669,7 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
 }
 
 // src/maintain/rename.mjs
-import { readFileSync as readFileSync9, writeFileSync as writeFileSync3, renameSync as renameSync3, unlinkSync as unlinkSync3 } from "fs";
+import { readFileSync as readFileSync10, writeFileSync as writeFileSync3, renameSync as renameSync3, unlinkSync as unlinkSync3 } from "fs";
 var BAD_TITLE = /[[\]|#]|[\x00-\x1f\x7f-\x9f]/;
 function planRename({ docsDir, from, to }) {
   if (!from || !to) throw new Error("rename needs both <old> and <new> titles");
@@ -24634,7 +24684,7 @@ function planRename({ docsDir, from, to }) {
   const edits = [];
   let linkTotal = 0;
   for (const e of corpus.entries) {
-    const raw = readFileSync9(safeDocPath(docsDir, e.file), "utf8");
+    const raw = readFileSync10(safeDocPath(docsDir, e.file), "utf8");
     const ref = rewriteWikiRef(raw, fromTitle, to);
     let next = ref.html, titleChanged = false;
     if (e.id === fromId) {
@@ -24690,7 +24740,7 @@ function applyRename(plan, docsDir) {
 }
 
 // src/maintain/doctor.mjs
-import { readFileSync as readFileSync10, writeFileSync as writeFileSync4, renameSync as renameSync4, lstatSync as lstatSync8 } from "fs";
+import { readFileSync as readFileSync11, writeFileSync as writeFileSync4, renameSync as renameSync4, lstatSync as lstatSync8 } from "fs";
 import { join as join11 } from "path";
 function levenshtein(a, b) {
   const m = a.length, n = b.length;
@@ -24746,7 +24796,7 @@ function applySafe(docsDir, fixes, model) {
   if (drift) {
     const cfg = join11(docsDir, "_config.json");
     if (lstatSync8(cfg).isSymbolicLink()) throw new Error("refusing to write a symlinked _config.json: " + cfg);
-    const c = JSON.parse(readFileSync10(cfg, "utf8"));
+    const c = JSON.parse(readFileSync11(cfg, "utf8"));
     c.meta = c.meta || {};
     c.meta.expectedDocs = drift.actual;
     const tmp = cfg + ".doctor-" + process.pid + ".tmp";
@@ -24758,7 +24808,7 @@ function applySafe(docsDir, fixes, model) {
     const node = model.nodes[f.source];
     if (!node) continue;
     const p = safeDocPath(docsDir, node.file);
-    const raw = readFileSync10(p, "utf8");
+    const raw = readFileSync11(p, "utf8");
     const { html: next, count } = rewriteWikiRef(raw, f.target, f.suggest);
     if (count > 0 && next !== raw) {
       const tmp = p + ".doctor-" + process.pid + ".tmp";
@@ -24783,14 +24833,14 @@ function renderRepairText(fixes, applied) {
 }
 
 // src/engine/fsck.mjs
-import { existsSync as existsSync8, readFileSync as readFileSync11, writeFileSync as writeFileSync5, mkdirSync as mkdirSync2, lstatSync as lstatSync9, renameSync as renameSync5, openSync as openSync4, closeSync as closeSync4, constants as constants3 } from "fs";
-import { join as join12, dirname as dirname3, resolve as resolve3, basename } from "path";
+import { existsSync as existsSync8, readFileSync as readFileSync12, writeFileSync as writeFileSync5, mkdirSync as mkdirSync2, lstatSync as lstatSync9, renameSync as renameSync5, openSync as openSync4, closeSync as closeSync4, constants as constants3 } from "fs";
+import { join as join12, dirname as dirname3, resolve as resolve3, basename as basename2 } from "path";
 import { createHash as createHash5, randomBytes } from "crypto";
 var sha2563 = (s) => createHash5("sha256").update(String(s)).digest("hex");
 var GATE_CACHE_DIR = ".bureau-cache";
 function gateCachePath(docsDir) {
   const abs = resolve3(docsDir);
-  const tag = basename(abs).replace(/[^A-Za-z0-9._-]/g, "_") + "-" + sha2563(abs).slice(0, 8);
+  const tag = basename2(abs).replace(/[^A-Za-z0-9._-]/g, "_") + "-" + sha2563(abs).slice(0, 8);
   return join12(dirname3(abs), GATE_CACHE_DIR, tag + ".json");
 }
 function conflictPartners(model) {
@@ -24884,7 +24934,7 @@ function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write =
   const isLink = (p) => existsSync8(p) && lstatSync9(p).isSymbolicLink();
   if (isLink(cacheDir)) throw new Error("gate cache dir is a symlink (refused): " + cacheDir);
   if (isLink(gateFile)) throw new Error("gate cache file is a symlink (refused): " + gateFile);
-  const priorRaw = existsSync8(gateFile) ? readFileSync11(gateFile, "utf8") : null;
+  const priorRaw = existsSync8(gateFile) ? readFileSync12(gateFile, "utf8") : null;
   const nextRaw = canonicalJSON(d1, 2) + "\n";
   const cacheDrift = priorRaw != null && priorRaw !== nextRaw;
   if (write) {
@@ -25000,7 +25050,7 @@ function renderMetricsText(r) {
 }
 
 // src/core/workspace-map.mjs
-import { existsSync as existsSync9, readFileSync as readFileSync12, statSync as statSync2, lstatSync as lstatSync10, realpathSync as realpathSync4 } from "fs";
+import { existsSync as existsSync9, readFileSync as readFileSync13, statSync as statSync2, lstatSync as lstatSync10, realpathSync as realpathSync4 } from "fs";
 import { join as join13, resolve as resolve4, sep as sep5 } from "path";
 import { homedir } from "os";
 var ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -25026,7 +25076,7 @@ function pairHint(id) {
 function readBureauId(cwd) {
   const f = join13(cwd, ID_FILE);
   if (!existsSync9(f) || safe(() => lstatSync10(f).isSymbolicLink(), false)) return null;
-  const raw = safe(() => readFileSync12(f, "utf8"));
+  const raw = safe(() => readFileSync13(f, "utf8"));
   if (raw == null) return null;
   const id = raw.trim();
   return ID_RE.test(id) ? id : null;
@@ -25055,7 +25105,7 @@ function loadWorkspaceMap() {
   const uid = myUid();
   if (uid != null && st.uid !== uid) throw new Error(configPath() + " is not owned by the current user (refused)");
   if (groupOrOtherWritable(st.mode)) throw new Error(configPath() + " is group/other-writable \u2014 run `chmod 600 " + configPath() + "`");
-  const v = safe(() => JSON.parse(readFileSync12(f, "utf8")));
+  const v = safe(() => JSON.parse(readFileSync13(f, "utf8")));
   if (v == null || typeof v !== "object" || Array.isArray(v)) throw new Error(configPath() + " must be a JSON object");
   const entries = v.workspaces && typeof v.workspaces === "object" && !Array.isArray(v.workspaces) ? v.workspaces : {};
   return { entries, raw: v, present: true };
@@ -25098,7 +25148,7 @@ function resolveWorkspace(cwd) {
 
 // src/engine/versions.mjs
 import { execFileSync as execFileSync3 } from "child_process";
-import { mkdtempSync, rmSync as rmSync2, existsSync as existsSync10, readFileSync as readFileSync13, writeFileSync as writeFileSync6, renameSync as renameSync6, lstatSync as lstatSync11, realpathSync as realpathSync5 } from "fs";
+import { mkdtempSync, rmSync as rmSync2, existsSync as existsSync10, readFileSync as readFileSync14, writeFileSync as writeFileSync6, renameSync as renameSync6, lstatSync as lstatSync11, realpathSync as realpathSync5 } from "fs";
 import { tmpdir } from "os";
 import { join as join14, relative as relative4, resolve as resolve5, sep as sep6, isAbsolute as isAbsolute2 } from "path";
 var SNAPSHOTS_BASENAME = "_snapshots.json";
@@ -25234,7 +25284,7 @@ function readSnapshots(docsDirAbs) {
   if (!existsSync10(p)) return [];
   let v;
   try {
-    v = JSON.parse(readFileSync13(p, "utf8"));
+    v = JSON.parse(readFileSync14(p, "utf8"));
   } catch (e) {
     throw new Error(SNAPSHOTS_BASENAME + " is not valid JSON: " + e.message);
   }
@@ -25489,7 +25539,7 @@ function runInit() {
     if (lstatSync12(giPath).isSymbolicLink()) die(".gitignore is a symlink (refused): " + giPath);
   } catch {
   }
-  const has2 = existsSync11(giPath) && readFileSync14(giPath, "utf8").split(/\r?\n/).some((l) => l.trim() === "dist/");
+  const has2 = existsSync11(giPath) && readFileSync15(giPath, "utf8").split(/\r?\n/).some((l) => l.trim() === "dist/");
   if (!has2) {
     appendFileSync2(giPath, "dist/\n");
     console.log("+ .gitignore: dist/");
@@ -25616,13 +25666,13 @@ function runServe() {
         return;
       }
       if (extname2(real) === ".html") {
-        const html = readFileSync14(real, "utf8").replace("connect-src 'none'", "connect-src 'self'").replace("</body>", '<script src="/__wb_reload.js"></script></body>');
+        const html = readFileSync15(real, "utf8").replace("connect-src 'none'", "connect-src 'self'").replace("</body>", '<script src="/__wb_reload.js"></script></body>');
         res.writeHead(200, { "content-type": MIME[".html"] });
         res.end(html);
         return;
       }
       res.writeHead(200, { "content-type": MIME[extname2(real)] || "application/octet-stream" });
-      res.end(readFileSync14(real));
+      res.end(readFileSync15(real));
     } catch (e) {
       res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
       res.end("500");

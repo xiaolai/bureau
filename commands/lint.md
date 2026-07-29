@@ -13,9 +13,12 @@ Follow the protocol in the **lint** skill (`skills/lint/SKILL.md`). In short:
 
 1. Locate the workspace (`bureau.json`; default `canon`). If none, tell the user to run
    `bureau:init` first and stop.
-2. Read every cabinet drawer, EXCLUDING `logbook/`, `board/`, `lint/` (its own findings), and
-   every `_`-prefixed file/dir. If there are no dossiers, report "no cabinets to lint" and
-   stop.
+2. Read every cabinet drawer, EXCLUDING `logbook/`, `lint/` (its own findings),
+   `crew/`, and every `_`-prefixed file/dir — plus, **only in the contained layout** (a workspace
+   named `bureau`), the configured board dir (`bureau.json.board`, default `gazette`), which there
+   nests inside the workspace. In a default-layout workspace the board renders outside, so a
+   same-named child is ordinary content — do NOT exclude it. If there are no dossiers, report
+   "no cabinets to lint" and stop.
 3. For each finding type — contradiction, superseded (cabinet-vs-cabinet), gap, drift — find
    candidates, then adversarially refute each one and keep only the survivors (a false finding
    erodes trust). Weight the sweep by the active `bureau.json` profiles.

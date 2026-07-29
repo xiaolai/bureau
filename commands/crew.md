@@ -17,7 +17,9 @@ The materialized files under `.claude/` carry a `bureau:gen` marker and a source
 them by hand**; edit the source in `bureau/crew/<name>/` and run `bureau:crew sync`.
 
 All work is done by the deterministic engine `${CLAUDE_PLUGIN_ROOT}/scripts/crew.mjs` (run from the
-repo root). Parse `$ARGUMENTS` and act:
+repo root). The first token of `$ARGUMENTS` selects the subcommand — one of `list`, `enable`, `new`,
+`disable`, `sync`, `check` (default `list` when empty). If it is none of these, report the
+unrecognized subcommand and list the valid ones — never guess at a near match. The subcommands:
 
 ## `list` (default)
 

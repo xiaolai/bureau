@@ -1,6 +1,6 @@
 ---
 name: guide
-description: Orientation for the bureau plugin — the records-office model, the capture → compile → review gate, the trust tiers, the crew, and which bureau: command serves which intent. Read this FIRST before using any bureau: command, or whenever working in a repo that has a bureau workspace (a canon/ directory + a BUREAU.md), so you draw on the project's canon instead of re-deriving or guessing.
+description: "Orientation for the bureau plugin — the records-office model, the capture → compile → review gate, the trust tiers, the crew, and which bureau: command serves which intent. Read this FIRST before using any bureau: command, or whenever working in a repo that has a bureau workspace (a canon/ directory + a BUREAU.md), so you draw on the project's canon instead of re-deriving or guessing."
 ---
 
 # Bureau — how to use this plugin
@@ -99,8 +99,9 @@ restate them; open the skill for the step you're actually doing.
 - **Use it** in a repo that has a `canon/` + `BUREAU.md`: query before deciding something the repo
   may have settled; capture before a session ends; compile/review to keep the canon current.
 - **Don't** treat raw dossier files as fact, route durable knowledge around the gate, or render the
-  gazette into the workspace. **Don't** use bureau as a scratchpad — minutes are a faithful record,
-  not a TODO list.
+  gazette into the workspace (the one exception: the contained layout — a workspace named `bureau`
+  — renders its board at `<workspace>/<board>`, which the press skips as content). **Don't** use
+  bureau as a scratchpad — minutes are a faithful record, not a TODO list.
 
 ## Chamber
 

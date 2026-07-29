@@ -372,3 +372,34 @@ test("serve: a hostile loopback origin on another port cannot form-POST the writ
   assert.equal(decision.status, 403, "cross-loopback-port decision blocked before the token check");
   assert.equal(readFileSync(ttl, "utf8"), dossierBefore, "the cross-loopback-port attempts left the dossier untouched");
 });
+
+test("serve: contained layout — the default out dir resolves to <workspace>/<board>", async () => {
+  // A workspace NAMED `bureau` (the contained layout): with no explicit `out`, the chamber must
+  // serve the board from INSIDE the workspace (bureau/gazette), not from a repo-root gazette/.
+  const dir = mkdtempSync(join(tmpdir(), "bureau-serve-contained-"));
+  try {
+    mkdirSync(join(dir, "bureau", "gazette"), { recursive: true });
+    writeFileSync(join(dir, "bureau", "bureau.json"), JSON.stringify({ workspace: "bureau", board: "gazette" }));
+    writeFileSync(join(dir, "bureau", "gazette", "index.html"), "<!DOCTYPE html><title>gz</title><body>CONTAINED-BOARD</body>");
+    const s = await start({ cwd: dir, port: 0 });
+    try {
+      assert.equal(s.wsName, "bureau", "marker-based detection resolves the bureau-named workspace");
+      assert.equal(s.outDir, join(dir, "bureau", "gazette"), "default board dir nests inside the workspace");
+      const r = await fetch("http://" + s.host + ":" + s.port + "/gazette/");
+      assert.equal(r.status, 200);
+      assert.match(await r.text(), /CONTAINED-BOARD/, "the nested board is what gets served");
+    } finally { await new Promise((res) => s.server.close(res)); }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("serve: default layout — the default out dir stays the repo-root board (bureau.json `board`)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "bureau-serve-default-"));
+  try {
+    mkdirSync(join(dir, "canon"), { recursive: true });
+    writeFileSync(join(dir, "canon", "bureau.json"), JSON.stringify({ workspace: "canon", board: "gazette" }));
+    const s = await start({ cwd: dir, port: 0 });
+    try {
+      assert.equal(s.outDir, join(dir, "gazette"), "non-contained board stays a repo-root sibling");
+    } finally { await new Promise((res) => s.server.close(res)); }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

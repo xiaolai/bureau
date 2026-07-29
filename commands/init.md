@@ -11,8 +11,10 @@ the append-only logbook drawer, and the config the press needs to render them.
 ## Arguments
 
 `$ARGUMENTS` may contain:
-- `--workspace <name>` — workspace/content dir name (default `canon`). Cannot be a reserved name
-  (`bureau`, `crew`, `board`, …) — `bureau/` is bureau's own control dir (see step 1).
+- `--workspace <name>` — workspace/content dir name (default `canon`). `--workspace bureau` selects
+  the **contained layout** — workspace content, the crew source (`bureau/crew/`), and the rendered
+  board (`bureau/gazette/`) all live inside one `bureau/` dir. Other reserved names (`crew`,
+  `board`, `gazette`, …) are rejected (see step 1).
 - `--profile software|story|both` — which starter drawers + lint rules to enable (default `both`).
 - `--reinit` — re-run against an **existing** workspace: keep all cabinet + logbook content, just
   refresh the wiring (`BUREAU.md`, the `CLAUDE.md` import, profile drawers, board gitignore) and
@@ -33,12 +35,23 @@ matter when the workspace already exists; on a first init they are no-ops.
 1. **Resolve + validate names and mode.** `workspace` = `--workspace` or `canon` (the default).
    **Reject** any workspace name that is either (a) not a single safe path segment — it must match
    `^[A-Za-z0-9._-]+$` and not be `.`/`..` (no absolute paths, no `/`, no `..`; the workspace is
-   always a direct child of the repo root) — or (b) a **reserved name**: `bureau`, `crew`, `board`,
-   `gazette`, `dist`, `node_modules`, `.git`, `.claude`. `bureau/` is reserved for bureau's own
-   control plane (the crew lives at `bureau/crew/`) and must never be the content workspace;
-   `gazette` is the rendered output (the board you build and open), and `crew`/`board` would collide
-   with the crew dir and the legacy board name. `board` = `bureau.json.board` (default `gazette`),
-   validated the same way and kept distinct from the workspace and from `bureau`/`crew`/`gazette`.
+   always a direct child of the repo root) — or (b) a **reserved name**: `crew`, `board`,
+   `gazette`, `dist`, `node_modules`, `.git`, `.claude`. `gazette` is the default board name (the
+   rendered output you build and open), and `crew`/`board` would collide with the crew dir and the
+   legacy board name. `bureau` is NOT rejected: `--workspace bureau` is the sanctioned **contained
+   layout** — the workspace and bureau's control plane become the same directory, so the crew nests
+   at `bureau/crew/` (its usual home, now inside the workspace) and the board renders at
+   `bureau/gazette/` (`<workspace>/<board>` — the ONE case where the board lives inside the
+   workspace). The press treats both as non-content: it always skips a top-level `crew/`, and — in
+   the contained layout only (a workspace named `bureau`) — the configured board dir too, with
+   `guardOutDir` permitting exactly that board child. In a default-layout workspace the board name
+   is NOT special, so nothing inside the workspace is exempt. `board` = `bureau.json.board` (default
+   `gazette`), validated the same way and kept distinct from the workspace name and from `crew` —
+   and, because in the contained layout it lives inside the workspace, also distinct from the drawer
+   names `logbook` and `lint`. (The press enforces this at runtime too: a hand-edited or corrupted
+   `board` that is unsafe or names a reserved control/source dir — `crew`, `logbook`, `lint`,
+   `bureau.json`, a `_`/`.`-prefixed name — fails safe to `gazette`, so the render can never be
+   pointed at source to clobber it.)
    `profiles` = `--profile` (default `both` → `["software","story"]`). `mode` = `fresh` if
    `--fresh`, `reinit` if `--reinit`, else `default` — and if BOTH flags are present, stop and
    report (mutually exclusive).
@@ -47,7 +60,11 @@ matter when the workspace already exists; on a first init they are no-ops.
    it. If it exists as a **symlink**, stop and report (never write through a link). Confirm the
    realpath of the target stays inside the repo root before writing anything. If `<workspace>`
    does **not** exist, proceed with a normal fresh scaffold (steps 3–8) — the mode flags are
-   no-ops. If it exists as a non-empty directory, branch on `mode`:
+   no-ops. **Contained-layout exception:** with `--workspace bureau`, a pre-existing `bureau/` that
+   carries **no `bureau.json`** and contains nothing but the crew source (`bureau/crew/`) is not an
+   existing workspace — it is bureau's control dir predating this init. Treat it as absent and
+   proceed with the fresh scaffold (step 3's no-overwrite copy coexists with `crew/`). Otherwise,
+   if it exists as a non-empty directory, branch on `mode`:
    - **`default`** → stop. Do not overwrite an existing canon. Report the two supported re-runs —
      `--reinit` (refresh the wiring, keep all cabinet + logbook content) and `--fresh` (start over;
      the old workspace is backed up first) — plus `bureau:inspect` to just rebuild the gazette.
@@ -70,7 +87,7 @@ matter when the workspace already exists; on a first init they are no-ops.
    - `logbook/00-logbook.md` (the history drawer landing page) and `logbook/0001-founding.md`
      (the founding minute — the seed ADR cites it, so a fresh workspace demonstrates the whole
      provenance loop: claim → minute, with the backlink rendered)
-   - `.gitignore` (workspace-level note; the board is ignored at the repo root — step 5)
+   - `.gitignore` (workspace-level note; the board is ignored via the repo-root `.gitignore` — step 7)
 
 4. **Write resolved config.** Update `<workspace>/bureau.json` so BOTH `profiles` AND
    `workspace` (and `board`) reflect the resolved values — a custom `--workspace` must not
@@ -126,9 +143,11 @@ matter when the workspace already exists; on a first init they are no-ops.
    cabinets as memory — the gate binds all work, not just bureau commands. (A future Codex
    `AGENTS.md` can import the same `BUREAU.md`, so the instructions stay single-sourced.)
 
-7. **Gitignore the board at the repo root.** The board renders OUTSIDE the workspace (a repo
-   sibling), so add `/<board>/` to the **repo root** `.gitignore` (create it if absent). Do
-   NOT rely on the workspace-level `.gitignore` for this — it can't reach a sibling dir.
+7. **Gitignore the board at the repo root.** Add the board's repo-root-relative path to the
+   **repo root** `.gitignore` (create it if absent): `/<board>/` in the default layout (the board
+   renders as a repo sibling of the workspace), or `/<workspace>/<board>/` (i.e. `/bureau/gazette/`)
+   in the contained layout, where the board renders inside the workspace. Do NOT rely on the
+   workspace-level `.gitignore` for this — in the default layout it can't reach a sibling dir.
 
 8. **Materialize the crew (if any).** Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/crew.mjs" sync`. On a
    fresh init this is a no-op (no crew enabled yet); its job is to regenerate the `.claude/agents/`
@@ -196,5 +215,9 @@ steps above — instead:
 - The workspace is DATA — **back it up.** A single local repo (or a local mirror) is not a backup;
   real durability needs a tested, offsite/encrypted backup, especially for a private external
   workspace. See `docs/adr-0003-external-workspace.md` (Decision E).
-- `board/` MUST stay outside the workspace — the press's `guardOutDir` refuses an `--out`
-  that overlaps the content dir, which protects the SSOT from being clobbered by its render.
+- In the **default layout** the board MUST stay outside the workspace — the press's `guardOutDir`
+  refuses an `--out` that overlaps the content dir, which protects the SSOT from being clobbered by
+  its render. The **contained layout** is the one sanctioned exception: `guardOutDir` permits
+  exactly `<workspace>/<board>` (the child named by the workspace's own `bureau.json`), and the
+  press excludes that child — plus `crew/` — from content discovery and the incremental input hash,
+  so the render can neither clobber source nor feed back into the next build.

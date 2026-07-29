@@ -14,9 +14,11 @@ A text dashboard of the workspace: what's captured but not yet canon, what's dri
    `bureau:init` first and stop.
 2. **Uncompiled sessions.** Count minutes whose session id is NOT in
    `<workspace>/_compile-state.json` — these are filed but not yet distilled (`bureau:compile`).
-3. **Pages by tier.** Scan the cabinet drawers (exclude `logbook/`, `board/`, `lint/`, and
-   `_`-prefixed) and tally each `status:` — `proposed`, `verified`, `canonical`, `stale`,
-   `contested`.
+3. **Pages by tier.** Scan the cabinet drawers (exclude `logbook/`, `lint/`, `crew/`,
+   `_`-prefixed, and — **only in the contained layout**, a workspace named `bureau` — the
+   configured board dir `bureau.json.board` (default `gazette`), which there nests inside the
+   workspace; in a default-layout workspace a same-named child is ordinary content, not excluded)
+   and tally each `status:` — `proposed`, `verified`, `canonical`, `stale`, `contested`.
 4. **Dependency freshness (the recursion engine).** Run
    `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" gate --dir <workspace>` and include its
    **needs-review** count (pages resting on a changed upstream span) and **stale** count (broken

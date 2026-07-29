@@ -61,7 +61,10 @@ function members() { // valid installed members: SAFE name + a parseable crew.js
 }
 const isEnabled = (m) => m.meta.enabled !== false;
 const skillNames = (m) => { const d = join(m.dir, "skills"); return existsSync(d) ? readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory() && SAFE.test(e.name)).map((e) => e.name).sort() : []; };
-const detectWorkspace = () => { const hits = safe(() => readdirSync(REPO, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith(".") && !["bureau", "crew", "gazette", "board"].includes(e.name) && existsSync(join(REPO, e.name, "bureau.json"))).map((e) => e.name), []); return hits.length === 1 ? hits[0] : null; };
+// marker-based: a workspace is any dir carrying a bureau.json — including one NAMED `bureau`
+// (the contained layout, where crew/ nests inside it). `crew`/`gazette`/`board` never carry a
+// marker (init rejects them as workspace names) and are excluded defensively.
+const detectWorkspace = () => { const hits = safe(() => readdirSync(REPO, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith(".") && !["crew", "gazette", "board"].includes(e.name) && existsSync(join(REPO, e.name, "bureau.json"))).map((e) => e.name), []); return hits.length === 1 ? hits[0] : null; };
 
 // every regular file under a dir, as repo-relative paths (skips symlinks defensively).
 function filesUnder(dir) { const out = []; const w = (d) => { for (const e of readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) { const p = join(d, e.name); if (e.isSymbolicLink()) continue; if (e.isDirectory()) w(p); else if (e.isFile()) out.push(p); } }; if (existsSync(dir)) w(dir); return out; }

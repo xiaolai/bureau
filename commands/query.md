@@ -16,7 +16,10 @@ Follow the protocol in the **recall** skill (`skills/recall/SKILL.md`). In short
 1. Locate the workspace (`bureau.json`; default `canon`). If none, tell the user to run
    `bureau:init` first and stop.
 2. Find the dossiers that bear on the question (by title, drawer, and `[[links]]`); exclude
-   `logbook/`, `board/`, `lint/`, and `_`-prefixed entries.
+   `logbook/`, `lint/`, `crew/`, and `_`-prefixed entries — plus, **only in the contained
+   layout** (a workspace named `bureau`), the configured board dir (`bureau.json.board`, default
+   `gazette`), which there nests inside the workspace. In a default-layout workspace the board
+   renders outside, so a same-named child is ordinary content — do NOT exclude it.
 3. Synthesize an answer ONLY from those pages. For each claim you use, cite the page and its
    `status:` tier, and the `[[session …]]` provenance behind it.
 4. **Never present a non-`canonical` claim as fact.** If the answer rests on `proposed`,

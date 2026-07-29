@@ -18,13 +18,15 @@ convened AI desk), **dispose is the human's act** — the AI's agent context nev
 1. **Locate the workspace.** Find the bureau workspace (`bureau.json`; default `canon`). If none,
    tell the user to run `bureau:init` first and stop.
 2. **Parse arguments.** `--port` (optional — **omit it and the chamber picks a random free 5-digit
-   port**, so several repos can run chambers at once without colliding; pass `--port <n>` only to pin
-   one), `--out` (the gazette dir; default `gazette`), `--watch` (rebuild the gazette when the
+   port**, so multiple repos can run chambers at once without colliding; pass `--port <n>` only to pin
+   one), `--out` (the gazette dir; **omit it** and the server resolves the workspace's own board —
+   `bureau.json`'s `board`, default `gazette`, at the repo root, or `<workspace>/<board>` in the
+   contained layout where the workspace is named `bureau`), `--watch` (rebuild the gazette when the
    workspace changes, so the served board stays fresh — refresh the browser to see it). If `--port`
    is given, validate it is an integer in `1024–65535`; otherwise report and stop.
 3. **Start the server.** Run
-   `node "${CLAUDE_PLUGIN_ROOT}/scripts/serve.mjs" [--port <port>] --out <out> [--watch]` from the repo
-   root. It binds `127.0.0.1` only — never a public interface. With no `--port` it auto-picks a random
+   `node "${CLAUDE_PLUGIN_ROOT}/scripts/serve.mjs" [--port <port>] [--out <out>] [--watch]` from the
+   repo root. It binds `127.0.0.1` only — never a public interface. With no `--port` it auto-picks a random
    port and re-rolls on the rare collision; a **pinned** `--port` that is already in use fails loudly
    (drop `--port` to auto-pick). Read the actual bound port from the URL the server prints — it is not
    fixed across runs.

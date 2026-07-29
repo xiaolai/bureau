@@ -22,6 +22,7 @@ import { projectTimeline } from "./engine/telemetry.mjs";
 import { canonicalJSON } from "./services/determinism.mjs";
 import { escapeHtml, cspMeta, sanitizeBody } from "./services/sanitize.mjs";
 import { resolveLinks, parseHtmlDoc, markdownToHtml, addHeadingIds, resolveImageEmbeds, replaceOutsideRaw } from "./core/parse.mjs";
+import { containedBoardDir, topLevelSkips, topLevelSkipsFor } from "./core/sources.mjs";
 import { slugify } from "./shared/slug.mjs";
 import { makeResolve } from "./runtime/pure.mjs";
 import { resolveTokens, emitCssVars } from "./services/theme.mjs";
@@ -42,13 +43,23 @@ function physicalPath(p) {
   while (!existsSync(anc)) { const parent = dirname(anc); if (parent === anc) return p; tail.unshift(anc.slice(parent.length + 1)); anc = parent; }
   return tail.length ? join(realpathSync(anc), ...tail) : realpathSync(anc);
 }
-function guardOutDir(root, outDir, docsDir, dataDir) {
+function guardOutDir(root, outDir, docsDir, dataDir, containedBoard) {
   // append a single trailing separator without doubling it for the filesystem root,
   // so `/` (already ending in sep) is still recognized as an ancestor of everything.
   const withSep = (p) => (p.endsWith(sep) ? p : p + sep);
   // Compare PHYSICAL paths (realpath of the deepest existing ancestor) so a symlinked
   // output ancestor can't smuggle writes into the content/data tree or outside root.
   const rootP = physicalPath(root), docsP = docsDir && physicalPath(docsDir), dataP = dataDir && physicalPath(dataDir);
+  // CONTAINED layout ONLY (a workspace NAMED `bureau`): it may host its own rendered board as the
+  // ONE sanctioned child `<workspace>/<board>` (+ the atomic-swap siblings) — discovery and the
+  // input hash skip that same child (core/sources.mjs, keyed on containedBoardDir), so the render
+  // can never clobber or feed back into source. A default-layout workspace renders its board
+  // OUTSIDE itself, so no child of it is exempt; any overlap with the content dir is still refused.
+  // `containedBoard` is the build's ONE marker snapshot (buildSite); a direct/legacy caller that
+  // omits it falls back to resolving it here.
+  const board = containedBoard !== undefined ? containedBoard : (docsDir ? containedBoardDir(docsDir) : null);
+  const boardOut = board && docsP ? join(docsP, board) : null;
+  const allowedOut = new Set(boardOut ? [boardOut, boardOut + ".tmp", boardOut + ".bak"] : []);
   // the dist swap also creates+removes these siblings — they must clear the same guards.
   const targets = [["--out", outDir], ["--out temp dir", outDir + ".tmp"], ["--out backup dir", outDir + ".bak"]];
   for (const [olabel, o] of targets) {
@@ -58,6 +69,7 @@ function guardOutDir(root, outDir, docsDir, dataDir) {
     }
     for (const [label, src] of [["content dir", docsP], ["data dir", dataP]]) {
       if (!src) continue;
+      if (label === "content dir" && allowedOut.has(oP)) continue; // the workspace's own board child
       if (oP === src || withSep(oP).startsWith(withSep(src)) || withSep(src).startsWith(withSep(oP))) {
         throw new Error("Refusing to build: " + olabel + " (" + o + ") overlaps the " + label + " (" + src + ") — output would overwrite source content.");
       }
@@ -162,7 +174,7 @@ function transcludeEmbeds(html, source) {
 // project theme + the engine bytes + schemaVersion + `now`. Same hash ⇒ same output
 // (by determinism), so an unchanged rebuild is a safe no-op. A schemaVersion bump or
 // an engine change invalidates the cache (closes the schemaVersion-invalidation gap).
-function hashInputs({ root, docsDir, dataDir, now }) {
+function hashInputs({ root, docsDir, dataDir, now, topSkip = null }) {
   const h = createHash("sha256");
   h.update("schema:" + SCHEMA_VERSION + "|now:" + (now || ""));
   for (const f of [...ENGINE_LIB, "theme.css"]) h.update(readFileSync(join(TEMPLATE_DIR, "lib", f)));
@@ -171,10 +183,11 @@ function hashInputs({ root, docsDir, dataDir, now }) {
   // bundle, so a plugin upgrade — new render/build logic, same inputs — invalidates the cache instead
   // of returning a dist built by the old engine. SCHEMA_VERSION alone only catches model-shape bumps.
   h.update(readFileSync(fileURLToPath(import.meta.url)));
-  const addDir = (dir) => {
+  const addDir = (dir, topSkip = null) => {
     if (!existsSync(dir)) return;
     try { if (lstatSync(dir).isSymbolicLink()) return; } catch { return; } // never walk a symlinked ROOT (child links are skipped below)
     for (const name of readdirSync(dir).sort()) {
+      if (topSkip && topSkip.has(name)) continue; // top-level only: crew + the workspace's own board (recursion passes no topSkip)
       const p = join(dir, name);
       let st; try { st = lstatSync(p); } catch { continue; } // unreadable entry → skip, don't crash the build
       if (st.isSymbolicLink()) continue;                     // never follow links (cycles / external reads)
@@ -184,7 +197,11 @@ function hashInputs({ root, docsDir, dataDir, now }) {
       else if (st.isFile()) { try { const buf = readFileSync(p); h.update("\0" + relative(root, p) + "\0"); h.update(buf); } catch { /* unreadable → skip */ } }
     }
   };
-  addDir(docsDir);
+  // hash exactly what discovery reads: skip crew/ + (in the contained layout) the configured board
+  // dir at the workspace top level. Without the board skip a CONTAINED board (<workspace>/<board>)
+  // would feed its own output back into the next build's input hash and self-invalidate the cache.
+  // Use the build's ONE marker snapshot when given, so guard/hash/discovery never diverge mid-build.
+  addDir(docsDir, topSkip || topLevelSkips(docsDir));
   addDir(dataDir);
   addDir(join(root, "assets"));
   for (const f of ["theme.json", "theme.css"]) { const p = join(root, f); if (existsSync(p)) h.update(readFileSync(p)); }
@@ -224,9 +241,10 @@ function hashInputs({ root, docsDir, dataDir, now }) {
 }
 
 // Shared model+health assembly used by both buildSite and `gazette health` (grill M10).
-export function computeHealth({ docsDir, dataDir, now = null }) {
+// `topSkip` is the build's ONE marker snapshot; `gazette health` omits it and loadCorpus resolves it.
+export function computeHealth({ docsDir, dataDir, now = null, topSkip = null }) {
   dataDir = dataDir || join(docsDir, "_data"); // data lives under the content dir
-  const corpus = loadCorpus({ docsDir, dataDir });
+  const corpus = loadCorpus({ docsDir, dataDir, topSkip });
   const model = buildModel({ corpus });
   const backlinks = deriveBacklinks(model);
   const timeline = deriveTimeline(dataDir); // { docs, count } — generated, valid link targets
@@ -258,10 +276,15 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
   docsDir = resolve(root, docsDir || "gazette");      // default content dir (was docs/)
   dataDir = resolve(root, dataDir || join(docsDir, "_data")); // data lives under the content dir
   outDir = resolve(root, outDir || "dist");
-  guardOutDir(root, outDir, docsDir, dataDir);
+  // Resolve the contained-board marker ONCE for the whole build. guardOutDir (what may be written),
+  // hashInputs (what busts the cache), and discovery (what is read as content) all use this single
+  // snapshot — so a `bureau.json` edit racing the build can't make them skip/permit different dirs.
+  const containedBoard = containedBoardDir(docsDir);
+  const topSkip = topLevelSkipsFor(containedBoard);
+  guardOutDir(root, outDir, docsDir, dataDir, containedBoard);
 
   // incremental short-circuit (M2): identical inputs ⇒ the existing dist is current.
-  const hash = hashInputs({ root, docsDir, dataDir, now });
+  const hash = hashInputs({ root, docsDir, dataDir, now, topSkip });
   const metaPath = join(outDir, ".buildmeta.json");
   if (!force && existsSync(metaPath) && existsSync(join(outDir, "index.html"))) {
     try {
@@ -270,7 +293,7 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
     } catch { /* stale/corrupt meta → rebuild */ }
   }
 
-  const { corpus, model, health, timeline } = computeHealth({ docsDir, dataDir, now });
+  const { corpus, model, health, timeline } = computeHealth({ docsDir, dataDir, now, topSkip });
 
   // recursion-engine LIVE freshness (ADR-0001): committed decision log + a working-tree overlay, so
   // the board reflects uncommitted edits. Pure over (files + log); never writes. A broken log
@@ -538,7 +561,7 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
   // edit that lands entirely between the two hashes leaves both equal while the build consumed B.
   // Closing it needs the loaders to read from one snapshotted byte set (or a build lock); until then
   // this narrows the window rather than eliminating it. `--force` bypasses the cache entirely.
-  const hashAfter = hashInputs({ root, docsDir, dataDir, now });
+  const hashAfter = hashInputs({ root, docsDir, dataDir, now, topSkip }); // same board snapshot as the pre-hash
   if (hashAfter === hash) writeFileSync(metaPath, JSON.stringify({ hash, summary }));
   else { try { if (existsSync(metaPath)) unlinkSync(metaPath); } catch { /* nothing cached to invalidate */ } }
   return summary;

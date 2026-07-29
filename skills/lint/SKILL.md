@@ -64,12 +64,15 @@ decision, never an automatic edit).
 
 ## Steps
 
-1. **Locate the workspace** (`bureau.json`; default `bureau`). If none, tell the user to run
+1. **Locate the workspace** (`bureau.json`; default `canon`). If none, tell the user to run
    `bureau:init` first and stop.
-2. **Read the cabinets.** Load every cabinet drawer, EXCLUDING `logbook/`, the rendered
-   `board/`, `lint/` (lint's own findings — never lint the findings), and every
-   `_`-prefixed file/dir (state ledgers, not canon). If there are no dossiers yet, report
-   "no cabinets to lint" and stop.
+2. **Read the cabinets.** Load every cabinet drawer, EXCLUDING `logbook/`,
+   `lint/` (lint's own findings — never lint the findings), `crew/` (the crew source),
+   every `_`-prefixed file/dir (state ledgers, not canon), and — **only in the contained layout**
+   (a workspace named `bureau`) — the configured board dir (`bureau.json.board`, default
+   `gazette`), which there nests inside the workspace. In a default-layout workspace the board
+   renders outside, so a same-named child is ordinary content — do NOT exclude it. If there are
+   no dossiers yet, report "no cabinets to lint" and stop.
 3. **Find + refute.** Run the find→refute→record loop above for all four finding types,
    weighted by the active profiles.
 4. **Write the report.** Write `lint/findings.md` with the surviving findings; if none survive,

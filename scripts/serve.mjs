@@ -24,6 +24,10 @@ import { join, dirname, resolve, normalize, extname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes, randomInt } from "node:crypto";
 import { spawn } from "node:child_process";
+// board resolution: the workspace's configured board dir (bureau.json `board`, default "gazette"),
+// and the contained-layout predicate (a workspace named `bureau`, board name iff contained).
+// Builtin-only module — safe for this standalone script (no node_modules).
+import { boardDirName, containedBoardDir } from "../press/src/core/sources.mjs";
 
 const LOG_DRAWER = "logbook";
 const BODY_CAP = 100_000;        // max POST body bytes
@@ -220,11 +224,17 @@ function leadingFm(s) {
 // treats as canon. Never trusts a client path; the decision endpoint re-derives this set.
 function cabinetDossiers(wsDir) {
   const out = [];
+  // top-level non-canon dirs: history, lint findings, the crew source, and — in the CONTAINED
+  // layout ONLY — the workspace's own rendered board (never review the render as a dossier). A
+  // default-layout board renders OUTSIDE the workspace, so it never appears in this walk.
+  const topSkip = new Set([LOG_DRAWER, "lint", "crew"]);
+  const board = containedBoardDir(wsDir);
+  if (board) topSkip.add(board);
   const walk = (abs, rel) => {
     for (const e of safe(() => readdirSync(abs, { withFileTypes: true }), [])) {
       if (e.name.startsWith("_") || e.name.startsWith(".") || e.isSymbolicLink()) continue;
       const childRel = rel ? rel + "/" + e.name : e.name;
-      if (e.isDirectory()) { if (rel === "" && (e.name === LOG_DRAWER || e.name === "lint")) continue; walk(join(abs, e.name), childRel); }
+      if (e.isDirectory()) { if (rel === "" && topSkip.has(e.name)) continue; walk(join(abs, e.name), childRel); }
       else if (e.isFile() && e.name.endsWith(".md")) {
         const fm = leadingFm(safe(() => readFileSync(join(abs, e.name), "utf8"), ""));
         if (fm && REVIEWABLE.has(fm.status)) out.push({ path: childRel, title: fm.title || e.name, status: fm.status });
@@ -519,12 +529,19 @@ async function listenChamber(server, host, port, tries = 40, pick = randomPort) 
 // Start the chamber. Resolves the workspace, binds 127.0.0.1, returns the live server.
 // `port` is overridable for tests (0 = OS-ephemeral); `null`/undefined = auto-pick a random 5-digit
 // port with retry (see listenChamber). `host` is overridable too. Never binds beyond localhost.
-export async function start({ cwd = process.cwd(), out = "gazette", port = null, host = "127.0.0.1", watch = false } = {}) {
+// `out` = the built-board dir; `null`/undefined resolves the workspace's own board (bureau.json
+// `board`, default "gazette") — at the repo root normally, or INSIDE the workspace
+// (`<workspace>/<board>`) in the CONTAINED layout (a workspace named `bureau`).
+export async function start({ cwd = process.cwd(), out = null, port = null, host = "127.0.0.1", watch = false } = {}) {
   if (!["127.0.0.1", "::1", "localhost"].includes(host)) throw new Error("bureau serve binds loopback only — refusing host " + host);
   const wsDir = workspaceDir(cwd);
   if (!wsDir) throw new Error("no bureau workspace found in " + cwd + " — run bureau:init first");
+  const wsName = wsDir.slice(dirname(wsDir).length + 1);
+  // contained layout → the board nests at `<workspace>/<board>`; otherwise it's a repo-root sibling.
+  const contained = containedBoardDir(wsDir);
+  const outDir = resolve(cwd, out != null ? out : (contained ? join(wsName, contained) : (boardDirName(wsDir) || "gazette")));
   const ctx = {
-    wsDir, wsName: wsDir.slice(dirname(wsDir).length + 1), outDir: resolve(cwd, out),
+    wsDir, wsName, outDir,
     // time + entropy: two chambers on one workspace started in the same millisecond must not share
     // a session id (it namespaces every minute filename — a collision would spuriously 500).
     sessionId: "chamber-" + Date.now().toString(36) + "-" + randomBytes(3).toString("hex"), reviewToken: randomBytes(16).toString("hex"),
@@ -547,7 +564,7 @@ export async function start({ cwd = process.cwd(), out = "gazette", port = null,
     if (!watcher.supported) safe(() => process.stderr.write("bureau serve: recursive watch unsupported here — live-rebuild disabled\n"), null);
   }
   const close = () => { safe(() => watcher && watcher.close(), null); server.close(); };
-  return { server, watcher, close, wsDir, wsName: ctx.wsName, host, port: server.address().port, sessionId: ctx.sessionId, reviewToken: ctx.reviewToken };
+  return { server, watcher, close, wsDir, wsName: ctx.wsName, outDir: ctx.outDir, host, port: server.address().port, sessionId: ctx.sessionId, reviewToken: ctx.reviewToken };
 }
 
 // internal helpers exported for unit tests (not a public API)
@@ -564,7 +581,8 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     port = Number(opt("port", ""));
     if (!Number.isInteger(port) || port < 1024 || port > 65535) { process.stderr.write("bureau serve: --port must be an integer in 1024–65535\n"); process.exit(1); }
   }
-  start({ out: opt("out", "gazette"), port, host: opt("host", "127.0.0.1"), watch: args.includes("--watch") })
+  // No --out → null → resolve the workspace's board (contained-aware; see start()).
+  start({ out: opt("out", null), port, host: opt("host", "127.0.0.1"), watch: args.includes("--watch") })
     .then(({ host, port, wsName, reviewToken, watcher }) => process.stdout.write(
       "bureau chamber → http://" + (host.includes(":") ? "[" + host + "]" : host) + ":" + port + "  (workspace: " + wsName + ")\n" +
       "  Reviewer token (paste in the chamber to approve/reject): " + reviewToken + "\n" +

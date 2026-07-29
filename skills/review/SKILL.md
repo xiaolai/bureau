@@ -28,7 +28,7 @@ never writes `canonical` itself — that tier exists only on the far side of thi
 
 ## What review does
 
-1. **Locate the workspace** (`bureau.json`; default `bureau`). If none, tell the user to run
+1. **Locate the workspace** (`bureau.json`; default `canon`). If none, tell the user to run
    `bureau:init` first and stop.
 2. **Re-check staleness first.** For each `verified`/`canonical` page, run
    `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" ledger recheck --dir <workspace> --page "<title>"`.

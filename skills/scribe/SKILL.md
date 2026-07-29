@@ -25,7 +25,7 @@ signal. Capture inflection points, not heartbeats.
 
 ## Steps
 
-1. **Locate the workspace** (`bureau.json`; default `bureau`). If none, produce the summary for
+1. **Locate the workspace** (`bureau.json`; default `canon`). If none, produce the summary for
    the user and stop (ephemeral mode) — do not error.
 2. **Summarize the span** since the last note: the decisions reached, what changed, and the open
    threads. Faithful over polished — include reversals and dead ends.

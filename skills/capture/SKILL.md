@@ -13,7 +13,7 @@ write this session's entry; never edit another session's.
 ## Where it goes
 
 `<workspace>/logbook/<YYYY>/<MM>/<safe-session-id>.md` (workspace name from `bureau.json`,
-default `bureau`). **Sanitize the session id first** — keep only `[A-Za-z0-9_-]`, drop
+default `canon`). **Sanitize the session id first** — keep only `[A-Za-z0-9_-]`, drop
 everything else (no `/`, no `..`); fall back to `unknown` if empty. The raw session id is
 untrusted and must never reach a filesystem path. If a mechanical `SessionEnd` stub already
 exists at that path, **enrich it in place**: re-emit a clean frontmatter block (preserve
