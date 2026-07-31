@@ -143,6 +143,7 @@ export function loadCorpus({ docsDir, dataDir = null, topSkip = null } = {}) {
       spans,
       type: parsed.metaChips.type != null ? String(parsed.metaChips.type) : null, // schema `required: [type]` checks node.type
       attrs: parsed.attrs, edges,
+      raw, // the verbatim source, for the content-binding digest (ADR-0004); not part of the derived tier
       body: parsed.body, bodyLinks: parsed.bodyLinks.map(nfc),
       metaChips: parsed.metaChips,
     });

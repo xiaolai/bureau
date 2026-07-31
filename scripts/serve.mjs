@@ -28,6 +28,9 @@ import { spawn } from "node:child_process";
 // and the contained-layout predicate (a workspace named `bureau`, board name iff contained).
 // Builtin-only module — safe for this standalone script (no node_modules).
 import { boardDirName, containedBoardDir } from "../press/src/core/sources.mjs";
+import { appendEvent, logPath } from "../press/src/engine/log.mjs";
+import { reviewDigest } from "../press/src/engine/review-digest.mjs";
+import { parseMarkdownDoc } from "../press/src/core/parse.mjs";
 
 const LOG_DRAWER = "logbook";
 const BODY_CAP = 100_000;        // max POST body bytes
@@ -261,9 +264,12 @@ function rewriteFrontmatter(text, changes) {
   return "---\n" + lines.join("\n") + "\n---" + text.slice(m[0].length);
 }
 
-// The human's dispose action. approve → canonical + reviewed date; reject → contested + an
-// append-only review minute naming what was rejected (the audit trail; never a destructive delete
-// in a browser — a contested page is re-decided in a session). Token already checked by the route.
+// The human's dispose action (ADR-0004). A decision is a LOG event first — `canonical` is a projection
+// of an `approve` event, so the chamber appends a CONTENT-BOUND approve/reject to `_log.jsonl` (by the
+// token-gated human authority) BEFORE touching the dossier. Appending first means a crash can never
+// leave an authored `canonical` no event backs (the original chamber bug, fsck `unbacked-canonical`).
+// The frontmatter is still stamped for plain-file legibility until reader-projection lands; the log is
+// authoritative. Token already checked by the route.
 function applyDecision(ctx, body) {
   const b = parseJsonObject(body);
   if (!b) return { code: 400, err: "invalid JSON — expected an object" };
@@ -274,21 +280,46 @@ function applyDecision(ctx, body) {
   if (!match) return { code: 404, err: "not a pending dossier" };
   const abs = join(ctx.wsDir, rel);
   if (!containedUnder(abs, ctx.wsDir)) return { code: 500, err: "containment check failed" };
+  if (safe(() => lstatSync(abs).isSymbolicLink(), false)) return { code: 500, err: "refusing to write through a symlink" };
   const text = safe(() => readFileSync(abs, "utf8"), null);
   if (text == null) return { code: 404, err: "dossier unreadable" };
+  // Derive identity + title with the ENGINE'S parser (the same one loadCorpus/fsck use), NOT the
+  // chamber's permissive `leadingFm` — otherwise the chamber could key the event on a different uid or
+  // hash a different title than fsck recomputes (e.g. `id: [P]`, or a title that falls back to the h1),
+  // producing an unbacked-canonical or an instantly-stale approval.
+  const meta = safe(() => parseMarkdownDoc(text).meta, null) || {};
+  const uid = meta.id != null && String(meta.id).trim() ? String(meta.id).trim() : null;
+  if (!uid) return { code: 409, err: "this dossier has no authored `id:` — a decision needs a stable id so it survives a rename (add `id:` and re-scan)" };
+  const title = meta.title != null && String(meta.title) !== "" ? String(meta.title) : match.title;
   const date = new Date().toISOString().slice(0, 10);
   const changes = decision === "approve" ? { status: "canonical", updated: date, reviewed: date } : { status: "contested", updated: date };
   const next = rewriteFrontmatter(text, changes);
   if (next == null) return { code: 500, err: "dossier has no frontmatter" };
-  if (safe(() => lstatSync(abs).isSymbolicLink(), false)) return { code: 500, err: "refusing to write through a symlink" };
-  // reject: write the audit minute FIRST — never flip a dossier without the promised audit trail
-  if (decision === "reject" && !appendReviewMinute(ctx, match, String(b.reason == null ? "" : b.reason)))
-    return { code: 500, err: "could not write the review minute — dossier left unchanged" };
-  // atomic write: exclusive no-follow temp in the same (contained) dir → rename (a crash can't truncate)
+  // LOG FIRST — the log is AUTHORITATIVE (ADR-0004). A content-bound `hash` pins the reviewed bytes;
+  // if the frontmatter is un-digestible we log hashless (valid; fsck flags `unbound`) rather than fail
+  // the human's decision. KNOWN LIMITATIONS of this intermediate dual-write, both removed by Phase 3
+  // (projection-only, no frontmatter authoring): (1) `appendEvent` is not fsync'd before the rename, so
+  // a power loss in that window can leave an authored `canonical` without the (unflushed) approval;
+  // (2) two SEPARATE chamber processes on one workspace can interleave frontmatter vs log. Both leave a
+  // divergence fsck reports (`unbacked-canonical`) and a re-render reconciles — never a silent bad tier.
+  const lp = logPath(ctx.wsDir);
+  let logged;
+  if (decision === "approve") {
+    const hash = safe(() => reviewDigest({ raw: text, uid, title }), null);
+    logged = safe(() => appendEvent(lp, hash != null ? { type: "approve", id: uid, by: "human", hash } : { type: "approve", id: uid, by: "human" }), null);
+  } else {
+    logged = safe(() => appendEvent(lp, { type: "reject", id: uid, by: "human" }), null);
+  }
+  if (!logged) return { code: 500, err: "could not append the decision to the log — dossier unchanged" };
+  // The decision IS committed now (the log event stands). Everything below is best-effort DISPLAY —
+  // a failure is a WARNING (fsck/a re-render reconciles), never a rollback that would falsely tell the
+  // human their logged decision failed.
+  const warnings = [];
+  if (decision === "reject" && !appendReviewMinute(ctx, match, String(b.reason == null ? "" : b.reason))) warnings.push("audit minute not written");
   const tmp = abs + ".bureau-tmp-" + ctx.nextSeq();
-  if (!writeNew(tmp, next)) return { code: 500, err: "could not write dossier" };
-  if (safe(() => renameSync(tmp, abs), "fail") === "fail") { safe(() => rmSync(tmp), null); return { code: 500, err: "could not finalize dossier" }; }
-  return { code: 200, path: rel, status: changes.status };
+  if (!writeNew(tmp, next)) warnings.push("display frontmatter not updated — the log stands; re-render to reconcile");
+  else if (safe(() => renameSync(tmp, abs), "fail") === "fail") { safe(() => rmSync(tmp), null); warnings.push("display frontmatter not finalized — the log stands; re-render to reconcile"); }
+  return { code: 200, path: rel, status: changes.status, seq: logged.seq, ...(warnings.length ? { warnings } : {}) };
 }
 
 // append-only record of a rejection (mirrors the CLI review's "append a review minute").
@@ -381,7 +412,7 @@ const CHAMBER_SCRIPT = `
     try {
       var r = await fetch("/review/decision", { method: "POST", headers: { "content-type": "application/json", "x-bureau-review": tokenEl.value }, body: JSON.stringify({ path: path, decision: decision, reason: reason }) });
       var j = await r.json();
-      if (r.ok) { rout.className = "note ok"; rout.textContent = (decision === "approve" ? "Promoted → canonical: " : "Sent back → contested: ") + j.path; loadReview(); }
+      if (r.ok) { var warn = j.warnings && j.warnings.length ? " — ⚠ logged, but " + j.warnings.join("; ") : ""; rout.className = warn ? "note" : "note ok"; rout.textContent = (decision === "approve" ? "Promoted → canonical: " : "Sent back → contested: ") + j.path + warn; loadReview(); }
       else { rout.className = "note err"; rout.textContent = "Rejected: " + (j.err || r.status); }
     } catch (err) { rout.className = "note err"; rout.textContent = "Failed: " + err.message; }
   }
@@ -447,7 +478,7 @@ function handle(req, res, ctx) {
     return readBody(req).then((body) => {
       if (body == null) return sendJson(res, 413, { err: "request body too large or unreadable" });
       const r = applyDecision(ctx, body);
-      if (r.code === 200) return sendJson(res, 200, { ok: true, path: r.path, status: r.status });
+      if (r.code === 200) return sendJson(res, 200, { ok: true, path: r.path, status: r.status, seq: r.seq, ...(r.warnings && r.warnings.length ? { warnings: r.warnings } : {}) });
       return sendJson(res, r.code, { err: r.err });
     });
   }

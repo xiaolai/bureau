@@ -11,6 +11,7 @@ import { canonicalJSON } from "../services/determinism.mjs";
 import { logPath, readLog } from "./log.mjs";
 import { projectRevisions } from "./revisions.mjs";
 import { projectDecisions, resolveNodeState } from "./state.mjs";
+import { reviewDigest } from "./review-digest.mjs";
 import { computeGate } from "./gate.mjs";
 import { scan } from "./scan.mjs";
 import { readVerify, readCompiled } from "./ledgers.mjs";
@@ -97,7 +98,11 @@ export const derivedDigest = (derived) => sha256(canonicalJSON(derived, 0));
 // Findings are graded: `pending-scan` is ADVISORY (editing without re-scanning is normal mid-work);
 // everything else is a real problem. `ok` (and the CLI exit) turn only on the non-advisory findings
 // plus fixpoint stability — so a clean, scanned canon is ok:true even before the next scan.
-const ADVISORY = new Set(["pending-scan"]);
+// `unbound-approval`/`stale-approval` are ADVISORY in this warn-only phase: the derived tier still
+// projects the approval (no existing canon is demoted), so these surface in `report`/`serve` as a
+// nudge to re-approve without failing `fsck --check`. Enforcement (demote a stale approval, block) is
+// a later step, gated on the human-run legacy migration.
+const ADVISORY = new Set(["pending-scan", "unbound-approval", "stale-approval"]);
 
 export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write = true, policy } = {}) {
   const c = corpus || loadCorpus({ docsDir });
@@ -144,8 +149,21 @@ export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, 
   // The unauthorized checks key off the DECISION EVENT, never the page's AUTHORED tier. Keying off
   // the authored tier let a machine authority promote a page authored `proposed` straight to
   // `canonical` while this loop skipped it — a gate bypass that left `fsck.ok` true.
-  const { approved, unauthorizedApprovals, unauthorizedResolutions, unauthorizedRejections } = projectDecisions(evs, pol);
+  const { approved, approvedHash, unauthorizedApprovals, unauthorizedResolutions, unauthorizedRejections } = projectDecisions(evs, pol);
   const nodeByUid = new Map(Object.values(model.nodes).map((n) => [n.uid, n]));
+
+  // content-binding (ADR-0004): an EFFECTIVE approval that carries a `hash` is STALE if the page no
+  // longer hashes to it (edited after review); an effective approval with NO hash is UNBOUND (a legacy
+  // approval to nudge toward re-approval). Advisory for now — the derived tier still projects the
+  // approval (so no existing canon is demoted); enforcement (demoting a stale approval) is a later step.
+  const rawByUid = new Map((c.entries || []).map((e) => [e.uid, e.raw]));
+  for (const [uid, hash] of approvedHash) {
+    const n = nodeByUid.get(uid);
+    if (hash == null) { findings.push({ kind: "unbound-approval", uid, title: n ? n.title : null }); continue; }
+    const raw = rawByUid.get(uid);
+    let cur = null; try { if (raw != null && n) cur = reviewDigest({ raw, uid, title: n.title }); } catch { cur = null; }
+    if (cur !== hash) findings.push({ kind: "stale-approval", uid, title: n ? n.title : null });
+  }
 
   // an approve whose authority the policy rejects — it granted nothing, and that must be loud.
   for (const [uid, by] of unauthorizedApprovals) {

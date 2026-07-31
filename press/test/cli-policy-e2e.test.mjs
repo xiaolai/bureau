@@ -3,7 +3,7 @@
 // where `resolve` builds its event. A bypass here would have left every engine test green.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,9 +50,33 @@ test("cli e2e: `resolve` refuses a pair that does not currently contradict each 
   const w = ws({ "p.md": CANON, "b.md": B });
   try {
     gz(w.dir, ["scan"]);
-    const r = gz(w.dir, ["resolve", "Pee", "Bee", "--winner", "Pee"]);
+    const r = gz(w.dir, ["resolve", "Pee", "Bee", "--winner", "Pee", "--by", "human"]);
     assert.notEqual(r.code, 0);
     assert.match(r.out, /do not declare a `contradicts:` edge/);
+  } finally { w.cleanup(); }
+});
+
+test("cli e2e: decision commands refuse without --by (no silent human authority — ADR-0004)", () => {
+  const w = ws({ "p.md": CANON, "b.md": B });
+  try {
+    gz(w.dir, ["scan"]);
+    for (const args of [["approve", "Pee"], ["reject", "Pee"], ["confirm", "Pee"], ["resolve", "Pee", "Bee", "--winner", "Pee"]]) {
+      const r = gz(w.dir, args);
+      assert.notEqual(r.code, 0, args[0] + " must refuse without --by");
+      assert.match(r.out, /requires --by/, args[0] + " names the --by requirement");
+    }
+    assert.equal(gz(w.dir, ["approve", "Pee", "--by", "human"]).code, 0, "with --by it proceeds");
+  } finally { w.cleanup(); }
+});
+
+test("cli e2e: `approve` is content-bound — logs the reviewed page digest (not unbound)", () => {
+  const w = ws({ "p.md": CANON, "b.md": B });
+  try {
+    gz(w.dir, ["scan"]);
+    assert.equal(gz(w.dir, ["approve", "Pee", "--by", "human"]).code, 0);
+    const log = readFileSync(join(w.dir, "_log.jsonl"), "utf8");
+    assert.match(log, /"type":"approve"/, "an approve event was logged");
+    assert.match(log, /"hash":"bureau-page-v1:[0-9a-f]{64}"/, "the CLI approval carries a content hash");
   } finally { w.cleanup(); }
 });
 

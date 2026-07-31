@@ -22098,6 +22098,8 @@ function loadCorpus({ docsDir, dataDir = null, topSkip = null } = {}) {
       // schema `required: [type]` checks node.type
       attrs: parsed.attrs,
       edges,
+      raw,
+      // the verbatim source, for the content-binding digest (ADR-0004); not part of the derived tier
       body: parsed.body,
       bodyLinks: parsed.bodyLinks.map(nfc),
       metaChips: parsed.metaChips
@@ -24860,8 +24862,49 @@ function renderRepairText(fixes, applied) {
 // src/engine/fsck.mjs
 import { existsSync as existsSync8, readFileSync as readFileSync12, writeFileSync as writeFileSync5, mkdirSync as mkdirSync2, lstatSync as lstatSync9, renameSync as renameSync5, openSync as openSync4, closeSync as closeSync4, constants as constants3 } from "fs";
 import { join as join12, dirname as dirname3, resolve as resolve3, basename as basename2 } from "path";
-import { createHash as createHash5, randomBytes } from "crypto";
-var sha2563 = (s) => createHash5("sha256").update(String(s)).digest("hex");
+import { createHash as createHash6, randomBytes } from "crypto";
+
+// src/engine/review-digest.mjs
+import { createHash as createHash5 } from "crypto";
+var REVIEW_DIGEST_VERSION = 1;
+var NON_SEMANTIC_KEYS = /* @__PURE__ */ new Set([
+  "status",
+  "trust",
+  "effective_status",
+  "reviewed",
+  "verified",
+  "updated",
+  "age",
+  "words",
+  "icon",
+  "group"
+]);
+var nfc3 = (v) => typeof v === "string" ? v.normalize("NFC") : Array.isArray(v) ? v.map(nfc3) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, nfc3(x)])) : v;
+function normalizeBody(body) {
+  return String(body).replace(/^﻿/, "").replace(/\r\n/g, "\n").normalize("NFC").replace(/\n+$/, "\n");
+}
+function semanticFrontmatter(fm) {
+  const out = {};
+  if (fm && typeof fm === "object") for (const k of Object.keys(fm)) {
+    if (NON_SEMANTIC_KEYS.has(k) || k === "id" || k === "title") continue;
+    out[k] = fm[k];
+  }
+  return out;
+}
+function reviewDigest({ raw, uid, title }) {
+  const { frontmatter, body } = splitFrontmatter(String(raw));
+  const payload = {
+    version: REVIEW_DIGEST_VERSION,
+    uid: String(uid == null ? "" : uid).normalize("NFC"),
+    title: String(title == null ? "" : title).normalize("NFC"),
+    semanticFrontmatter: nfc3(semanticFrontmatter(frontmatter)),
+    normalizedBody: normalizeBody(body == null ? "" : body)
+  };
+  return "bureau-page-v1:" + createHash5("sha256").update(canonicalJSON(payload, 0)).digest("hex");
+}
+
+// src/engine/fsck.mjs
+var sha2563 = (s) => createHash6("sha256").update(String(s)).digest("hex");
 var GATE_CACHE_DIR = ".bureau-cache";
 function gateCachePath(docsDir) {
   const abs = resolve3(docsDir);
@@ -24910,7 +24953,7 @@ function buildDerived({ model, events, schemaVersion = SCHEMA_VERSION, policy = 
   };
 }
 var derivedDigest = (derived) => sha2563(canonicalJSON(derived, 0));
-var ADVISORY = /* @__PURE__ */ new Set(["pending-scan"]);
+var ADVISORY = /* @__PURE__ */ new Set(["pending-scan", "unbound-approval", "stale-approval"]);
 function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write = true, policy } = {}) {
   const c = corpus || loadCorpus({ docsDir });
   const model = buildModel({ corpus: c });
@@ -24940,8 +24983,24 @@ function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write =
     }
     if (!isAuthorized(pol, "confirm-edge", by)) findings.push({ kind: "unauthorized-confirm", edge: eid, by: by ?? null, allowed: pol["confirm-edge"] });
   }
-  const { approved, unauthorizedApprovals, unauthorizedResolutions, unauthorizedRejections } = projectDecisions(evs, pol);
+  const { approved, approvedHash, unauthorizedApprovals, unauthorizedResolutions, unauthorizedRejections } = projectDecisions(evs, pol);
   const nodeByUid = new Map(Object.values(model.nodes).map((n) => [n.uid, n]));
+  const rawByUid = new Map((c.entries || []).map((e) => [e.uid, e.raw]));
+  for (const [uid, hash] of approvedHash) {
+    const n = nodeByUid.get(uid);
+    if (hash == null) {
+      findings.push({ kind: "unbound-approval", uid, title: n ? n.title : null });
+      continue;
+    }
+    const raw = rawByUid.get(uid);
+    let cur = null;
+    try {
+      if (raw != null && n) cur = reviewDigest({ raw, uid, title: n.title });
+    } catch {
+      cur = null;
+    }
+    if (cur !== hash) findings.push({ kind: "stale-approval", uid, title: n ? n.title : null });
+  }
   for (const [uid, by] of unauthorizedApprovals) {
     const n = nodeByUid.get(uid);
     findings.push({ kind: "unauthorized-canonical", uid, title: n ? n.title : null, by, allowed: pol.approve });
@@ -25863,19 +25922,33 @@ function runTelemetry() {
   }
 }
 function resolvePage(docsDir, title) {
-  const model = buildModel({ corpus: loadCorpus({ docsDir }) });
+  const corpus = loadCorpus({ docsDir });
+  const model = buildModel({ corpus });
   const node = model.nodes[nfc(String(title))];
   if (!node) die("no page titled [" + title + "]");
-  return { model, node };
+  return { model, node, corpus };
+}
+function requireBy(cmd2) {
+  const by = opt("by");
+  if (!by || !String(by).trim()) die(cmd2 + " requires --by <authority> (e.g. `--by human` when you are the reviewer, or `--by invariant` for an automated gate) \u2014 a decision is never silently 'human'.");
+  return by;
 }
 function runApprove() {
   try {
     const title = argv[1] && !argv[1].startsWith("--") ? argv[1] : opt("page");
-    if (!title) die('usage: gazette approve "<page title>"');
+    if (!title) die('usage: gazette approve "<page title>" --by <authority>');
+    const by = requireBy("gazette approve");
     const docsDir = engineDir();
-    const { node } = resolvePage(docsDir, title);
-    const ev = appendEvent(logPath(docsDir), { type: "approve", id: node.uid, to_trust: "canonical", by: opt("by", "human") });
-    console.log("\u2713 approved [" + node.title + "] \u2192 trust: canonical (backed by log seq " + ev.seq + ")");
+    const { node, corpus } = resolvePage(docsDir, title);
+    const entry = corpus.entries.find((e) => e.uid === node.uid);
+    let hash;
+    try {
+      if (entry) hash = reviewDigest({ raw: entry.raw, uid: node.uid, title: node.title });
+    } catch {
+      hash = void 0;
+    }
+    const ev = appendEvent(logPath(docsDir), hash ? { type: "approve", id: node.uid, to_trust: "canonical", by, hash } : { type: "approve", id: node.uid, to_trust: "canonical", by });
+    console.log("\u2713 approved [" + node.title + "] \u2192 trust: canonical (backed by log seq " + ev.seq + (hash ? ", content-bound" : "") + ")");
   } catch (e) {
     die(e.message);
   }
@@ -25883,11 +25956,12 @@ function runApprove() {
 function runReject() {
   try {
     const title = argv[1] && !argv[1].startsWith("--") ? argv[1] : opt("page");
-    if (!title) die('usage: gazette reject "<page title>" [--reason "\u2026"]');
+    if (!title) die('usage: gazette reject "<page title>" --by <authority> [--reason "\u2026"]');
+    const by = requireBy("gazette reject");
     const docsDir = engineDir();
     const { node } = resolvePage(docsDir, title);
-    appendEvent(logPath(docsDir), { type: "reject", id: node.uid, reason: opt("reason", "") });
-    console.log("\u2713 rejected [" + node.title + "] (logged; the page's authored tier stands, no canonical backing)");
+    appendEvent(logPath(docsDir), { type: "reject", id: node.uid, by, reason: opt("reason", "") });
+    console.log("\u2713 rejected [" + node.title + "] (logged; if unauthorized it is inert and any prior approval stands)");
   } catch (e) {
     die(e.message);
   }
@@ -25895,7 +25969,8 @@ function runReject() {
 function runConfirm() {
   try {
     const title = argv[1] && !argv[1].startsWith("--") ? argv[1] : opt("page");
-    if (!title) die('usage: gazette confirm "<dependent page title>"');
+    if (!title) die('usage: gazette confirm "<dependent page title>" --by <authority>');
+    const by = requireBy("gazette confirm");
     const docsDir = engineDir();
     const { node, model } = resolvePage(docsDir, title);
     const g = computeGate({ model, events: readLog(logPath(docsDir)), policy: loadPolicy(docsDir) });
@@ -25906,7 +25981,7 @@ function runConfirm() {
         skippedBroken++;
         continue;
       }
-      appendEvent(logPath(docsDir), { type: "confirm-edge", edge: e.edgeId, verdict_key: e.verdictKey, by: opt("by", "human") });
+      appendEvent(logPath(docsDir), { type: "confirm-edge", edge: e.edgeId, verdict_key: e.verdictKey, by });
       n++;
     }
     const note = skippedBroken ? " (skipped " + skippedBroken + " broken edge(s) \u2014 fix the target/span first)" : "";
@@ -25918,7 +25993,8 @@ function runConfirm() {
 function runResolve() {
   try {
     const a = argv[1], b = argv[2];
-    if (!a || !b || a.startsWith("--") || b.startsWith("--")) die('usage: gazette resolve "<page A>" "<page B>" --winner "<title>"');
+    if (!a || !b || a.startsWith("--") || b.startsWith("--")) die('usage: gazette resolve "<page A>" "<page B>" --winner "<title>" --by <authority>');
+    const by = requireBy("gazette resolve");
     const docsDir = engineDir();
     const model = buildModel({ corpus: loadCorpus({ docsDir }) });
     const na = model.nodes[nfc(String(a))], nb = model.nodes[nfc(String(b))];
@@ -25930,7 +26006,7 @@ function runResolve() {
     if (!wn || wn.uid !== na.uid && wn.uid !== nb.uid) die("--winner must be one of the two named pages");
     const contradicts = model.edges.some((e) => e.edgeType === "contradicts" && (e.sourceUid === na.uid && model.nodes[e.target] && model.nodes[e.target].uid === nb.uid || e.sourceUid === nb.uid && model.nodes[e.target] && model.nodes[e.target].uid === na.uid));
     if (!contradicts) die("[" + na.title + "] and [" + nb.title + "] do not declare a `contradicts:` edge \u2014 there is no conflict to resolve");
-    const ev = appendEvent(logPath(docsDir), { type: "resolve", conflict: conflictKey(na.uid, nb.uid), winner: wn.uid, by: opt("by", "human") });
+    const ev = appendEvent(logPath(docsDir), { type: "resolve", conflict: conflictKey(na.uid, nb.uid), winner: wn.uid, by });
     console.log("\u2713 resolved [" + na.title + "] \xD7 [" + nb.title + "] \u2192 winner [" + wn.title + "] (resolution_id " + ev.seq + ")");
   } catch (e) {
     die(e.message);

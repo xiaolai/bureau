@@ -47,19 +47,20 @@ never writes `canonical` itself — that tier exists only on the far side of thi
      `unverifiable (judgment — needs your eye)` for rationale/design claims.
    Group facts (auto-verified) apart from judgments (need human reasoning) — the judgments are
    the ones that actually need the human.
-5. **Take the human's decision** per page (ask in batches, not one-by-one):
-   - **approve** → log the approval with
-     `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" approve "<title>" --dir <workspace>` (the
-     press appends an `approve` event to the decision log — `canonical` is a **projection of that
-     event**, not the frontmatter alone; `gazette fsck` flags any authored `canonical` that no
-     approval backs). Then set the page `status: canonical` and stamp `reviewed:` with today's date
-     for display (`reviewed:`, NOT `verified:` — `verified` is the automatic-check tier, `reviewed`
-     is the human stamp);
-   - **reject** → confirm first, then remove the claim. If the page holds ONLY this claim,
-     delete the page; if it carries other claims or provenance, strike just this claim and keep
-     the rest — never delete unrelated content. Record the rejection by **appending a new
-     minute** (a short `review` entry naming what was rejected and why) — do NOT rewrite
-     an existing minute; the logbook is append-only history.
+5. **Prepare the decisions — the HUMAN commits them.** This is the human-authority gate: per BUREAU.md
+   and ADR-0004 the AI must NEVER commit a human-authority event — never run `gazette approve`, never
+   assert `--by human`. So present the queue in batches and, for each page the human approves, hand
+   them the exact command to run **themselves**:
+   `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" approve "<title>" --dir <workspace> --by human`
+   The press appends an `approve` event to the decision log; `canonical` is a **projection of that
+   event**, not the frontmatter — so do NOT author `status: canonical` yourself (`gazette fsck` flags
+   an authored `canonical` no approval backs, and ADR-0004 makes effective trust log-only). `reviewed:`
+   is likewise projected from the approve event, not stamped by you.
+   - **reject** → hand the human `… reject "<title>" --dir <workspace> --by human [--reason "…"]` (an
+     unauthorized reject is inert, so naming the human authority is what makes it stick). Once they
+     confirm, remove the claim — delete the page only if it holds no other claim, else strike just this
+     claim, never unrelated content — and append a NEW `review` minute naming what was rejected (the
+     logbook is append-only; never rewrite a minute).
 6. **Structural check.** Run `bureau:inspect`; report the gazette state.
 7. **Report.** Counts approved / rejected / left pending, and the path to anything still
    `contested` (those are resolved by re-deciding in a session, not by review).
@@ -82,7 +83,9 @@ an unverified claim can never masquerade as truth.
 
 ## Rules
 
-1. **Human-gated.** Only this skill writes `canonical`, and only on an explicit human approval.
+1. **Human-gated; the AI never commits.** `canonical` is a projection of a **human-run** `approve`
+   event. The AI presents and prepares the decisions but NEVER runs `gazette approve`/`reject`, never
+   asserts `--by human`, and never authors `status: canonical` — the human runs the commands (ADR-0004).
 2. **Reject is guarded and logged, never silent erasure.** Confirm before removing; delete a
    page only when it holds no other claim; otherwise strike just the rejected claim. Record the
    rejection by appending a NEW minute — existing entries are never rewritten.

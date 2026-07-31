@@ -1,7 +1,7 @@
 // engine/state — reject is now authority-gated (reuses `approve` authority) and scope-aware (ADR-0004).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { projectDecisions } from "../src/engine/state.mjs";
@@ -9,6 +9,7 @@ import { DEFAULT_POLICY } from "../src/engine/policy.mjs";
 import { scan } from "../src/engine/scan.mjs";
 import { fsck } from "../src/engine/fsck.mjs";
 import { appendEvent, logPath } from "../src/engine/log.mjs";
+import { reviewDigest } from "../src/engine/review-digest.mjs";
 
 test("reject gating: an unauthorized (machine) reject can NOT revoke a human approval", () => {
   const d = projectDecisions([
@@ -112,6 +113,31 @@ test("fsck: an unauthorized (machine) reject under the human-only policy surface
   assert.ok(f, "unauthorized-reject finding is emitted");
   assert.equal(f.uid, "P");
   assert.equal(f.by, "llm");
+});
+
+test("fsck: content-binding surfaces unbound-approval (hashless) and stale-approval (edited after review)", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "wb-bind-"));
+  const dir = join(root, "canon"); mkdirSync(dir, { recursive: true });
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const P = join(dir, "p.md");
+  writeFileSync(P, "---\nid: P\ntitle: P\nclaim: original\n---\n# P\nbody ^p\n");
+  scan({ docsDir: dir });
+  // (a) a HASHLESS approval → unbound-approval (advisory nudge)
+  appendEvent(logPath(dir), { type: "approve", id: "P", by: "alice" });
+  let f = fsck({ docsDir: dir }).findings;
+  assert.ok(f.some((x) => x.kind === "unbound-approval" && x.uid === "P"), "hashless approval is unbound");
+  // (b) a HASHED approval matching the current page → neither unbound nor stale
+  const h = reviewDigest({ raw: readFileSync(P, "utf8"), uid: "P", title: "P" });
+  appendEvent(logPath(dir), { type: "approve", id: "P", by: "alice", hash: h }); // supersedes; hashed + matching
+  f = fsck({ docsDir: dir }).findings;
+  assert.ok(!f.some((x) => x.kind === "unbound-approval"), "now hash-bound, not unbound");
+  assert.ok(!f.some((x) => x.kind === "stale-approval"), "matches current content, not stale");
+  // (c) EDIT the page → the hashed approval no longer matches → stale-approval
+  writeFileSync(P, "---\nid: P\ntitle: P\nclaim: EDITED\n---\n# P\nbody ^p\n");
+  const r = fsck({ docsDir: dir });
+  assert.ok(r.findings.some((x) => x.kind === "stale-approval" && x.uid === "P"), "edited after approval → stale");
+  assert.equal(r.ok, true, "stale-approval is ADVISORY — it does not by itself force ok:false (would fail if removed from ADVISORY)");
+  assert.ok(!r.blockingFindings.some((x) => x.kind === "stale-approval"), "stale-approval is not a blocking finding");
 });
 
 test("log validation: the new optional approve/reject fields reject malformed values via appendEvent", (t) => {

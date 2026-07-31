@@ -9,6 +9,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, exist
 import { join, relative, isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
 import { start, makeWatcher, _internal } from "../../scripts/serve.mjs";
+import { reviewDigest } from "../../press/src/engine/review-digest.mjs";
 
 let cwd, srv, base;
 
@@ -19,7 +20,7 @@ before(async () => {
   // dossier fixtures for the review (dispose) tests
   mkdirSync(join(cwd, "canon", "decisions"), { recursive: true });
   writeFileSync(join(cwd, "canon", "decisions", "0001-adopt.md"), "---\ntitle: ADR 1\nstatus: canonical\n---\n\nbody\n");
-  writeFileSync(join(cwd, "canon", "decisions", "0002-ttl.md"), "---\ntitle: Token TTL\nstatus: proposed\nsources: []\n---\n\nTokens last 24h.\n");
+  writeFileSync(join(cwd, "canon", "decisions", "0002-ttl.md"), "---\nid: ttl\ntitle: Token TTL\nstatus: proposed\nsources: []\n---\n\nTokens last 24h.\n");
   writeFileSync(join(cwd, "canon", "00-overview.md"), "---\ntitle: Overview\n---\n\noverview\n");
   // a built gazette to serve statically
   mkdirSync(join(cwd, "gazette"), { recursive: true });
@@ -175,12 +176,23 @@ test("serve: approve WITH the token promotes to canonical + stamps reviewed", as
   const text = readFileSync(join(cwd, "canon", "decisions", "0002-ttl.md"), "utf8");
   assert.match(text, /^status: canonical$/m, "promoted to canonical");
   assert.match(text, /^reviewed: \d{4}-\d{2}-\d{2}$/m, "reviewed date stamped");
+  // ADR-0004: the approval is now BACKED by a content-bound log event (fixes unbacked-canonical)
+  const log = readFileSync(join(cwd, "canon", "_log.jsonl"), "utf8");
+  assert.match(log, /"type":"approve"/, "an approve event was logged");
+  assert.match(log, /"id":"ttl"/, "keyed by the authored id");
+  assert.match(log, /"hash":"bureau-page-v1:[0-9a-f]{64}"/, "content-bound by the reviewed page digest");
+  assert.match(log, /"by":"human"/, "recorded under the human (token-gated) authority");
+  // the logged hash is the ACTUAL content digest (not a placeholder): recompute it (status/reviewed are
+  // non-semantic, so the post-approval frontmatter stamp doesn't change it) and require an exact match.
+  const loggedHash = log.match(/"hash":"(bureau-page-v1:[0-9a-f]{64})"/)[1];
+  const expected = reviewDigest({ raw: text, uid: "ttl", title: "Token TTL" });
+  assert.equal(loggedHash, expected, "the logged hash equals the reviewed page's digest");
   const j = await (await fetch(base + "/review")).json();
   assert.ok(!j.pending.some((d) => d.path === "decisions/0002-ttl.md"), "leaves the queue once canonical");
 });
 
 test("serve: reject WITH the token sets contested + appends a review minute", async () => {
-  writeFileSync(join(cwd, "canon", "decisions", "0003-retry.md"), "---\ntitle: Retry policy\nstatus: proposed\n---\n\n3 retries.\n");
+  writeFileSync(join(cwd, "canon", "decisions", "0003-retry.md"), "---\nid: retry\ntitle: Retry policy\nstatus: proposed\n---\n\n3 retries.\n");
   const beforeMin = minuteFiles().length;
   const r = await fetch(base + "/review/decision", {
     method: "POST", headers: { "content-type": "application/json", "x-bureau-review": srv.reviewToken },
@@ -189,6 +201,19 @@ test("serve: reject WITH the token sets contested + appends a review minute", as
   assert.equal(r.status, 200);
   assert.match(readFileSync(join(cwd, "canon", "decisions", "0003-retry.md"), "utf8"), /^status: contested$/m, "sent back to contested");
   assert.equal(minuteFiles().length, beforeMin + 1, "an append-only review minute was written");
+  const rejLog = readFileSync(join(cwd, "canon", "_log.jsonl"), "utf8");
+  assert.match(rejLog, /"type":"reject"/, "a reject event was logged");
+  assert.match(rejLog, /"id":"retry"/, "keyed by the rejected page's id");
+});
+
+test("serve: a dossier with no authored id: cannot be approved (stable-id requirement, ADR-0004)", async () => {
+  writeFileSync(join(cwd, "canon", "decisions", "0004-noid.md"), "---\ntitle: No Id\nstatus: proposed\n---\n\nbody.\n");
+  const r = await fetch(base + "/review/decision", {
+    method: "POST", headers: { "content-type": "application/json", "x-bureau-review": srv.reviewToken },
+    body: JSON.stringify({ path: "decisions/0004-noid.md", decision: "approve" }),
+  });
+  assert.equal(r.status, 409, "refused for want of a stable id");
+  assert.match(readFileSync(join(cwd, "canon", "decisions", "0004-noid.md"), "utf8"), /status: proposed/, "left unchanged");
 });
 
 test("serve: the token can never promote a non-pending or out-of-tree path", async () => {

@@ -31,6 +31,7 @@ import { report as engineReport, renderMetricsText } from "../src/engine/metrics
 import { projectTimeline, renderTimelineText } from "../src/engine/telemetry.mjs";
 import { recordVerification, recheckVerification, markCompiled, uncompiled } from "../src/engine/ledgers.mjs";
 import { loadCorpus, buildModel } from "../src/core/model.mjs";
+import { reviewDigest } from "../src/engine/review-digest.mjs";
 import { resolveWorkspace } from "../src/core/workspace-map.mjs";
 import { logPath, readLog, appendEvent } from "../src/engine/log.mjs";
 import { conflictKey } from "../src/engine/state.mjs";
@@ -522,39 +523,58 @@ function runTelemetry() {
 
 // resolve a page TITLE to its opaque uid + node (the decision-event verbs address pages by title).
 function resolvePage(docsDir, title) {
-  const model = buildModel({ corpus: loadCorpus({ docsDir }) });
+  const corpus = loadCorpus({ docsDir });
+  const model = buildModel({ corpus });
   const node = model.nodes[nfc(String(title))];
   if (!node) die('no page titled [' + title + ']');
-  return { model, node };
+  return { model, node, corpus };
 }
 
 // decision-event API (ADR-0001, Schema 1) — the human/review side of the log. In 0.8 the review
 // skill drives these; in 0.7 they are the CLI surface that gives the gate a real event stream.
+// A decision must NAME its authority — never a silent `by: "human"` (ADR-0004). Requiring `--by`
+// removes the footgun where an AI/automation running `gazette approve "x"` records a human authority
+// it does not hold; the human runs it themselves (`--by <name>`), or a pipeline names its machine
+// authority (`--by invariant`). BUREAU.md forbids the AI asserting `--by human`.
+function requireBy(cmd) {
+  const by = opt("by");
+  if (!by || !String(by).trim()) die(cmd + " requires --by <authority> (e.g. `--by human` when you are the reviewer, or `--by invariant` for an automated gate) — a decision is never silently 'human'.");
+  return by;
+}
 function runApprove() {
   try {
     const title = argv[1] && !argv[1].startsWith("--") ? argv[1] : opt("page");
-    if (!title) die('usage: gazette approve "<page title>"');
+    if (!title) die('usage: gazette approve "<page title>" --by <authority>');
+    const by = requireBy("gazette approve");
     const docsDir = engineDir();
-    const { node } = resolvePage(docsDir, title);
-    const ev = appendEvent(logPath(docsDir), { type: "approve", id: node.uid, to_trust: "canonical", by: opt("by", "human") });
-    console.log("✓ approved [" + node.title + "] → trust: canonical (backed by log seq " + ev.seq + ")");
+    const { node, corpus } = resolvePage(docsDir, title);
+    // content-bind the approval (ADR-0004): pin the reviewed page digest, computed the SAME way fsck
+    // recomputes it, so an edit after approval surfaces as `stale-approval` instead of silent canon.
+    const entry = corpus.entries.find((e) => e.uid === node.uid);
+    let hash; try { if (entry) hash = reviewDigest({ raw: entry.raw, uid: node.uid, title: node.title }); } catch { hash = undefined; }
+    const ev = appendEvent(logPath(docsDir), hash ? { type: "approve", id: node.uid, to_trust: "canonical", by, hash } : { type: "approve", id: node.uid, to_trust: "canonical", by });
+    console.log("✓ approved [" + node.title + "] → trust: canonical (backed by log seq " + ev.seq + (hash ? ", content-bound" : "") + ")");
   } catch (e) { die(e.message); }
 }
 function runReject() {
   try {
     const title = argv[1] && !argv[1].startsWith("--") ? argv[1] : opt("page");
-    if (!title) die('usage: gazette reject "<page title>" [--reason "…"]');
+    if (!title) die('usage: gazette reject "<page title>" --by <authority> [--reason "…"]');
+    const by = requireBy("gazette reject");
     const docsDir = engineDir();
     const { node } = resolvePage(docsDir, title);
-    appendEvent(logPath(docsDir), { type: "reject", id: node.uid, reason: opt("reason", "") });
-    console.log("✓ rejected [" + node.title + "] (logged; the page's authored tier stands, no canonical backing)");
+    // revocation reuses the approve authority (ADR-0004): a reject the policy rejects is inert, so the
+    // human approval stands. Naming `by` is what lets the projection gate it.
+    appendEvent(logPath(docsDir), { type: "reject", id: node.uid, by, reason: opt("reason", "") });
+    console.log("✓ rejected [" + node.title + "] (logged; if unauthorized it is inert and any prior approval stands)");
   } catch (e) { die(e.message); }
 }
 // confirm every currently-open tracked edge OF a dependent page (the human vouches the edge holds).
 function runConfirm() {
   try {
     const title = argv[1] && !argv[1].startsWith("--") ? argv[1] : opt("page");
-    if (!title) die('usage: gazette confirm "<dependent page title>"');
+    if (!title) die('usage: gazette confirm "<dependent page title>" --by <authority>');
+    const by = requireBy("gazette confirm");
     const docsDir = engineDir();
     const { node, model } = resolvePage(docsDir, title);
     const g = computeGate({ model, events: readLog(logPath(docsDir)), policy: loadPolicy(docsDir) });
@@ -564,7 +584,7 @@ function runConfirm() {
       // never confirm a BROKEN edge (missing target / missing span) — it has no valid verdict key to
       // vouch for; confirming it would append a bogus/empty confirmation and falsely report success.
       if (e.broken || !e.edgeId || !e.verdictKey) { skippedBroken++; continue; }
-      appendEvent(logPath(docsDir), { type: "confirm-edge", edge: e.edgeId, verdict_key: e.verdictKey, by: opt("by", "human") });
+      appendEvent(logPath(docsDir), { type: "confirm-edge", edge: e.edgeId, verdict_key: e.verdictKey, by });
       n++;
     }
     const note = skippedBroken ? " (skipped " + skippedBroken + " broken edge(s) — fix the target/span first)" : "";
@@ -576,7 +596,8 @@ function runConfirm() {
 function runResolve() {
   try {
     const a = argv[1], b = argv[2];
-    if (!a || !b || a.startsWith("--") || b.startsWith("--")) die('usage: gazette resolve "<page A>" "<page B>" --winner "<title>"');
+    if (!a || !b || a.startsWith("--") || b.startsWith("--")) die('usage: gazette resolve "<page A>" "<page B>" --winner "<title>" --by <authority>');
+    const by = requireBy("gazette resolve");
     const docsDir = engineDir();
     const model = buildModel({ corpus: loadCorpus({ docsDir }) });
     const na = model.nodes[nfc(String(a))], nb = model.nodes[nfc(String(b))];
@@ -595,7 +616,7 @@ function runResolve() {
     if (!contradicts) die("[" + na.title + "] and [" + nb.title + "] do not declare a `contradicts:` edge — there is no conflict to resolve");
     // record the resolving authority like approve/confirm do — without a `by`, every resolution
     // classified as `human` by default and the `resolve` policy had nothing to gate on.
-    const ev = appendEvent(logPath(docsDir), { type: "resolve", conflict: conflictKey(na.uid, nb.uid), winner: wn.uid, by: opt("by", "human") });
+    const ev = appendEvent(logPath(docsDir), { type: "resolve", conflict: conflictKey(na.uid, nb.uid), winner: wn.uid, by });
     console.log("✓ resolved [" + na.title + "] × [" + nb.title + "] → winner [" + wn.title + "] (resolution_id " + ev.seq + ")");
   } catch (e) { die(e.message); }
 }

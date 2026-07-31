@@ -24,9 +24,12 @@ Follow the protocol in the **review** skill (`skills/review/SKILL.md`). In short
    is its tier). Each page with its `[[session …]]` provenance and its check result
    (auto-verified against an artifact, or a judgment that needs your eye). Group facts apart
    from judgments.
-5. Take the decision per page: approve → `status: canonical` + today's `reviewed:` date (NOT
-   `verified:` — that is the automatic tier); reject → confirm, then remove the claim (delete the
-   page only if it holds no other claim, else strike just this claim) and append a NEW `review`
-   minute naming what was rejected (existing entries are never rewritten).
+5. Prepare the decision per page — the **human** commits it. The AI never runs `gazette approve`/
+   `reject` or asserts `--by human` (BUREAU.md + ADR-0004); hand the human the exact command to run
+   themselves — `gazette approve "<title>" --dir <workspace> --by human` (or
+   `… reject … --by human [--reason "…"]`). `canonical`/`reviewed` are **projections** of the logged
+   approve event — do NOT author `status: canonical` yourself. For a reject, once confirmed, remove the
+   claim (delete the page only if it holds no other claim, else strike just this claim) and append a
+   NEW `review` minute naming what was rejected (existing entries are never rewritten).
 6. Run `bureau:inspect`, then report counts approved / rejected / pending and any `contested`
    pages (those are resolved by re-deciding in a session, not here).
