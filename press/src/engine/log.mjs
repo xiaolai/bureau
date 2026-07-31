@@ -90,8 +90,12 @@ const REQUIRED = {
   split: (e) => isStr(e.id) && isSpan(e.from) && Array.isArray(e.into) && e.into.length > 0 && e.into.every(isSpan),
   delete: (e) => isStr(e.id) && isSpan(e.span),
   "confirm-edge": (e) => isStr(e.edge) && isStr(e.verdict_key),
-  approve: (e) => isStr(e.id) && (e.to_trust == null || TRUST_TIERS.has(e.to_trust)),
-  reject: (e) => isStr(e.id),
+  // `hash` (ADR-0004) is the OPTIONAL reviewed page digest that content-binds the approval; validated
+  // as a non-empty opaque string when present (the integrity chain, not its format, guards the log).
+  approve: (e) => isStr(e.id) && (e.to_trust == null || TRUST_TIERS.has(e.to_trust)) && (e.hash == null || isStr(e.hash)),
+  // a reject OPTIONALLY scopes itself to the approval it revokes (`approval_seq` + `approval_hash`,
+  // ADR-0004); both are optional so a legacy unscoped reject still validates.
+  reject: (e) => isStr(e.id) && (e.approval_seq == null || (Number.isInteger(e.approval_seq) && e.approval_seq > 0)) && (e.approval_hash == null || isStr(e.approval_hash)),
   resolve: (e) => isStr(e.conflict) && isStr(e.winner),
 };
 function validateEvent(event) {

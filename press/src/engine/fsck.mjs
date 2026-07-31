@@ -144,13 +144,19 @@ export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, 
   // The unauthorized checks key off the DECISION EVENT, never the page's AUTHORED tier. Keying off
   // the authored tier let a machine authority promote a page authored `proposed` straight to
   // `canonical` while this loop skipped it — a gate bypass that left `fsck.ok` true.
-  const { approved, unauthorizedApprovals, unauthorizedResolutions } = projectDecisions(evs, pol);
+  const { approved, unauthorizedApprovals, unauthorizedResolutions, unauthorizedRejections } = projectDecisions(evs, pol);
   const nodeByUid = new Map(Object.values(model.nodes).map((n) => [n.uid, n]));
 
   // an approve whose authority the policy rejects — it granted nothing, and that must be loud.
   for (const [uid, by] of unauthorizedApprovals) {
     const n = nodeByUid.get(uid);
     findings.push({ kind: "unauthorized-canonical", uid, title: n ? n.title : null, by, allowed: pol.approve });
+  }
+  // a reject whose authority the policy rejects — it revoked nothing (revocation reuses the `approve`
+  // authority, ADR-0004), so a prior human approval still stands. Surface the inert attempt.
+  for (const [uid, by] of unauthorizedRejections) {
+    const n = nodeByUid.get(uid);
+    findings.push({ kind: "unauthorized-reject", uid, title: n ? n.title : null, by, allowed: pol.approve });
   }
   // a resolve whose authority the policy rejects — the conflict stays contested.
   for (const [conflict, by] of unauthorizedResolutions) {

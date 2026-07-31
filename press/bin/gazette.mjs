@@ -23188,8 +23188,12 @@ var REQUIRED = {
   split: (e) => isStr(e.id) && isSpan(e.from) && Array.isArray(e.into) && e.into.length > 0 && e.into.every(isSpan),
   delete: (e) => isStr(e.id) && isSpan(e.span),
   "confirm-edge": (e) => isStr(e.edge) && isStr(e.verdict_key),
-  approve: (e) => isStr(e.id) && (e.to_trust == null || TRUST_TIERS.has(e.to_trust)),
-  reject: (e) => isStr(e.id),
+  // `hash` (ADR-0004) is the OPTIONAL reviewed page digest that content-binds the approval; validated
+  // as a non-empty opaque string when present (the integrity chain, not its format, guards the log).
+  approve: (e) => isStr(e.id) && (e.to_trust == null || TRUST_TIERS.has(e.to_trust)) && (e.hash == null || isStr(e.hash)),
+  // a reject OPTIONALLY scopes itself to the approval it revokes (`approval_seq` + `approval_hash`,
+  // ADR-0004); both are optional so a legacy unscoped reject still validates.
+  reject: (e) => isStr(e.id) && (e.approval_seq == null || Number.isInteger(e.approval_seq) && e.approval_seq > 0) && (e.approval_hash == null || isStr(e.approval_hash)),
   resolve: (e) => isStr(e.conflict) && isStr(e.winner)
 };
 function validateEvent(event) {
@@ -23522,10 +23526,14 @@ function conflictKeyCandidates(uidA, uidB) {
 function projectDecisions(events, policy = null) {
   const approved = /* @__PURE__ */ new Map();
   const approvedBy = /* @__PURE__ */ new Map();
+  const approvedHash = /* @__PURE__ */ new Map();
+  const approvedSeq = /* @__PURE__ */ new Map();
   const resolved = /* @__PURE__ */ new Map();
   const resolvedBy = /* @__PURE__ */ new Map();
   const unauthorizedApprovals = /* @__PURE__ */ new Map();
   const unauthorizedResolutions = /* @__PURE__ */ new Map();
+  const unauthorizedRejections = /* @__PURE__ */ new Map();
+  const staleRejections = [];
   for (const ev of events) {
     if (ev.type === "approve") {
       const by = authorityClass(ev.by);
@@ -23534,12 +23542,29 @@ function projectDecisions(events, policy = null) {
         continue;
       }
       unauthorizedApprovals.delete(ev.id);
+      unauthorizedRejections.delete(ev.id);
       approved.set(ev.id, ev.to_trust || "canonical");
       approvedBy.set(ev.id, by);
+      approvedHash.set(ev.id, ev.hash != null ? ev.hash : null);
+      approvedSeq.set(ev.id, ev.seq != null ? ev.seq : null);
     } else if (ev.type === "reject") {
+      const by = authorityClass(ev.by);
+      if (policy && !isAuthorized(policy, "approve", by)) {
+        unauthorizedRejections.set(ev.id, by);
+        continue;
+      }
+      unauthorizedApprovals.delete(ev.id);
+      unauthorizedRejections.delete(ev.id);
+      const scoped = ev.approval_seq != null || ev.approval_hash != null;
+      const matchesActive = approved.has(ev.id) && (ev.approval_seq == null || ev.approval_seq === approvedSeq.get(ev.id)) && (ev.approval_hash == null || ev.approval_hash === approvedHash.get(ev.id));
+      if (scoped && !matchesActive) {
+        staleRejections.push({ id: ev.id, seq: ev.seq ?? null, why: approved.has(ev.id) ? "targets-superseded-approval" : "no-active-approval" });
+        continue;
+      }
       approved.delete(ev.id);
       approvedBy.delete(ev.id);
-      unauthorizedApprovals.delete(ev.id);
+      approvedHash.delete(ev.id);
+      approvedSeq.delete(ev.id);
     } else if (ev.type === "resolve") {
       const by = authorityClass(ev.by);
       if (policy && !isAuthorized(policy, "resolve", by)) {
@@ -23551,7 +23576,7 @@ function projectDecisions(events, policy = null) {
       resolvedBy.set(ev.conflict, { by, winner: ev.winner ?? null });
     }
   }
-  return { approved, resolved, approvedBy, resolvedBy, unauthorizedApprovals, unauthorizedResolutions };
+  return { approved, resolved, approvedBy, resolvedBy, approvedHash, approvedSeq, unauthorizedApprovals, unauthorizedResolutions, unauthorizedRejections, staleRejections };
 }
 function resolutionFor(decisions, uidA, uidB) {
   for (const key of conflictKeyCandidates(uidA, uidB)) {
@@ -24915,11 +24940,15 @@ function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write =
     }
     if (!isAuthorized(pol, "confirm-edge", by)) findings.push({ kind: "unauthorized-confirm", edge: eid, by: by ?? null, allowed: pol["confirm-edge"] });
   }
-  const { approved, unauthorizedApprovals, unauthorizedResolutions } = projectDecisions(evs, pol);
+  const { approved, unauthorizedApprovals, unauthorizedResolutions, unauthorizedRejections } = projectDecisions(evs, pol);
   const nodeByUid = new Map(Object.values(model.nodes).map((n) => [n.uid, n]));
   for (const [uid, by] of unauthorizedApprovals) {
     const n = nodeByUid.get(uid);
     findings.push({ kind: "unauthorized-canonical", uid, title: n ? n.title : null, by, allowed: pol.approve });
+  }
+  for (const [uid, by] of unauthorizedRejections) {
+    const n = nodeByUid.get(uid);
+    findings.push({ kind: "unauthorized-reject", uid, title: n ? n.title : null, by, allowed: pol.approve });
   }
   for (const [conflict, by] of unauthorizedResolutions) {
     findings.push({ kind: "unauthorized-resolve", conflict, by, allowed: pol.resolve });

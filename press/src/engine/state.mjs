@@ -34,18 +34,44 @@ export function conflictKeyCandidates(uidA, uidB) { return [conflictKey(uidA, ui
 export function projectDecisions(events, policy = null) {
   const approved = new Map();     // uid → trust granted by the last EFFECTIVE approve (default 'canonical')
   const approvedBy = new Map();   // uid → authority class of that approve
+  const approvedHash = new Map(); // uid → reviewed page digest of the effective approve (null = legacy/hashless)
+  const approvedSeq = new Map();  // uid → seq of the effective approve (a scoped reject targets this)
   const resolved = new Map();     // conflictKey → resolution_id (EFFECTIVE resolutions only)
   const resolvedBy = new Map();   // conflictKey → { by, winner }
   const unauthorizedApprovals = new Map();   // uid → authority class of a REJECTED approve
   const unauthorizedResolutions = new Map(); // conflictKey → authority class of a REJECTED resolve
+  const unauthorizedRejections = new Map();  // uid → authority class of an INERT (unauthorized) reject
+  const staleRejections = [];                // rejects that matched no active/targeted approval (inert)
   for (const ev of events) {
     if (ev.type === "approve") {
       const by = authorityClass(ev.by);
       if (policy && !isAuthorized(policy, "approve", by)) { unauthorizedApprovals.set(ev.id, by); continue; } // recorded, NOT effective
-      unauthorizedApprovals.delete(ev.id);
+      unauthorizedApprovals.delete(ev.id); unauthorizedRejections.delete(ev.id);
       approved.set(ev.id, ev.to_trust || "canonical"); approvedBy.set(ev.id, by);
+      approvedHash.set(ev.id, ev.hash != null ? ev.hash : null); approvedSeq.set(ev.id, ev.seq != null ? ev.seq : null);
     } else if (ev.type === "reject") {
-      approved.delete(ev.id); approvedBy.delete(ev.id); unauthorizedApprovals.delete(ev.id); // a rejection un-approves
+      // Revocation reuses the APPROVE authority (ADR-0004) — no separate policy key. An unauthorized
+      // reject is INERT: it must not revoke a decision it lacks the authority to grant. This closes the
+      // hole where any writer could un-approve a human decision by appending a bare reject.
+      const by = authorityClass(ev.by);
+      if (policy && !isAuthorized(policy, "approve", by)) { unauthorizedRejections.set(ev.id, by); continue; }
+      // An AUTHORIZED reject supersedes any prior inert attempt AND any recorded unauthorized approve
+      // for this uid, whatever the scoping outcome (matches the historical unconditional clearing, so a
+      // stale finding can't linger after the human has acted).
+      unauthorizedApprovals.delete(ev.id); unauthorizedRejections.delete(ev.id);
+      // Scope: a reject may name the approval it revokes by `approval_seq` and/or `approval_hash`; it is
+      // effective only against the CURRENT active approval matching EVERY field it provides — a stale /
+      // duplicate / mismatched scoped reject is inert. A wholly UNSCOPED reject un-approves whatever is
+      // active (exactly the historical behaviour), so no existing (unscoped) log changes meaning.
+      const scoped = ev.approval_seq != null || ev.approval_hash != null;
+      const matchesActive = approved.has(ev.id)
+        && (ev.approval_seq == null || ev.approval_seq === approvedSeq.get(ev.id))
+        && (ev.approval_hash == null || ev.approval_hash === approvedHash.get(ev.id));
+      if (scoped && !matchesActive) {
+        staleRejections.push({ id: ev.id, seq: ev.seq ?? null, why: approved.has(ev.id) ? "targets-superseded-approval" : "no-active-approval" });
+        continue;
+      }
+      approved.delete(ev.id); approvedBy.delete(ev.id); approvedHash.delete(ev.id); approvedSeq.delete(ev.id);
     } else if (ev.type === "resolve") {
       const by = authorityClass(ev.by);
       if (policy && !isAuthorized(policy, "resolve", by)) { unauthorizedResolutions.set(ev.conflict, by); continue; }
@@ -54,7 +80,7 @@ export function projectDecisions(events, policy = null) {
       resolvedBy.set(ev.conflict, { by, winner: ev.winner ?? null });
     }
   }
-  return { approved, resolved, approvedBy, resolvedBy, unauthorizedApprovals, unauthorizedResolutions };
+  return { approved, resolved, approvedBy, resolvedBy, approvedHash, approvedSeq, unauthorizedApprovals, unauthorizedResolutions, unauthorizedRejections, staleRejections };
 }
 
 // Resolve one node's decided state. `conflictPartnerUids` are the uids this node `contradicts:`.
