@@ -17,6 +17,10 @@ const step = (label, fn) => { console.log(`\n=== ${label} ===`); try { fn(); } c
 step("L0 · static structure", () => run("node", ["test/static/check.mjs"]));
 step("L1 · hook-script units", () => run("node", ["--test", "test/unit/scripts.test.mjs"]));
 step("L1 · crew engine units", () => run("node", ["--test", "test/unit/crew.test.mjs"]));
+// Drift gate on the REAL repo: the committed .claude/ materialization must still match its
+// bureau/crew source (crew check exits non-zero on drift or a hand-edit). This is the gate that
+// makes committing generated artifacts safe — without it, source↔materialized drift lands unnoticed.
+step("L1 · crew materialization in sync (real-repo drift gate)", () => run("node", ["scripts/crew.mjs", "check"]));
 step("L1 · chamber server units", () => run("node", ["--test", "test/unit/serve.test.mjs"]));
 step("L1 · press renderer", () => {
   const pressDir = join(ROOT, "press");

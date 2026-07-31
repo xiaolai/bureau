@@ -3,5 +3,17 @@
   "role": "read-only red-team for the canon (contradictions, stale claims, schema, unsupported tiers)",
   "source": "shipped",
   "enabled": true,
-  "provides": { "agent": "auditor", "skills": [], "hook": null }
+  "upstream": {
+    "schema": 1,
+    "template": "auditor",
+    "bindings": {
+      "NAME": "auditor",
+      "WORKSPACE": "canon",
+      "ROLE": null
+    },
+    "base": {
+      "agent.md": "ddb7c110d57d2ba9d63abe9238332c3973d5501375abca21c482362efa40bd56",
+      "brief.md": "9954c112a5667b95f87930d40f27b8c6730275288a2391fa05a5a83d79303174"
+    }
+  }
 }

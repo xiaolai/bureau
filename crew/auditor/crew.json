@@ -2,6 +2,5 @@
   "name": "auditor",
   "role": "read-only red-team for the canon (contradictions, stale claims, schema, unsupported tiers)",
   "source": "shipped",
-  "enabled": true,
-  "provides": { "agent": "auditor", "skills": [], "hook": null }
+  "enabled": true
 }
