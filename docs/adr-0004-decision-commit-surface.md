@@ -130,6 +130,25 @@ blocks again. The command never appends a decision event — it only writes the 
   distinct; chamber engine imports are valid only on the `bureau:serve`/`scripts/serve.mjs` path (or the
   chamber moves into `press/src` and is bundled).
 
+## Implementation status (as shipped)
+
+- **Shipped + verified:** the honest cooperative authority model (Decision A); content-bound approvals
+  with a semantic `reviewDigest` (Decision B); authority-gated, scoped `reject`; the CLI `--by`
+  requirement + content-bound `runApprove`; the chamber log-first transaction; the `bureau:review`
+  prepare-and-present skill; the Phase-6 `legacy-canonical` grandfather migration (`gazette
+  legacy-migrate`); and — the enforcement payoff — **content-binding is now enforced on all three
+  reader surfaces**: `stale-approval` **blocks** `fsck` (the gate), a stale approval **re-enters** the
+  chamber review queue as `needs-review`, and the board **flags** it on the canvas + Health page. The
+  single projection helper `engine/effective.mjs` (derived from `fsck`) gives every reader one answer.
+- **Remaining Decision-C refinement (not a correctness gap):** the chamber still writes a transitional
+  frontmatter **dual-write** — it overwrites authored `status: proposed → canonical` on approval rather
+  than writing a derived, non-authoritative `effective_status:` and preserving the authored base state.
+  Completing it is a *coordinated* change (the chamber writes `effective_status:`; the board **tier**
+  and the recall/query/status skills key off the log projection instead of authored `status:`; the
+  optional `gazette fsck --materialize-pages` refreshes the legibility cache for pages the chamber did
+  not decide). The log is already authoritative and enforcement is live on every surface, so this is a
+  base-state-provenance/purity improvement, sequenced but not blocking.
+
 ## Open
 
 1. **Boundary posture** — is out-of-band human-start (Decision A) **mandatory** for the chamber, or an
