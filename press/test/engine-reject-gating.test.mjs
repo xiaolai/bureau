@@ -115,7 +115,7 @@ test("fsck: an unauthorized (machine) reject under the human-only policy surface
   assert.equal(f.by, "llm");
 });
 
-test("fsck: content-binding surfaces unbound-approval (hashless) and stale-approval (edited after review)", (t) => {
+test("fsck: content-binding — unbound-approval (advisory) and stale-approval (blocking; cleared by re-approval)", (t) => {
   const root = mkdtempSync(join(tmpdir(), "wb-bind-"));
   const dir = join(root, "canon"); mkdirSync(dir, { recursive: true });
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -132,12 +132,18 @@ test("fsck: content-binding surfaces unbound-approval (hashless) and stale-appro
   f = fsck({ docsDir: dir }).findings;
   assert.ok(!f.some((x) => x.kind === "unbound-approval"), "now hash-bound, not unbound");
   assert.ok(!f.some((x) => x.kind === "stale-approval"), "matches current content, not stale");
-  // (c) EDIT the page → the hashed approval no longer matches → stale-approval
+  // (c) EDIT the page → the hashed approval no longer covers the new bytes → stale-approval, which now BLOCKS
   writeFileSync(P, "---\nid: P\ntitle: P\nclaim: EDITED\n---\n# P\nbody ^p\n");
-  const r = fsck({ docsDir: dir });
+  let r = fsck({ docsDir: dir });
   assert.ok(r.findings.some((x) => x.kind === "stale-approval" && x.uid === "P"), "edited after approval → stale");
-  assert.equal(r.ok, true, "stale-approval is ADVISORY — it does not by itself force ok:false (would fail if removed from ADVISORY)");
-  assert.ok(!r.blockingFindings.some((x) => x.kind === "stale-approval"), "stale-approval is not a blocking finding");
+  assert.equal(r.ok, false, "content-binding is ENFORCED — an edit after a content-bound approval fails the gate (ADR-0004)");
+  assert.ok(r.blockingFindings.some((x) => x.kind === "stale-approval"), "stale-approval is a blocking finding");
+  // (d) re-approval rebinding the CURRENT bytes clears it — the remediation path
+  const h2 = reviewDigest({ raw: readFileSync(P, "utf8"), uid: "P", title: "P" });
+  appendEvent(logPath(dir), { type: "approve", id: "P", by: "alice", hash: h2 });
+  r = fsck({ docsDir: dir });
+  assert.ok(!r.findings.some((x) => x.kind === "stale-approval"), "re-approval rebinds the current content → no longer stale");
+  assert.equal(r.ok, true, "gate green again after a content-bound re-approval");
 });
 
 test("legacy manifest: grandfathers an unbacked authored-canonical as advisory legacy-canonical, voided on edit", (t) => {

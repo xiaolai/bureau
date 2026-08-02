@@ -25006,7 +25006,7 @@ function buildDerived({ model, events, schemaVersion = SCHEMA_VERSION, policy = 
   };
 }
 var derivedDigest = (derived) => sha2563(canonicalJSON(derived, 0));
-var ADVISORY = /* @__PURE__ */ new Set(["pending-scan", "unbound-approval", "stale-approval", "legacy-canonical"]);
+var ADVISORY = /* @__PURE__ */ new Set(["pending-scan", "unbound-approval", "legacy-canonical"]);
 function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write = true, policy } = {}) {
   const c = corpus || loadCorpus({ docsDir });
   const model = buildModel({ corpus: c });

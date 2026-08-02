@@ -99,11 +99,14 @@ export const derivedDigest = (derived) => sha256(canonicalJSON(derived, 0));
 // Findings are graded: `pending-scan` is ADVISORY (editing without re-scanning is normal mid-work);
 // everything else is a real problem. `ok` (and the CLI exit) turn only on the non-advisory findings
 // plus fixpoint stability — so a clean, scanned canon is ok:true even before the next scan.
-// `unbound-approval`/`stale-approval` are ADVISORY in this warn-only phase: the derived tier still
-// projects the approval (no existing canon is demoted), so these surface in `report`/`serve` as a
-// nudge to re-approve without failing `fsck --check`. Enforcement (demote a stale approval, block) is
-// a later step, gated on the human-run legacy migration.
-const ADVISORY = new Set(["pending-scan", "unbound-approval", "stale-approval", "legacy-canonical"]);
+// Content-binding is now ENFORCED at the gate (ADR-0004): `stale-approval` — a content-bound approval
+// whose page was edited after review — BLOCKS `fsck` (the approval no longer covers the current bytes,
+// so the page must not stand as canonical fact until re-reviewed). Remediation is a re-approval
+// (`gazette approve … --by human`, content-bound) or reverting the edit. Still ADVISORY (a nudge, not a
+// hard failure): `unbound-approval` (a REAL human approval predating content-binding — legitimate, just
+// not yet bound; re-approve or grandfather to bind it) and `legacy-canonical` (explicitly grandfathered
+// via the Phase-6 manifest, voided on any change). `pending-scan` stays advisory (normal mid-edit).
+const ADVISORY = new Set(["pending-scan", "unbound-approval", "legacy-canonical"]);
 
 export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write = true, policy } = {}) {
   const c = corpus || loadCorpus({ docsDir });
