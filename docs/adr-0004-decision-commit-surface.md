@@ -107,6 +107,13 @@ digest mismatch) invalidates the entry. A real chamber approval replaces it; the
 when empty. A blanket `_config.json` flag is rejected as too broad (it would also bless newly authored
 canonicals).
 
+**Implemented** (`engine/legacy.mjs`, `fsck`, `gazette legacy-migrate [--check]`): the manifest also
+covers a real-but-**unbound** approval (one predating content-binding, no `hash`), pinning its current
+digest. A grandfathered page draws the **advisory** `legacy-canonical` finding instead of the blocking
+`unbacked-canonical` (or the `unbound-approval` nudge); a digest mismatch drops the grandfather and it
+blocks again. The command never appends a decision event — it only writes the honest, weaker
+`legacy-canonical` pin.
+
 ## Consequences
 
 - The chamber stops manufacturing fsck-invalid canon; the log is the single serialization point for a

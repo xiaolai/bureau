@@ -140,6 +140,45 @@ test("fsck: content-binding surfaces unbound-approval (hashless) and stale-appro
   assert.ok(!r.blockingFindings.some((x) => x.kind === "stale-approval"), "stale-approval is not a blocking finding");
 });
 
+test("legacy manifest: grandfathers an unbacked authored-canonical as advisory legacy-canonical, voided on edit", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "wb-legacy-"));
+  const dir = join(root, "canon"); mkdirSync(dir, { recursive: true });
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const P = join(dir, "p.md");
+  writeFileSync(P, "---\nid: P\ntitle: P\ntrust: canonical\n---\n# P\nclaim ^p\n"); // authored canonical, NO approve
+  scan({ docsDir: dir });
+  let r = fsck({ docsDir: dir });
+  assert.ok(r.findings.some((x) => x.kind === "unbacked-canonical" && x.uid === "P"), "unbacked before migration");
+  assert.equal(r.ok, false, "unbacked-canonical BLOCKS fsck");
+  // grandfather it: pin the current digest
+  const pin = reviewDigest({ raw: readFileSync(P, "utf8"), uid: "P", title: "P" });
+  writeFileSync(join(dir, "_legacy-canonical.json"), JSON.stringify({ schema: 1, pins: { P: pin } }));
+  r = fsck({ docsDir: dir });
+  assert.ok(r.findings.some((x) => x.kind === "legacy-canonical" && x.uid === "P"), "grandfathered → legacy-canonical");
+  assert.ok(!r.findings.some((x) => x.kind === "unbacked-canonical"), "no longer unbacked");
+  assert.equal(r.ok, true, "legacy-canonical is ADVISORY — fsck ok again");
+  // edit the page → digest mismatch → grandfather VOID → unbacked (blocking) again
+  writeFileSync(P, "---\nid: P\ntitle: P\ntrust: canonical\n---\n# P\nEDITED ^p\n");
+  r = fsck({ docsDir: dir });
+  assert.ok(r.findings.some((x) => x.kind === "unbacked-canonical" && x.uid === "P"), "an edit voids the grandfather → unbacked again");
+  assert.equal(r.ok, false, "and it blocks again");
+});
+
+test("legacy manifest: grandfathers an UNBOUND (real but hashless) approval as legacy-canonical", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "wb-legacy2-"));
+  const dir = join(root, "canon"); mkdirSync(dir, { recursive: true });
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const P = join(dir, "p.md");
+  writeFileSync(P, "---\nid: P\ntitle: P\n---\n# P\nclaim ^p\n");
+  scan({ docsDir: dir });
+  appendEvent(logPath(dir), { type: "approve", id: "P", by: "alice" }); // real approve, hashless → unbound
+  assert.ok(fsck({ docsDir: dir }).findings.some((x) => x.kind === "unbound-approval" && x.uid === "P"), "unbound before migration");
+  writeFileSync(join(dir, "_legacy-canonical.json"), JSON.stringify({ schema: 1, pins: { P: reviewDigest({ raw: readFileSync(P, "utf8"), uid: "P", title: "P" }) } }));
+  const r = fsck({ docsDir: dir });
+  assert.ok(r.findings.some((x) => x.kind === "legacy-canonical" && x.uid === "P"), "grandfathered → legacy-canonical");
+  assert.ok(!r.findings.some((x) => x.kind === "unbound-approval"), "no longer unbound");
+});
+
 test("log validation: the new optional approve/reject fields reject malformed values via appendEvent", (t) => {
   const root = mkdtempSync(join(tmpdir(), "wb-logval-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));

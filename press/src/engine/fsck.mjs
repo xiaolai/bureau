@@ -12,6 +12,7 @@ import { logPath, readLog } from "./log.mjs";
 import { projectRevisions } from "./revisions.mjs";
 import { projectDecisions, resolveNodeState } from "./state.mjs";
 import { reviewDigest } from "./review-digest.mjs";
+import { loadLegacy, isGrandfathered } from "./legacy.mjs";
 import { computeGate } from "./gate.mjs";
 import { scan } from "./scan.mjs";
 import { readVerify, readCompiled } from "./ledgers.mjs";
@@ -102,7 +103,7 @@ export const derivedDigest = (derived) => sha256(canonicalJSON(derived, 0));
 // projects the approval (no existing canon is demoted), so these surface in `report`/`serve` as a
 // nudge to re-approve without failing `fsck --check`. Enforcement (demote a stale approval, block) is
 // a later step, gated on the human-run legacy migration.
-const ADVISORY = new Set(["pending-scan", "unbound-approval", "stale-approval"]);
+const ADVISORY = new Set(["pending-scan", "unbound-approval", "stale-approval", "legacy-canonical"]);
 
 export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write = true, policy } = {}) {
   const c = corpus || loadCorpus({ docsDir });
@@ -153,16 +154,28 @@ export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, 
   const nodeByUid = new Map(Object.values(model.nodes).map((n) => [n.uid, n]));
 
   // content-binding (ADR-0004): an EFFECTIVE approval that carries a `hash` is STALE if the page no
-  // longer hashes to it (edited after review); an effective approval with NO hash is UNBOUND (a legacy
-  // approval to nudge toward re-approval). Advisory for now — the derived tier still projects the
-  // approval (so no existing canon is demoted); enforcement (demoting a stale approval) is a later step.
+  // longer hashes to it (edited after review); an effective approval with NO hash is UNBOUND. The
+  // LEGACY manifest (Phase 6) grandfathers an unbound/unbacked page at its current digest → the
+  // advisory `legacy-canonical` instead. Advisory for now — the derived tier still projects the
+  // approval (so no existing canon is demoted); enforcement is a later, migration-gated step.
   const rawByUid = new Map((c.entries || []).map((e) => [e.uid, e.raw]));
+  const legacy = loadLegacy(docsDir);
+  const digestCache = new Map();
+  const digestFor = (uid) => {
+    if (digestCache.has(uid)) return digestCache.get(uid);
+    const raw = rawByUid.get(uid), n = nodeByUid.get(uid);
+    let d = null; try { if (raw != null && n) d = reviewDigest({ raw, uid, title: n.title }); } catch { d = null; }
+    digestCache.set(uid, d); return d;
+  };
   for (const [uid, hash] of approvedHash) {
     const n = nodeByUid.get(uid);
-    if (hash == null) { findings.push({ kind: "unbound-approval", uid, title: n ? n.title : null }); continue; }
-    const raw = rawByUid.get(uid);
-    let cur = null; try { if (raw != null && n) cur = reviewDigest({ raw, uid, title: n.title }); } catch { cur = null; }
-    if (cur !== hash) findings.push({ kind: "stale-approval", uid, title: n ? n.title : null });
+    if (hash == null) {
+      // real approve, no digest (predates content-binding): grandfathered if its current content is pinned.
+      if (isGrandfathered(legacy, uid, digestFor(uid))) findings.push({ kind: "legacy-canonical", uid, title: n ? n.title : null });
+      else findings.push({ kind: "unbound-approval", uid, title: n ? n.title : null });
+      continue;
+    }
+    if (digestFor(uid) !== hash) findings.push({ kind: "stale-approval", uid, title: n ? n.title : null });
   }
 
   // an approve whose authority the policy rejects — it granted nothing, and that must be loud.
@@ -184,7 +197,11 @@ export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, 
   // reported above as unauthorized instead, so a page never draws both findings).
   for (const n of Object.values(model.nodes)) {
     if ((n.trust || n.status) !== "canonical") continue;
-    if (!approved.has(n.uid) && !unauthorizedApprovals.has(n.uid)) findings.push({ kind: "unbacked-canonical", uid: n.uid, title: n.title });
+    if (approved.has(n.uid) || unauthorizedApprovals.has(n.uid)) continue;
+    // authored `canonical` with no approve event: grandfathered (advisory) if pinned at its current
+    // digest, else unbacked (blocking) — a content change voids the grandfather and it blocks again.
+    if (isGrandfathered(legacy, n.uid, digestFor(n.uid))) findings.push({ kind: "legacy-canonical", uid: n.uid, title: n.title });
+    else findings.push({ kind: "unbacked-canonical", uid: n.uid, title: n.title });
   }
   findings.sort((a, b) => (canonicalJSON(a) < canonicalJSON(b) ? -1 : 1));
 

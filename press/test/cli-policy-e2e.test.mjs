@@ -80,6 +80,27 @@ test("cli e2e: `approve` is content-bound — logs the reviewed page digest (not
   } finally { w.cleanup(); }
 });
 
+test("cli e2e: `legacy-migrate` grandfathers an unbacked canonical → advisory legacy-canonical (voided on edit)", () => {
+  const w = ws({ "p.md": CANON, "b.md": B }); // CANON: id P, trust: canonical, NO approve → unbacked
+  try {
+    gz(w.dir, ["scan"]);
+    const before = gz(w.dir, ["fsck"]);
+    assert.equal(before.code, 1, "authored canonical with no approve BLOCKS fsck");
+    assert.match(before.out, /unbacked-canonical/);
+    assert.match(gz(w.dir, ["legacy-migrate", "--check"]).out, /1 page\(s\) WOULD be grandfathered/);
+    assert.equal(gz(w.dir, ["legacy-migrate"]).code, 0);
+    assert.match(readFileSync(join(w.dir, "_legacy-canonical.json"), "utf8"), /"P": "bureau-page-v1:/);
+    const after = gz(w.dir, ["fsck"]);
+    assert.equal(after.code, 0, "grandfathered → advisory legacy-canonical → fsck ok");
+    assert.match(after.out, /legacy-canonical/);
+    assert.doesNotMatch(after.out, /unbacked-canonical/);
+    writeFileSync(join(w.dir, "p.md"), "---\nid: P\ntitle: Pee\ntrust: canonical\n---\n# Pee\nEDITED ^p\n");
+    const edited = gz(w.dir, ["fsck"]);
+    assert.equal(edited.code, 1, "an edit voids the grandfather → unbacked (blocking) again");
+    assert.match(edited.out, /unbacked-canonical/);
+  } finally { w.cleanup(); }
+});
+
 test("cli e2e: the `resolve` policy gates a machine resolution end to end", () => {
   const w = ws({ "a.md": A, "b.md": B });
   try {

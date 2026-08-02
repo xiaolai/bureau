@@ -10311,7 +10311,7 @@ var require_util = __commonJS({
       return path;
     });
     exports.normalize = normalize3;
-    function join16(aRoot, aPath) {
+    function join17(aRoot, aPath) {
       if (aRoot === "") {
         aRoot = ".";
       }
@@ -10343,7 +10343,7 @@ var require_util = __commonJS({
       }
       return joined;
     }
-    exports.join = join16;
+    exports.join = join17;
     exports.isAbsolute = function(aPath) {
       return aPath.charAt(0) === "/" || urlRegexp.test(aPath);
     };
@@ -10557,7 +10557,7 @@ var require_util = __commonJS({
             parsed.path = parsed.path.substring(0, index + 1);
           }
         }
-        sourceURL = join16(urlGenerate(parsed), sourceURL);
+        sourceURL = join17(urlGenerate(parsed), sourceURL);
       }
       return normalize3(sourceURL);
     }
@@ -11997,8 +11997,8 @@ var require_source_map = __commonJS({
 var require_previous_map = __commonJS({
   "node_modules/postcss/lib/previous-map.js"(exports, module) {
     "use strict";
-    var { existsSync: existsSync12, readFileSync: readFileSync16 } = __require("fs");
-    var { dirname: dirname5, join: join16 } = __require("path");
+    var { existsSync: existsSync13, readFileSync: readFileSync17 } = __require("fs");
+    var { dirname: dirname5, join: join17 } = __require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     function fromBase64(str) {
       if (Buffer) {
@@ -12067,9 +12067,9 @@ var require_previous_map = __commonJS({
           }
         }
         this.root = dirname5(path);
-        if (existsSync12(path)) {
+        if (existsSync13(path)) {
           this.mapFile = path;
-          return readFileSync16(path, "utf-8").toString().trim();
+          return readFileSync17(path, "utf-8").toString().trim();
         }
       }
       loadMap(file, prev) {
@@ -12103,7 +12103,7 @@ var require_previous_map = __commonJS({
           return this.decodeInline(this.annotation);
         } else if (this.annotation) {
           let map = this.annotation;
-          if (file) map = join16(dirname5(file), map);
+          if (file) map = join17(dirname5(file), map);
           let unknown = this.loadFile(map, file, false);
           if (unknown) {
             try {
@@ -15918,8 +15918,8 @@ and ensure you are accounting for this risk.
 });
 
 // bin/cli.mjs
-import { existsSync as existsSync11, mkdirSync as mkdirSync3, writeFileSync as writeFileSync7, appendFileSync as appendFileSync2, readFileSync as readFileSync15, statSync as statSync3, lstatSync as lstatSync12, readdirSync as readdirSync5, realpathSync as realpathSync6, watch } from "fs";
-import { join as join15, resolve as resolve6, dirname as dirname4, extname as extname2, sep as sep7, relative as relative5 } from "path";
+import { existsSync as existsSync12, mkdirSync as mkdirSync3, writeFileSync as writeFileSync7, appendFileSync as appendFileSync2, readFileSync as readFileSync16, statSync as statSync3, lstatSync as lstatSync12, readdirSync as readdirSync5, realpathSync as realpathSync6, rmSync as rmSync3, watch } from "fs";
+import { join as join16, resolve as resolve6, dirname as dirname4, extname as extname2, sep as sep7, relative as relative5 } from "path";
 import { createServer } from "http";
 import { spawn } from "child_process";
 
@@ -24860,8 +24860,8 @@ function renderRepairText(fixes, applied) {
 }
 
 // src/engine/fsck.mjs
-import { existsSync as existsSync8, readFileSync as readFileSync12, writeFileSync as writeFileSync5, mkdirSync as mkdirSync2, lstatSync as lstatSync9, renameSync as renameSync5, openSync as openSync4, closeSync as closeSync4, constants as constants3 } from "fs";
-import { join as join12, dirname as dirname3, resolve as resolve3, basename as basename2 } from "path";
+import { existsSync as existsSync9, readFileSync as readFileSync13, writeFileSync as writeFileSync5, mkdirSync as mkdirSync2, lstatSync as lstatSync9, renameSync as renameSync5, openSync as openSync5, closeSync as closeSync5, constants as constants4 } from "fs";
+import { join as join13, dirname as dirname3, resolve as resolve3, basename as basename2 } from "path";
 import { createHash as createHash6, randomBytes } from "crypto";
 
 // src/engine/review-digest.mjs
@@ -24903,13 +24903,66 @@ function reviewDigest({ raw, uid, title }) {
   return "bureau-page-v1:" + createHash5("sha256").update(canonicalJSON(payload, 0)).digest("hex");
 }
 
+// src/engine/legacy.mjs
+import { existsSync as existsSync8, openSync as openSync4, closeSync as closeSync4, fstatSync as fstatSync3, readFileSync as readFileSync12, constants as constants3 } from "fs";
+import { join as join12 } from "path";
+var LEGACY_BASENAME = "_legacy-canonical.json";
+function legacyPath(dir) {
+  return join12(dir, LEGACY_BASENAME);
+}
+function loadLegacy(dir) {
+  const p = legacyPath(dir);
+  const empty = () => ({ schema: 1, pins: /* @__PURE__ */ Object.create(null) });
+  if (!existsSync8(p)) return empty();
+  let fd = null, text2;
+  try {
+    fd = openSync4(p, constants3.O_RDONLY | constants3.O_NOFOLLOW);
+    if (!fstatSync3(fd).isFile()) return empty();
+    text2 = readFileSync12(fd, "utf8");
+  } catch (e) {
+    if (e && (e.code === "ELOOP" || e.code === "EMLINK")) return empty();
+    throw e;
+  } finally {
+    if (fd != null) try {
+      closeSync4(fd);
+    } catch {
+    }
+  }
+  let cfg;
+  try {
+    cfg = JSON.parse(text2);
+  } catch (e) {
+    throw new Error(LEGACY_BASENAME + " is not valid JSON (" + p + "): " + e.message);
+  }
+  if (cfg === null || typeof cfg !== "object" || Array.isArray(cfg)) throw new Error(LEGACY_BASENAME + " must be a JSON object (" + p + ")");
+  const pins = /* @__PURE__ */ Object.create(null);
+  const raw = cfg.pins && typeof cfg.pins === "object" && !Array.isArray(cfg.pins) ? cfg.pins : {};
+  for (const k of Object.keys(raw)) if (typeof raw[k] === "string" && raw[k]) pins[k] = raw[k];
+  return { schema: 1, pins };
+}
+function isGrandfathered(legacy, uid, digest) {
+  return !!legacy && !!legacy.pins && digest != null && Object.prototype.hasOwnProperty.call(legacy.pins, uid) && legacy.pins[uid] === digest;
+}
+function legacyCandidates({ model, events, policy, digestFor }) {
+  const { approved, approvedHash } = projectDecisions(events, policy);
+  const out = /* @__PURE__ */ Object.create(null);
+  for (const n of Object.values(model.nodes)) {
+    const effectiveCanonical = approved.has(n.uid) || (n.trust || n.status) === "canonical";
+    if (!effectiveCanonical) continue;
+    if (approved.has(n.uid) && approvedHash.get(n.uid) != null) continue;
+    const d = digestFor(n.uid);
+    if (d != null) out[n.uid] = d;
+  }
+  return out;
+}
+
 // src/engine/fsck.mjs
 var sha2563 = (s) => createHash6("sha256").update(String(s)).digest("hex");
 var GATE_CACHE_DIR = ".bureau-cache";
 function gateCachePath(docsDir) {
   const abs = resolve3(docsDir);
   const tag = basename2(abs).replace(/[^A-Za-z0-9._-]/g, "_") + "-" + sha2563(abs).slice(0, 8);
-  return join12(dirname3(abs), GATE_CACHE_DIR, tag + ".json");
+  return join13(dirname3(abs), GATE_CACHE_DIR, tag + ".json");
 }
 function conflictPartners(model) {
   const partners = /* @__PURE__ */ new Map();
@@ -24953,7 +25006,7 @@ function buildDerived({ model, events, schemaVersion = SCHEMA_VERSION, policy = 
   };
 }
 var derivedDigest = (derived) => sha2563(canonicalJSON(derived, 0));
-var ADVISORY = /* @__PURE__ */ new Set(["pending-scan", "unbound-approval", "stale-approval"]);
+var ADVISORY = /* @__PURE__ */ new Set(["pending-scan", "unbound-approval", "stale-approval", "legacy-canonical"]);
 function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write = true, policy } = {}) {
   const c = corpus || loadCorpus({ docsDir });
   const model = buildModel({ corpus: c });
@@ -24986,20 +25039,28 @@ function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write =
   const { approved, approvedHash, unauthorizedApprovals, unauthorizedResolutions, unauthorizedRejections } = projectDecisions(evs, pol);
   const nodeByUid = new Map(Object.values(model.nodes).map((n) => [n.uid, n]));
   const rawByUid = new Map((c.entries || []).map((e) => [e.uid, e.raw]));
+  const legacy = loadLegacy(docsDir);
+  const digestCache = /* @__PURE__ */ new Map();
+  const digestFor = (uid) => {
+    if (digestCache.has(uid)) return digestCache.get(uid);
+    const raw = rawByUid.get(uid), n = nodeByUid.get(uid);
+    let d = null;
+    try {
+      if (raw != null && n) d = reviewDigest({ raw, uid, title: n.title });
+    } catch {
+      d = null;
+    }
+    digestCache.set(uid, d);
+    return d;
+  };
   for (const [uid, hash] of approvedHash) {
     const n = nodeByUid.get(uid);
     if (hash == null) {
-      findings.push({ kind: "unbound-approval", uid, title: n ? n.title : null });
+      if (isGrandfathered(legacy, uid, digestFor(uid))) findings.push({ kind: "legacy-canonical", uid, title: n ? n.title : null });
+      else findings.push({ kind: "unbound-approval", uid, title: n ? n.title : null });
       continue;
     }
-    const raw = rawByUid.get(uid);
-    let cur = null;
-    try {
-      if (raw != null && n) cur = reviewDigest({ raw, uid, title: n.title });
-    } catch {
-      cur = null;
-    }
-    if (cur !== hash) findings.push({ kind: "stale-approval", uid, title: n ? n.title : null });
+    if (digestFor(uid) !== hash) findings.push({ kind: "stale-approval", uid, title: n ? n.title : null });
   }
   for (const [uid, by] of unauthorizedApprovals) {
     const n = nodeByUid.get(uid);
@@ -25014,25 +25075,27 @@ function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write =
   }
   for (const n of Object.values(model.nodes)) {
     if ((n.trust || n.status) !== "canonical") continue;
-    if (!approved.has(n.uid) && !unauthorizedApprovals.has(n.uid)) findings.push({ kind: "unbacked-canonical", uid: n.uid, title: n.title });
+    if (approved.has(n.uid) || unauthorizedApprovals.has(n.uid)) continue;
+    if (isGrandfathered(legacy, n.uid, digestFor(n.uid))) findings.push({ kind: "legacy-canonical", uid: n.uid, title: n.title });
+    else findings.push({ kind: "unbacked-canonical", uid: n.uid, title: n.title });
   }
   findings.sort((a, b) => canonicalJSON(a) < canonicalJSON(b) ? -1 : 1);
   const gateFile = gateCachePath(docsDir);
   const cacheDir = dirname3(gateFile);
-  const isLink = (p) => existsSync8(p) && lstatSync9(p).isSymbolicLink();
+  const isLink = (p) => existsSync9(p) && lstatSync9(p).isSymbolicLink();
   if (isLink(cacheDir)) throw new Error("gate cache dir is a symlink (refused): " + cacheDir);
   if (isLink(gateFile)) throw new Error("gate cache file is a symlink (refused): " + gateFile);
-  const priorRaw = existsSync8(gateFile) ? readFileSync12(gateFile, "utf8") : null;
+  const priorRaw = existsSync9(gateFile) ? readFileSync13(gateFile, "utf8") : null;
   const nextRaw = canonicalJSON(d1, 2) + "\n";
   const cacheDrift = priorRaw != null && priorRaw !== nextRaw;
   if (write) {
     mkdirSync2(cacheDir, { recursive: true });
     const tmp = gateFile + ".tmp-" + process.pid + "-" + randomBytes(8).toString("hex");
-    const fd = openSync4(tmp, constants3.O_WRONLY | constants3.O_CREAT | constants3.O_EXCL | constants3.O_NOFOLLOW, 384);
+    const fd = openSync5(tmp, constants4.O_WRONLY | constants4.O_CREAT | constants4.O_EXCL | constants4.O_NOFOLLOW, 384);
     try {
       writeFileSync5(fd, nextRaw);
     } finally {
-      closeSync4(fd);
+      closeSync5(fd);
     }
     renameSync5(tmp, gateFile);
   }
@@ -25138,8 +25201,8 @@ function renderMetricsText(r) {
 }
 
 // src/core/workspace-map.mjs
-import { existsSync as existsSync9, readFileSync as readFileSync13, statSync as statSync2, lstatSync as lstatSync10, realpathSync as realpathSync4 } from "fs";
-import { join as join13, resolve as resolve4, sep as sep5 } from "path";
+import { existsSync as existsSync10, readFileSync as readFileSync14, statSync as statSync2, lstatSync as lstatSync10, realpathSync as realpathSync4 } from "fs";
+import { join as join14, resolve as resolve4, sep as sep5 } from "path";
 import { homedir } from "os";
 var ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 var MARKER = "bureau.json";
@@ -25155,25 +25218,25 @@ var myUid = () => typeof process.getuid === "function" ? process.getuid() : null
 var groupOrOtherWritable = (mode) => (mode & 18) !== 0;
 function configPath() {
   const xdg = process.env.XDG_CONFIG_HOME;
-  const base2 = xdg && xdg.startsWith("/") ? xdg : join13(homedir(), ".config");
-  return join13(base2, "bureau", "workspaces.json");
+  const base2 = xdg && xdg.startsWith("/") ? xdg : join14(homedir(), ".config");
+  return join14(base2, "bureau", "workspaces.json");
 }
 function pairHint(id) {
   return "bureau:pair " + id + "  (adds " + id + " \u2192 <path> to " + configPath() + ")";
 }
 function readBureauId(cwd) {
-  const f = join13(cwd, ID_FILE);
-  if (!existsSync9(f) || safe(() => lstatSync10(f).isSymbolicLink(), false)) return null;
-  const raw = safe(() => readFileSync13(f, "utf8"));
+  const f = join14(cwd, ID_FILE);
+  if (!existsSync10(f) || safe(() => lstatSync10(f).isSymbolicLink(), false)) return null;
+  const raw = safe(() => readFileSync14(f, "utf8"));
   if (raw == null) return null;
   const id = raw.trim();
   return ID_RE.test(id) ? id : null;
 }
 function expandTilde(p) {
-  return p === "~" ? homedir() : p.startsWith("~/") ? join13(homedir(), p.slice(2)) : p;
+  return p === "~" ? homedir() : p.startsWith("~/") ? join14(homedir(), p.slice(2)) : p;
 }
 function allowlistRoots(rawConfig) {
-  const wanted = [join13(homedir(), "bureaus")];
+  const wanted = [join14(homedir(), "bureaus")];
   if (rawConfig && Array.isArray(rawConfig.roots)) {
     for (const r of rawConfig.roots) if (typeof r === "string" && r) wanted.push(expandTilde(r));
   }
@@ -25186,28 +25249,28 @@ function allowlistRoots(rawConfig) {
 }
 function loadWorkspaceMap() {
   const f = configPath();
-  if (!existsSync9(f)) return { entries: {}, raw: {}, present: false };
+  if (!existsSync10(f)) return { entries: {}, raw: {}, present: false };
   if (safe(() => lstatSync10(f).isSymbolicLink(), false)) throw new Error(configPath() + " is a symlink (refused)");
   const st = safe(() => statSync2(f));
   if (!st) throw new Error("cannot stat " + configPath());
   const uid = myUid();
   if (uid != null && st.uid !== uid) throw new Error(configPath() + " is not owned by the current user (refused)");
   if (groupOrOtherWritable(st.mode)) throw new Error(configPath() + " is group/other-writable \u2014 run `chmod 600 " + configPath() + "`");
-  const v = safe(() => JSON.parse(readFileSync13(f, "utf8")));
+  const v = safe(() => JSON.parse(readFileSync14(f, "utf8")));
   if (v == null || typeof v !== "object" || Array.isArray(v)) throw new Error(configPath() + " must be a JSON object");
   const entries = v.workspaces && typeof v.workspaces === "object" && !Array.isArray(v.workspaces) ? v.workspaces : {};
   return { entries, raw: v, present: true };
 }
 function validateWorkspaceTarget(rawPath, rawConfig) {
   const p = resolve4(expandTilde(String(rawPath)));
-  if (!existsSync9(p)) return { ok: false, reason: "mapped workspace does not exist: " + p };
+  if (!existsSync10(p)) return { ok: false, reason: "mapped workspace does not exist: " + p };
   if (safe(() => lstatSync10(p).isSymbolicLink(), false)) return { ok: false, reason: "mapped workspace is a symlink (refused): " + p };
   const real = safe(() => realpathSync4(p));
   if (!real) return { ok: false, reason: "cannot resolve mapped workspace: " + p };
   const roots = allowlistRoots(rawConfig);
   if (!roots.some((r) => real === r || real.startsWith(r + sep5))) return { ok: false, reason: "mapped workspace is outside the allowed roots [" + roots.join(", ") + "]: " + real };
-  const markerPath = join13(real, MARKER);
-  if (!existsSync9(markerPath) || safe(() => lstatSync10(markerPath).isSymbolicLink(), true) || !safe(() => statSync2(markerPath).isFile(), false)) return { ok: false, reason: "mapped path has no real " + MARKER + " marker (not a workspace): " + real };
+  const markerPath = join14(real, MARKER);
+  if (!existsSync10(markerPath) || safe(() => lstatSync10(markerPath).isSymbolicLink(), true) || !safe(() => statSync2(markerPath).isFile(), false)) return { ok: false, reason: "mapped path has no real " + MARKER + " marker (not a workspace): " + real };
   const st = safe(() => statSync2(real));
   if (!st) return { ok: false, reason: "cannot stat mapped workspace: " + real };
   const uid = myUid();
@@ -25218,7 +25281,7 @@ function validateWorkspaceTarget(rawPath, rawConfig) {
 function resolveWorkspace(cwd) {
   const id = readBureauId(cwd);
   if (!id) {
-    if (existsSync9(join13(cwd, ID_FILE))) return { mode: "rejected", id: null, reason: ".bureau-id is present but not a valid opaque token (must be a real file holding one [A-Za-z0-9._-] id)" };
+    if (existsSync10(join14(cwd, ID_FILE))) return { mode: "rejected", id: null, reason: ".bureau-id is present but not a valid opaque token (must be a real file holding one [A-Za-z0-9._-] id)" };
     return { mode: "in-repo" };
   }
   let loaded;
@@ -25236,9 +25299,9 @@ function resolveWorkspace(cwd) {
 
 // src/engine/versions.mjs
 import { execFileSync as execFileSync3 } from "child_process";
-import { mkdtempSync, rmSync as rmSync2, existsSync as existsSync10, readFileSync as readFileSync14, writeFileSync as writeFileSync6, renameSync as renameSync6, lstatSync as lstatSync11, realpathSync as realpathSync5 } from "fs";
+import { mkdtempSync, rmSync as rmSync2, existsSync as existsSync11, readFileSync as readFileSync15, writeFileSync as writeFileSync6, renameSync as renameSync6, lstatSync as lstatSync11, realpathSync as realpathSync5 } from "fs";
 import { tmpdir } from "os";
-import { join as join14, relative as relative4, resolve as resolve5, sep as sep6, isAbsolute as isAbsolute2 } from "path";
+import { join as join15, relative as relative4, resolve as resolve5, sep as sep6, isAbsolute as isAbsolute2 } from "path";
 var SNAPSHOTS_BASENAME = "_snapshots.json";
 var GIT_MAXBUF = 64 * 1024 * 1024;
 var gitText = (root, args) => execFileSync3("git", ["-C", root, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: GIT_MAXBUF });
@@ -25304,13 +25367,13 @@ function buildAtRef({ root, ref, docsDirAbs, dataDirAbs, outDirAbs, now, buildSi
   if (overlaps(outDirAbs, docsDirAbs)) throw new Error("refusing build --at: --out overlaps the live content dir (" + docsDirAbs + ")");
   if (dataDirAbs && overlaps(outDirAbs, dataDirAbs)) throw new Error("refusing build --at: --out overlaps the live data dir (" + dataDirAbs + ")");
   if (within(root, outDirAbs)) throw new Error("refusing build --at: --out is the repo root or an ancestor of it (" + outDirAbs + ")");
-  const parent = mkdtempSync(join14(tmpdir(), "bureau-at-"));
-  const wt = join14(parent, "wt");
+  const parent = mkdtempSync(join15(tmpdir(), "bureau-at-"));
+  const wt = join15(parent, "wt");
   try {
     execFileSync3("git", ["-C", root, "worktree", "add", "--detach", "--quiet", wt, sha], { stdio: ["ignore", "ignore", "pipe"] });
-    const wtDocs = join14(wt, ...objectPath.split("/"));
-    if (!existsSync10(wtDocs)) throw new Error("content dir '" + objectPath + "' does not exist at " + ref + " (" + sha.slice(0, 8) + ")");
-    const wtData = dataDirAbs ? join14(wt, ...objectPath.split("/"), "_data") : void 0;
+    const wtDocs = join15(wt, ...objectPath.split("/"));
+    if (!existsSync11(wtDocs)) throw new Error("content dir '" + objectPath + "' does not exist at " + ref + " (" + sha.slice(0, 8) + ")");
+    const wtData = dataDirAbs ? join15(wt, ...objectPath.split("/"), "_data") : void 0;
     return { ...buildSite2({ root: wt, docsDir: wtDocs, dataDir: wtData, outDir: outDirAbs, now, force: true }), ref, commit: sha };
   } finally {
     try {
@@ -25362,17 +25425,17 @@ function logDiff({ root, refA, refB, docsDirAbs }) {
   return { commitA: shaA, commitB: shaB, fromSeq: logHead(a), toSeq: logHead(b), newEvents: fresh.length, by, artifactDrift };
 }
 function snapshotsPath(docsDirAbs) {
-  return join14(docsDirAbs, SNAPSHOTS_BASENAME);
+  return join15(docsDirAbs, SNAPSHOTS_BASENAME);
 }
 function validSnapshot(s) {
   return s && typeof s === "object" && !Array.isArray(s) && typeof s.name === "string" && typeof s.commit === "string" && s.commit.length >= 7;
 }
 function readSnapshots(docsDirAbs) {
   const p = snapshotsPath(docsDirAbs);
-  if (!existsSync10(p)) return [];
+  if (!existsSync11(p)) return [];
   let v;
   try {
-    v = JSON.parse(readFileSync14(p, "utf8"));
+    v = JSON.parse(readFileSync15(p, "utf8"));
   } catch (e) {
     throw new Error(SNAPSHOTS_BASENAME + " is not valid JSON: " + e.message);
   }
@@ -25390,7 +25453,7 @@ function snapshotCreate({ root, docsDirAbs, name, note, digest }) {
   const dirty = gitText(root, ["status", "--porcelain", "--", objectPath]).split("\n").filter((l) => l.trim() && !l.trimEnd().endsWith("/" + SNAPSHOTS_BASENAME));
   if (dirty.length) throw new Error("workspace has uncommitted changes \u2014 commit before snapshotting (a snapshot pins a commit):\n" + dirty.join("\n"));
   const file = snapshotsPath(docsDirAbs);
-  if (existsSync10(file) && lstatSync11(file).isSymbolicLink()) throw new Error(SNAPSHOTS_BASENAME + " is a symlink (refused)");
+  if (existsSync11(file) && lstatSync11(file).isSymbolicLink()) throw new Error(SNAPSHOTS_BASENAME + " is a symlink (refused)");
   return withLock(file, () => {
     const snaps = readSnapshots(docsDirAbs);
     if (snaps.some((s) => s.name === name)) throw new Error('snapshot "' + name + '" already exists');
@@ -25434,7 +25497,7 @@ function contentDir() {
   if (res.mode === "rejected") die("this repo's external bureau workspace was refused: " + res.reason);
   try {
     const root = process.cwd();
-    const ws = readdirSync5(root, { withFileTypes: true }).filter((d) => d.isDirectory() && !d.name.startsWith(".") && existsSync11(join15(root, d.name, "bureau.json"))).map((d) => d.name);
+    const ws = readdirSync5(root, { withFileTypes: true }).filter((d) => d.isDirectory() && !d.name.startsWith(".") && existsSync12(join16(root, d.name, "bureau.json"))).map((d) => d.name);
     if (ws.length === 1) return ws[0];
   } catch {
   }
@@ -25505,7 +25568,7 @@ function watchTree(dir, cb) {
     for (const ent of entries) {
       if (!ent.isDirectory() || ent.isSymbolicLink()) continue;
       if (ent.name.startsWith("_") || ent.name.startsWith(".") || ent.name === "dist" || ent.name === "node_modules") continue;
-      walk4(join15(d, ent.name));
+      walk4(join16(d, ent.name));
     }
   };
   walk4(dir);
@@ -25529,10 +25592,10 @@ function runWatch() {
     clearTimeout(timer);
     timer = setTimeout(build, 150);
   };
-  if (existsSync11(docsDir)) watchTree(docsDir, trigger);
+  if (existsSync12(docsDir)) watchTree(docsDir, trigger);
   for (const f of ["theme.json", "theme.css"]) {
-    const p = join15(root, f);
-    if (existsSync11(p)) watch(p, trigger);
+    const p = join16(root, f);
+    if (existsSync12(p)) watch(p, trigger);
   }
   console.log("\u{1F440} watching " + relative5(root, docsDir) + " + theme (Ctrl-C to stop)");
 }
@@ -25594,8 +25657,8 @@ function runInit() {
   }
   mkdirSync3(dir, { recursive: true });
   const writeIf = (rel, content) => {
-    const p = join15(dir, rel);
-    if (existsSync11(p)) {
+    const p = join16(dir, rel);
+    if (existsSync12(p)) {
       console.log("\xB7 exists, skipping: " + base2 + "/" + rel);
       return;
     }
@@ -25615,19 +25678,19 @@ function runInit() {
     "</article>",
     ""
   ].join("\n"));
-  writeIf(join15("characters", "lin.html"), [
+  writeIf(join16("characters", "lin.html"), [
     '<article data-icon="user" data-status="draft">',
     "  <h1>Lin</h1>",
     "  <p>A doc in <code>characters/</code> \u2192 the \u201CCharacters\u201D sidebar section. Back to [[Overview]].</p>",
     "</article>",
     ""
   ].join("\n"));
-  const giPath = join15(root, ".gitignore");
+  const giPath = join16(root, ".gitignore");
   try {
     if (lstatSync12(giPath).isSymbolicLink()) die(".gitignore is a symlink (refused): " + giPath);
   } catch {
   }
-  const has2 = existsSync11(giPath) && readFileSync15(giPath, "utf8").split(/\r?\n/).some((l) => l.trim() === "dist/");
+  const has2 = existsSync12(giPath) && readFileSync16(giPath, "utf8").split(/\r?\n/).some((l) => l.trim() === "dist/");
   if (!has2) {
     appendFileSync2(giPath, "dist/\n");
     console.log("+ .gitignore: dist/");
@@ -25641,14 +25704,14 @@ function runNew() {
   const root = process.cwd();
   const base2 = dirArg() || "gazette";
   const dir = resolve6(root, base2);
-  if (!existsSync11(dir)) die("no " + base2 + "/ here \u2014 run `gazette init` first");
+  if (!existsSync12(dir)) die("no " + base2 + "/ here \u2014 run `gazette init` first");
   const rel = target.replace(/\\/g, "/").replace(/\.html$/, "") + ".html";
   const fp = resolve6(dir, rel);
   if (!(fp === dir || fp.startsWith(dir + sep7))) die("path escapes the content dir: " + target);
-  if (existsSync11(fp)) die("already exists: " + base2 + "/" + rel);
+  if (existsSync12(fp)) die("already exists: " + base2 + "/" + rel);
   const dirReal = realpathSync6(dir);
   let anc = dirname4(fp);
-  while (!existsSync11(anc) && anc !== dirname4(anc)) anc = dirname4(anc);
+  while (!existsSync12(anc) && anc !== dirname4(anc)) anc = dirname4(anc);
   const ancReal = realpathSync6(anc);
   if (!(ancReal === dirReal || ancReal.startsWith(dirReal + sep7))) die("path escapes the content dir (via symlink): " + target);
   const title = titleArg || prettify(rel.split("/").pop().replace(/\.html$/, ""));
@@ -25658,7 +25721,7 @@ function runNew() {
 }
 function runOpen() {
   const r = runBuild();
-  const idx = join15(r.outDir, "index.html");
+  const idx = join16(r.outDir, "index.html");
   const win = process.platform === "win32";
   const opener = process.platform === "darwin" ? "open" : win ? "rundll32" : "xdg-open";
   const args = win ? ["url.dll,FileProtocolHandler", idx] : [idx];
@@ -25737,7 +25800,7 @@ function runServe() {
     try {
       if (p === "/" || p.endsWith("/")) p += "index.html";
       const fp = resolve6(out, "." + p);
-      if (!within2(fp, out) || !existsSync11(fp) || statSync3(fp).isDirectory()) {
+      if (!within2(fp, out) || !existsSync12(fp) || statSync3(fp).isDirectory()) {
         res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
         res.end("404 " + p);
         return;
@@ -25754,13 +25817,13 @@ function runServe() {
         return;
       }
       if (extname2(real) === ".html") {
-        const html = readFileSync15(real, "utf8").replace("connect-src 'none'", "connect-src 'self'").replace("</body>", '<script src="/__wb_reload.js"></script></body>');
+        const html = readFileSync16(real, "utf8").replace("connect-src 'none'", "connect-src 'self'").replace("</body>", '<script src="/__wb_reload.js"></script></body>');
         res.writeHead(200, { "content-type": MIME[".html"] });
         res.end(html);
         return;
       }
       res.writeHead(200, { "content-type": MIME[extname2(real)] || "application/octet-stream" });
-      res.end(readFileSync15(real));
+      res.end(readFileSync16(real));
     } catch (e) {
       res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
       res.end("500");
@@ -25783,10 +25846,10 @@ function runServe() {
       }
     }, 150);
   };
-  if (existsSync11(docsDir)) watchTree(docsDir, trigger);
+  if (existsSync12(docsDir)) watchTree(docsDir, trigger);
   for (const f of ["theme.json", "theme.css"]) {
-    const p = join15(root, f);
-    if (existsSync11(p)) watch(p, trigger);
+    const p = join16(root, f);
+    if (existsSync12(p)) watch(p, trigger);
   }
 }
 function engineDir() {
@@ -25830,7 +25893,7 @@ function runSnapshot() {
     if (action === "create") {
       const name = argv[2];
       if (!name || name.startsWith("--")) die('usage: gazette snapshot create <name> [--note "\u2026"]');
-      const digest = existsSync11(logPath(docsDirAbs)) ? fsck({ docsDir: docsDirAbs, write: false }).digest : null;
+      const digest = existsSync12(logPath(docsDirAbs)) ? fsck({ docsDir: docsDirAbs, write: false }).digest : null;
       const e = snapshotCreate({ root, docsDirAbs, name, note: opt("note"), digest });
       console.log('\u2713 snapshot "' + e.name + '" \u2192 commit ' + e.commit.slice(0, 8) + ", log seq " + e.seq + (e.digest ? ", digest " + e.digest.slice(0, 12) : "") + "  (commit + push to preserve)");
     } else if (action === "list" || action == null) {
@@ -26012,6 +26075,59 @@ function runResolve() {
     die(e.message);
   }
 }
+function runLegacyMigrate() {
+  try {
+    const check = argv.includes("--check");
+    const docsDir = engineDir();
+    const corpus = loadCorpus({ docsDir });
+    const model = buildModel({ corpus });
+    const events = readLog(logPath(docsDir));
+    const policy = loadPolicy(docsDir);
+    const rawByUid = new Map(corpus.entries.map((e) => [e.uid, e.raw]));
+    const titleByUid = new Map(Object.values(model.nodes).map((n) => [n.uid, n.title]));
+    const digestFor = (uid) => {
+      const raw = rawByUid.get(uid), title = titleByUid.get(uid);
+      try {
+        return raw != null ? reviewDigest({ raw, uid, title }) : null;
+      } catch {
+        return null;
+      }
+    };
+    const pins = legacyCandidates({ model, events, policy, digestFor });
+    const uids = Object.keys(pins).sort();
+    const lp = legacyPath(docsDir);
+    if (check) {
+      if (!uids.length) {
+        console.log("legacy-migrate --check: nothing to grandfather \u2014 every canonical page is content-bound or already re-approved.");
+        return;
+      }
+      console.log("legacy-migrate --check: " + uids.length + " page(s) WOULD be grandfathered as `legacy-canonical` (not review-backed; voided on any content change):");
+      for (const uid of uids) console.log("  \xB7 " + (titleByUid.get(uid) || uid) + "  [" + uid + "]");
+      console.log("Run without --check to write " + LEGACY_BASENAME + ' (then commit + review it), or re-approve each with `gazette approve "<title>" --by human` for a real content-bound approval.');
+      return;
+    }
+    if (existsSync12(lp) && lstatSync12(lp).isSymbolicLink()) die(LEGACY_BASENAME + " is a symlink (refused): " + lp);
+    if (!uids.length) {
+      if (existsSync12(lp)) {
+        rmSync3(lp);
+        console.log("\u2713 legacy-migrate: nothing to grandfather \u2014 removed the now-empty " + LEGACY_BASENAME + ".");
+      } else console.log("legacy-migrate: nothing to grandfather.");
+      return;
+    }
+    const manifest = {
+      schema: 1,
+      note: "Grandfathered legacy-canonical pins (ADR-0004 Phase 6). Each entry is an EXISTING effective-canonical page pinned to the digest of its CURRENT content. This is NOT a review approval \u2014 `canonical` here does not imply a human vouched; a meaningful content change voids the pin; a real content-bound approval supersedes and removes it. Generated by `gazette legacy-migrate`, committed and reviewed by a human.",
+      pins: {}
+    };
+    for (const uid of uids) manifest.pins[uid] = pins[uid];
+    writeFileSync7(lp, JSON.stringify(manifest, null, 2) + "\n");
+    console.log("\u2713 legacy-migrate: grandfathered " + uids.length + " page(s) \u2192 " + LEGACY_BASENAME + " (review + commit it):");
+    for (const uid of uids) console.log("  \xB7 " + (titleByUid.get(uid) || uid));
+    console.log("They now read `legacy-canonical` (advisory) instead of unbacked/unbound. Re-approve any (`gazette approve \u2026 --by human`) for a real content-bound approval.");
+  } catch (e) {
+    die(e.message);
+  }
+}
 function runLedger() {
   try {
     const action = argv[1];
@@ -26096,6 +26212,9 @@ switch (cmd) {
     break;
   case "ledger":
     runLedger();
+    break;
+  case "legacy-migrate":
+    runLegacyMigrate();
     break;
   case "approve":
     runApprove();
