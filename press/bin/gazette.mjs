@@ -15927,7 +15927,7 @@ import { spawn } from "child_process";
 import { readFileSync as readFileSync9, writeFileSync as writeFileSync2, existsSync as existsSync7, mkdirSync, copyFileSync, cpSync, rmSync, renameSync as renameSync2, readdirSync as readdirSync4, lstatSync as lstatSync7, realpathSync as realpathSync3, unlinkSync as unlinkSync2 } from "fs";
 import { join as join10, dirname as dirname2, resolve as resolve2, sep as sep4, relative as relative3 } from "path";
 import { fileURLToPath } from "url";
-import { createHash as createHash4 } from "crypto";
+import { createHash as createHash5 } from "crypto";
 import { execFileSync as execFileSync2 } from "child_process";
 
 // src/core/model.mjs
@@ -22589,7 +22589,7 @@ var STATE_FILL = {
 };
 function nodeState(st) {
   if (!st) return "current";
-  if (st.flag === "unbacked" || st.flag === "unauthorized") return st.flag;
+  if (st.flag === "unbacked" || st.flag === "unauthorized" || st.flag === "stale") return st.flag;
   const f = st.freshness;
   if (f === "stale" || f === "needs-review" || f === "modified") return f;
   return "current";
@@ -22970,21 +22970,23 @@ function renderConvergence(converge) {
 }
 function renderTrust(authority) {
   if (!authority) return "";
-  const { accept = ["human"], canonical = [], machineBacked = [], unauthorized = [], unbacked = [] } = authority;
+  const { accept = ["human"], canonical = [], machineBacked = [], unauthorized = [], unbacked = [], stale = [] } = authority;
   if (!canonical.length) return "";
   const accepts = "accepted authorities: <code>" + esc3(accept.join(", ")) + "</code>";
-  const allHumanApproved = canonical.every((r) => r.by === "human" && r.authorized);
-  if (allHumanApproved)
+  const staleSet = new Set(stale.map((r) => r.page));
+  const clean = (r) => r.by === "human" && r.authorized && !staleSet.has(r.page);
+  if (canonical.every(clean))
     return "<h3>Trust \xB7 authority</h3><blockquote><p>\u2705 All " + canonical.length + " <code>canonical</code> page(s) were approved by a <strong>human</strong> (" + accepts + ").</p></blockquote>";
-  const rows = canonical.filter((r) => !(r.by === "human" && r.authorized));
-  const problems = unauthorized.length + unbacked.length;
+  const rows = canonical.filter((r) => !clean(r));
+  const problems = unauthorized.length + unbacked.length + stale.length;
   const bits = [];
   if (machineBacked.length) bits.push(machineBacked.length + " approved by a NON-human authority \u2014 <code>canonical</code> here does not imply a human vouched");
   if (unauthorized.length) bits.push("<strong>" + unauthorized.length + " approved by an authority this workspace does NOT accept</strong>");
   if (unbacked.length) bits.push("<strong>" + unbacked.length + " with no approval at all (unbacked)</strong>");
+  if (stale.length) bits.push("<strong>" + stale.length + " edited after review (stale \u2014 the approval no longer covers the page)</strong>");
   let s = "<h3>Trust \xB7 authority \xB7 " + (problems || machineBacked.length) + "</h3><blockquote><p>Of " + canonical.length + " <code>canonical</code> page(s): " + bits.join(" \xB7 ") + ". " + (problems ? "Run <code>gazette fsck</code> \u2014 these are blocking findings. " : "") + accepts + ".</p></blockquote>";
   s += '<table class="wb-table"><thead><tr><th>Page</th><th>Approved by</th><th>State</th></tr></thead><tbody>' + rows.map((r) => {
-    const state = r.authorized ? "accepted" : r.by == null ? '<span class="meta-chip meta-chip--fresh-stale">unbacked</span>' : '<span class="meta-chip meta-chip--fresh-stale">unauthorized</span>';
+    const state = staleSet.has(r.page) ? '<span class="meta-chip meta-chip--fresh-stale">stale</span>' : r.authorized ? "accepted" : r.by == null ? '<span class="meta-chip meta-chip--fresh-stale">unbacked</span>' : '<span class="meta-chip meta-chip--fresh-stale">unauthorized</span>';
     return "<tr><td>" + wl(r.page) + "</td><td>" + (r.by == null ? "<em>no approval</em>" : "<code>" + esc3(r.by) + "</code>") + "</td><td>" + state + "</td></tr>";
   }).join("") + "</tbody></table>";
   return s;
@@ -23005,6 +23007,7 @@ function renderEngine(fresh, arts, converge) {
     const bad = (authority.unauthorized || []).length + (authority.unbacked || []).length;
     if (authority.machineBacked.length) bits.push(authority.machineBacked.length + " canonical machine-backed");
     if (bad) bits.push("\u26A0 " + bad + " canonical not backed by an accepted authority");
+    if ((authority.stale || []).length) bits.push("\u26A0 " + authority.stale.length + " canonical edited after review (stale)");
   }
   return "<h2>Engine \xB7 live state</h2><blockquote><p>The recursion engine's live, dependency-aware view \u2014 <em>distinct</em> from the deterministic structural checks below." + (bits.length ? " <strong>" + esc3(bits.join(" \xB7 ")) + ".</strong>" : "") + "</p></blockquote>" + facets;
 }
@@ -23608,11 +23611,64 @@ function resolveNodeState(node, decisions, conflictPartnerUids = []) {
   return { trust, trustBacked, conflict, resolutionId, resolutions, freeze: node.freeze || null };
 }
 
+// src/engine/review-digest.mjs
+import { createHash as createHash3 } from "crypto";
+var REVIEW_DIGEST_VERSION = 1;
+var NON_SEMANTIC_KEYS = /* @__PURE__ */ new Set([
+  "status",
+  "trust",
+  "effective_status",
+  "reviewed",
+  "verified",
+  "updated",
+  "age",
+  "words",
+  "icon",
+  "group"
+]);
+var nfc2 = (v) => typeof v === "string" ? v.normalize("NFC") : Array.isArray(v) ? v.map(nfc2) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, nfc2(x)])) : v;
+function normalizeBody(body) {
+  return String(body).replace(/^﻿/, "").replace(/\r\n/g, "\n").normalize("NFC").replace(/\n+$/, "\n");
+}
+function semanticFrontmatter(fm) {
+  const out = {};
+  if (fm && typeof fm === "object") for (const k of Object.keys(fm)) {
+    if (NON_SEMANTIC_KEYS.has(k) || k === "id" || k === "title") continue;
+    out[k] = fm[k];
+  }
+  return out;
+}
+function reviewDigest({ raw, uid, title }) {
+  const { frontmatter, body } = splitFrontmatter(String(raw));
+  const payload = {
+    version: REVIEW_DIGEST_VERSION,
+    uid: String(uid == null ? "" : uid).normalize("NFC"),
+    title: String(title == null ? "" : title).normalize("NFC"),
+    semanticFrontmatter: nfc2(semanticFrontmatter(frontmatter)),
+    normalizedBody: normalizeBody(body == null ? "" : body)
+  };
+  return "bureau-page-v1:" + createHash3("sha256").update(canonicalJSON(payload, 0)).digest("hex");
+}
+
 // src/engine/live.mjs
 var RANK2 = { current: 0, modified: 1, "needs-review": 2, stale: 3 };
 function trustAuthority({ model, committed, corpus, policy }) {
-  const { approved, approvedBy, unauthorizedApprovals } = projectDecisions(committed, policy);
-  const canonical = [], machineBacked = [], unauthorized = [], unbacked = [];
+  const { approved, approvedBy, approvedHash, unauthorizedApprovals } = projectDecisions(committed, policy);
+  const canonical = [], machineBacked = [], unauthorized = [], unbacked = [], stale = [];
+  const rawByUid = new Map((corpus && corpus.entries || []).map((e) => [e.uid, e.raw]));
+  const digestCache = /* @__PURE__ */ new Map();
+  const digestFor = (uid, title) => {
+    if (digestCache.has(uid)) return digestCache.get(uid);
+    const raw = rawByUid.get(uid);
+    let d = null;
+    try {
+      if (raw != null) d = reviewDigest({ raw, uid, title });
+    } catch {
+      d = null;
+    }
+    digestCache.set(uid, d);
+    return d;
+  };
   for (const n of Object.values(model.nodes)) {
     const authored = n.trust || n.status || null;
     const rejectedBy = unauthorizedApprovals.get(n.uid) || null;
@@ -23625,13 +23681,18 @@ function trustAuthority({ model, committed, corpus, policy }) {
     if (by && by !== "human") machineBacked.push(row);
     if (rejectedBy != null) unauthorized.push(row);
     else if (by == null) unbacked.push(row);
+    else {
+      const h = approvedHash.get(n.uid);
+      if (h != null && digestFor(n.uid, n.title) !== h) stale.push(row);
+    }
   }
   const ord = (a, b) => a.page < b.page ? -1 : a.page > b.page ? 1 : 0;
   canonical.sort(ord);
   machineBacked.sort(ord);
   unauthorized.sort(ord);
   unbacked.sort(ord);
-  return { accept: policy.approve, canonical, machineBacked, unauthorized, unbacked };
+  stale.sort(ord);
+  return { accept: policy.approve, canonical, machineBacked, unauthorized, unbacked, stale };
 }
 function liveFreshness({ corpus, docsDir, model, policy }) {
   model = model || buildModel({ corpus });
@@ -23685,7 +23746,7 @@ function liveFreshness({ corpus, docsDir, model, policy }) {
 // src/engine/ledgers.mjs
 import { existsSync as existsSync6, readFileSync as readFileSync8, writeFileSync, renameSync, realpathSync as realpathSync2, lstatSync as lstatSync5, openSync as openSync3, closeSync as closeSync3, fstatSync as fstatSync2, readSync, constants as constants2 } from "fs";
 import { join as join8, resolve, sep as sep3, isAbsolute } from "path";
-import { createHash as createHash3 } from "crypto";
+import { createHash as createHash4 } from "crypto";
 var VERIFY_BASENAME = "_verify.json";
 var COMPILE_BASENAME = "_compile-state.json";
 var DANGEROUS_KEY = /* @__PURE__ */ new Set(["__proto__", "prototype", "constructor"]);
@@ -23714,7 +23775,7 @@ function hashJailed(realPath) {
   const fd = openSync3(realPath, constants2.O_RDONLY | constants2.O_NOFOLLOW);
   try {
     if (!fstatSync2(fd).isFile()) throw new Error("artifact is not a regular file: " + realPath);
-    const h = createHash3("sha256");
+    const h = createHash4("sha256");
     const buf = Buffer.allocUnsafe(65536);
     let n;
     while ((n = readSync(fd, buf, 0, buf.length, null)) > 0) h.update(buf.subarray(0, n));
@@ -24119,7 +24180,7 @@ function cspMeta() {
 }
 
 // src/runtime/pure.mjs
-function nfc2(s) {
+function nfc3(s) {
   return s == null ? s : String(s).normalize("NFC");
 }
 function makeResolve(docs, selfId) {
@@ -24129,7 +24190,7 @@ function makeResolve(docs, selfId) {
     let docName = hi < 0 ? target : target.slice(0, hi);
     const anchor = hi < 0 ? "" : target.slice(hi + 1).trim();
     if (sameDoc && selfId != null) docName = String(selfId);
-    const t = nfc2(docName);
+    const t = nfc3(docName);
     const exists = Object.prototype.hasOwnProperty.call(docs, t);
     let href = "";
     if (exists) {
@@ -24349,7 +24410,7 @@ function transcludeEmbeds(html, source) {
   return replaceOutsideRaw(html, (h) => h.replace(EMBED_BLOCK, (m, t, hd) => make(t, hd)).replace(EMBED_INLINE, (m, t, hd) => make(t, hd)));
 }
 function hashInputs({ root, docsDir, dataDir, now, topSkip = null }) {
-  const h = createHash4("sha256");
+  const h = createHash5("sha256");
   h.update("schema:" + SCHEMA_VERSION + "|now:" + (now || ""));
   for (const f of [...ENGINE_LIB, "theme.css"]) h.update(readFileSync9(join10(TEMPLATE_DIR, "lib", f)));
   h.update(readFileSync9(join10(TEMPLATE_DIR, "index.html")));
@@ -24512,6 +24573,7 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
     const flagByPage = /* @__PURE__ */ new Map();
     for (const r of fresh.authority && fresh.authority.unauthorized || []) flagByPage.set(r.page, "unauthorized");
     for (const r of fresh.authority && fresh.authority.unbacked || []) flagByPage.set(r.page, "unbacked");
+    for (const r of fresh.authority && fresh.authority.stale || []) flagByPage.set(r.page, "stale");
     const canvasState = {};
     for (const key of Object.keys(model.nodes)) {
       const n = model.nodes[key];
@@ -24863,45 +24925,6 @@ function renderRepairText(fixes, applied) {
 import { existsSync as existsSync9, readFileSync as readFileSync13, writeFileSync as writeFileSync5, mkdirSync as mkdirSync2, lstatSync as lstatSync9, renameSync as renameSync5, openSync as openSync5, closeSync as closeSync5, constants as constants4 } from "fs";
 import { join as join13, dirname as dirname3, resolve as resolve3, basename as basename2 } from "path";
 import { createHash as createHash6, randomBytes } from "crypto";
-
-// src/engine/review-digest.mjs
-import { createHash as createHash5 } from "crypto";
-var REVIEW_DIGEST_VERSION = 1;
-var NON_SEMANTIC_KEYS = /* @__PURE__ */ new Set([
-  "status",
-  "trust",
-  "effective_status",
-  "reviewed",
-  "verified",
-  "updated",
-  "age",
-  "words",
-  "icon",
-  "group"
-]);
-var nfc3 = (v) => typeof v === "string" ? v.normalize("NFC") : Array.isArray(v) ? v.map(nfc3) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, nfc3(x)])) : v;
-function normalizeBody(body) {
-  return String(body).replace(/^﻿/, "").replace(/\r\n/g, "\n").normalize("NFC").replace(/\n+$/, "\n");
-}
-function semanticFrontmatter(fm) {
-  const out = {};
-  if (fm && typeof fm === "object") for (const k of Object.keys(fm)) {
-    if (NON_SEMANTIC_KEYS.has(k) || k === "id" || k === "title") continue;
-    out[k] = fm[k];
-  }
-  return out;
-}
-function reviewDigest({ raw, uid, title }) {
-  const { frontmatter, body } = splitFrontmatter(String(raw));
-  const payload = {
-    version: REVIEW_DIGEST_VERSION,
-    uid: String(uid == null ? "" : uid).normalize("NFC"),
-    title: String(title == null ? "" : title).normalize("NFC"),
-    semanticFrontmatter: nfc3(semanticFrontmatter(frontmatter)),
-    normalizedBody: normalizeBody(body == null ? "" : body)
-  };
-  return "bureau-page-v1:" + createHash5("sha256").update(canonicalJSON(payload, 0)).digest("hex");
-}
 
 // src/engine/legacy.mjs
 import { existsSync as existsSync8, openSync as openSync4, closeSync as closeSync4, fstatSync as fstatSync3, readFileSync as readFileSync12, constants as constants3 } from "fs";

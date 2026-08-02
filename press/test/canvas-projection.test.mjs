@@ -37,6 +37,8 @@ test("projection: fill encodes the WORST state, and a flag outranks freshness", 
   // an unearned canonical tier is a TRUST problem — it must not be masked by a benign freshness
   assert.equal(nodeState({ freshness: "current", flag: "unbacked" }), "unbacked");
   assert.equal(nodeState({ freshness: "needs-review", flag: "unauthorized" }), "unauthorized");
+  // a stale approval (content-bound, page edited past review) is likewise a trust flag over freshness
+  assert.equal(nodeState({ freshness: "current", flag: "stale" }), "stale");
 });
 
 test("projection: the far tier summarizes each region and counts what needs attention", () => {

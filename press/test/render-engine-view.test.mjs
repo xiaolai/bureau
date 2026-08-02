@@ -50,6 +50,20 @@ test("engine view: with no engine data at all, the Engine banner does not appear
   assert.doesNotMatch(h, /Engine · live state/);
 });
 
+test("engine view: a content-bound approval edited past review is flagged stale, not certified clean (ADR-0004)", () => {
+  const row = { page: "Token TTL", by: "human", authorized: true, rejected: false };
+  const fresh = {
+    byKey: new Map(), drift: [], pending: 0, counts: { needsReview: 0, stale: 0, modified: 0 }, integrity: null,
+    // the page is a real (human, authorized) approval — but content-bound and now stale
+    authority: { accept: ["human"], canonical: [row], machineBacked: [], unauthorized: [], unbacked: [], stale: [row] },
+  };
+  const h = renderHealthHtml(ZERO_HEALTH, fresh, null, null);
+  assert.doesNotMatch(h, /✅ All 1/, "a stale approval must NOT earn the green human-certified banner");
+  assert.match(h, /edited after review \(stale/, "the Trust · authority facet names the stale approval");
+  assert.match(h, /canonical edited after review \(stale\)/, "the Engine banner counts it");
+  assert.match(h, /meta-chip--fresh-stale">stale</, "the per-page row shows a stale chip");
+});
+
 test("meta chip: a drifted artifact badge is loud; a current one is quiet", () => {
   const drifted = metaRow({ artifacts: { current: 0, drifted: 1 } });
   assert.match(drifted, /meta-chip--artifacts-drifted/);

@@ -363,6 +363,7 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
     const flagByPage = new Map();
     for (const r of (fresh.authority && fresh.authority.unauthorized) || []) flagByPage.set(r.page, "unauthorized");
     for (const r of (fresh.authority && fresh.authority.unbacked) || []) flagByPage.set(r.page, "unbacked");
+    for (const r of (fresh.authority && fresh.authority.stale) || []) flagByPage.set(r.page, "stale");
     const canvasState = {};
     for (const key of Object.keys(model.nodes)) {
       const n = model.nodes[key];

@@ -7,6 +7,7 @@ import { logPath, readLog, verifyIntegrity } from "./log.mjs";
 import { computeGate } from "./gate.mjs";
 import { scan } from "./scan.mjs";
 import { projectDecisions } from "./state.mjs";
+import { reviewDigest } from "./review-digest.mjs";
 import { loadPolicy } from "./policy.mjs";
 
 // how prominent each level is (higher wins when a page qualifies for more than one)
@@ -17,8 +18,20 @@ const RANK = { current: 0, modified: 1, "needs-review": 2, stale: 3 };
 // "canonical · by invariant" and flag a machine-backed canonical the policy does not accept — so the
 // authority travels with the tier on read, never a silent "canonical means a human vouched".
 function trustAuthority({ model, committed, corpus, policy }) {
-  const { approved, approvedBy, unauthorizedApprovals } = projectDecisions(committed, policy);
-  const canonical = [], machineBacked = [], unauthorized = [], unbacked = [];
+  const { approved, approvedBy, approvedHash, unauthorizedApprovals } = projectDecisions(committed, policy);
+  const canonical = [], machineBacked = [], unauthorized = [], unbacked = [], stale = [];
+  // content-binding (ADR-0004): a memoized current-bytes digest per page, for detecting an approval
+  // whose reviewed `hash` no longer covers the page (edited past its review) — the board's counterpart
+  // to fsck's blocking `stale-approval`. Working-tree corpus vs committed approval, so an uncommitted
+  // edit surfaces here exactly as freshness/drift already do.
+  const rawByUid = new Map(((corpus && corpus.entries) || []).map((e) => [e.uid, e.raw]));
+  const digestCache = new Map();
+  const digestFor = (uid, title) => {
+    if (digestCache.has(uid)) return digestCache.get(uid);
+    const raw = rawByUid.get(uid);
+    let d = null; try { if (raw != null) d = reviewDigest({ raw, uid, title }); } catch { d = null; }
+    digestCache.set(uid, d); return d;
+  };
   for (const n of Object.values(model.nodes)) {
     const authored = n.trust || n.status || null;
     const rejectedBy = unauthorizedApprovals.get(n.uid) || null; // an approval the policy refused
@@ -33,10 +46,15 @@ function trustAuthority({ model, committed, corpus, policy }) {
     if (by && by !== "human") machineBacked.push(row);
     if (rejectedBy != null) unauthorized.push(row);   // includes a rejected HUMAN approval under a machine-only policy
     else if (by == null) unbacked.push(row);          // authored canonical, no approval whatsoever
+    else {
+      // an effective approval that is content-bound but no longer matches the current bytes → stale.
+      const h = approvedHash.get(n.uid);
+      if (h != null && digestFor(n.uid, n.title) !== h) stale.push(row);
+    }
   }
   const ord = (a, b) => (a.page < b.page ? -1 : a.page > b.page ? 1 : 0);
-  canonical.sort(ord); machineBacked.sort(ord); unauthorized.sort(ord); unbacked.sort(ord);
-  return { accept: policy.approve, canonical, machineBacked, unauthorized, unbacked };
+  canonical.sort(ord); machineBacked.sort(ord); unauthorized.sort(ord); unbacked.sort(ord); stale.sort(ord);
+  return { accept: policy.approve, canonical, machineBacked, unauthorized, unbacked, stale };
 }
 
 export function liveFreshness({ corpus, docsDir, model, policy }) {

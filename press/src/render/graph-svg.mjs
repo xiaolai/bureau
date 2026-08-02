@@ -31,7 +31,9 @@ const STATE_FILL = {
 };
 export function nodeState(st) {
   if (!st) return "current";
-  if (st.flag === "unbacked" || st.flag === "unauthorized") return st.flag;
+  // a trust flag (unearned/void canonical) outranks freshness. `stale` = a content-bound approval the
+  // page was edited past (ADR-0004); it shares the freshness-`stale` fill — both mean "not to be trusted".
+  if (st.flag === "unbacked" || st.flag === "unauthorized" || st.flag === "stale") return st.flag;
   const f = st.freshness;
   if (f === "stale" || f === "needs-review" || f === "modified") return f;
   return "current";
