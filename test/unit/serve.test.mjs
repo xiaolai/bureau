@@ -229,6 +229,27 @@ test("serve: the token can never promote a non-pending or out-of-tree path", asy
   assert.equal(escape.status, 404, "a path outside the pending set is refused");
 });
 
+test("serve: an approved dossier EDITED after review re-enters the queue as needs-review (ADR-0004 enforcement)", async () => {
+  // The chamber queue reads the LOG projection, not the frontmatter stamp — so content-binding
+  // enforcement is visible where the human acts: edit an approved page and it comes BACK for review.
+  const rel = "decisions/0005-bind.md";
+  const abs = join(cwd, "canon", rel);
+  writeFileSync(abs, "---\nid: bind\ntitle: Content binding\nstatus: proposed\n---\n\nOriginal claim.\n");
+  const ap = await fetch(base + "/review/decision", {
+    method: "POST", headers: { "content-type": "application/json", "x-bureau-review": srv.reviewToken },
+    body: JSON.stringify({ path: rel, decision: "approve" }),
+  });
+  assert.equal(ap.status, 200);
+  let pending = (await (await fetch(base + "/review")).json()).pending;
+  assert.ok(!pending.some((d) => d.path === rel), "a fresh content-bound approval leaves the queue");
+  // edit the approved page's BODY — the logged hash no longer covers these bytes
+  writeFileSync(abs, readFileSync(abs, "utf8").replace("Original claim.", "EDITED claim."));
+  pending = (await (await fetch(base + "/review")).json()).pending;
+  const back = pending.find((d) => d.path === rel);
+  assert.ok(back, "a stale approval RE-ENTERS the review queue (not silently canonical)");
+  assert.equal(back.status, "needs-review", "surfaced as needs-review");
+});
+
 // ── port policy: randomized 5-digit default, retry-on-collision, user-pinnable ─
 // A free ephemeral port number: bind :0, read it, release it. Used as a "known-free" target.
 async function freePort() {

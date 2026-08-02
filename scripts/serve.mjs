@@ -30,6 +30,7 @@ import { spawn } from "node:child_process";
 import { boardDirName, containedBoardDir } from "../press/src/core/sources.mjs";
 import { appendEvent, logPath } from "../press/src/engine/log.mjs";
 import { reviewDigest } from "../press/src/engine/review-digest.mjs";
+import { effectiveReview } from "../press/src/engine/effective.mjs";
 import { parseMarkdownDoc } from "../press/src/core/parse.mjs";
 
 const LOG_DRAWER = "logbook";
@@ -225,8 +226,17 @@ function leadingFm(s) {
 // Every cabinet dossier awaiting a human decision. Excludes the logbook (intake, not canon),
 // the lint drawer, and `_`/dot entries (types, state, ledgers) — mirrors what the recall skill
 // treats as canon. Never trusts a client path; the decision endpoint re-derives this set.
+//
+// Authoritative trust is the decision-log PROJECTION, not authored/stamped frontmatter (ADR-0004
+// Decision C). So the queue keys off `effectiveReview`, not `status:` alone: a page approved in the
+// log LEAVES the queue even if its stamp lags, and — the content-binding enforcement payoff — a STALE
+// approval (edited past its review) or an unbacked `canonical` RE-ENTERS the queue as `needs-review`.
+// Fail-open to a frontmatter-only listing if the log/corpus can't be projected — this read-only
+// listing must never crash (and `write:false` inside means it never touches the gate cache).
 function cabinetDossiers(wsDir) {
   const out = [];
+  let canonical = new Set(), needsReview = new Set();
+  try { const eff = effectiveReview({ docsDir: wsDir }); canonical = eff.canonical; needsReview = eff.needsReview; } catch { /* frontmatter-only */ }
   // top-level non-canon dirs: history, lint findings, the crew source, and — in the CONTAINED
   // layout ONLY — the workspace's own rendered board (never review the render as a dossier). A
   // default-layout board renders OUTSIDE the workspace, so it never appears in this walk.
@@ -239,8 +249,15 @@ function cabinetDossiers(wsDir) {
       const childRel = rel ? rel + "/" + e.name : e.name;
       if (e.isDirectory()) { if (rel === "" && topSkip.has(e.name)) continue; walk(join(abs, e.name), childRel); }
       else if (e.isFile() && e.name.endsWith(".md")) {
-        const fm = leadingFm(safe(() => readFileSync(join(abs, e.name), "utf8"), ""));
-        if (fm && REVIEWABLE.has(fm.status)) out.push({ path: childRel, title: fm.title || e.name, status: fm.status });
+        const text = safe(() => readFileSync(join(abs, e.name), "utf8"), "");
+        const fm = leadingFm(text);
+        // the ENGINE uid (the same parser fsck and the decision endpoint use), so the projection
+        // lookup keys on the identity the log does — not `leadingFm`'s permissive read.
+        const uid = safe(() => { const m = parseMarkdownDoc(text).meta; return m && m.id != null && String(m.id).trim() ? String(m.id).trim() : null; }, null);
+        if (uid && canonical.has(uid)) continue;               // effectively canonical → not pending
+        const reReview = uid != null && needsReview.has(uid);  // stale / unbacked → back for a decision
+        if (reReview || (fm && REVIEWABLE.has(fm.status)))
+          out.push({ path: childRel, title: (fm && fm.title) || e.name, status: reReview ? "needs-review" : fm.status });
       }
     }
   };
@@ -599,7 +616,7 @@ export async function start({ cwd = process.cwd(), out = null, port = null, host
 }
 
 // internal helpers exported for unit tests (not a public API)
-export const _internal = { workspaceDir, containedUnder, safeId, writeIntake, listenChamber, randomPort, PORT_MIN, PORT_MAX };
+export const _internal = { workspaceDir, containedUnder, safeId, writeIntake, listenChamber, randomPort, PORT_MIN, PORT_MAX, cabinetDossiers };
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
   const args = process.argv.slice(2);
