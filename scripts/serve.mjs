@@ -285,8 +285,10 @@ function rewriteFrontmatter(text, changes) {
 // of an `approve` event, so the chamber appends a CONTENT-BOUND approve/reject to `_log.jsonl` (by the
 // token-gated human authority) BEFORE touching the dossier. Appending first means a crash can never
 // leave an authored `canonical` no event backs (the original chamber bug, fsck `unbacked-canonical`).
-// The frontmatter is still stamped for plain-file legibility until reader-projection lands; the log is
-// authoritative. Token already checked by the route.
+// The authored `status:` is NEVER overwritten (Decision C): it carries the page's proposed/verified
+// INTENT — the base state a stale or rejected approval falls back to. The chamber instead writes a
+// derived, non-authoritative `effective_status:` for plain-file legibility; the log is authoritative
+// and every engine reader projects the effective tier from it. Token already checked by the route.
 function applyDecision(ctx, body) {
   const b = parseJsonObject(body);
   if (!b) return { code: 400, err: "invalid JSON — expected an object" };
@@ -309,16 +311,16 @@ function applyDecision(ctx, body) {
   if (!uid) return { code: 409, err: "this dossier has no authored `id:` — a decision needs a stable id so it survives a rename (add `id:` and re-scan)" };
   const title = meta.title != null && String(meta.title) !== "" ? String(meta.title) : match.title;
   const date = new Date().toISOString().slice(0, 10);
-  const changes = decision === "approve" ? { status: "canonical", updated: date, reviewed: date } : { status: "contested", updated: date };
+  // derived cache only — authored `status:` is untouched. `reviewed:` is the review DATE (informational).
+  const changes = decision === "approve" ? { effective_status: "canonical", updated: date, reviewed: date } : { effective_status: "contested", updated: date };
   const next = rewriteFrontmatter(text, changes);
   if (next == null) return { code: 500, err: "dossier has no frontmatter" };
   // LOG FIRST — the log is AUTHORITATIVE (ADR-0004). A content-bound `hash` pins the reviewed bytes;
   // if the frontmatter is un-digestible we log hashless (valid; fsck flags `unbound`) rather than fail
-  // the human's decision. KNOWN LIMITATIONS of this intermediate dual-write, both removed by Phase 3
-  // (projection-only, no frontmatter authoring): (1) `appendEvent` is not fsync'd before the rename, so
-  // a power loss in that window can leave an authored `canonical` without the (unflushed) approval;
-  // (2) two SEPARATE chamber processes on one workspace can interleave frontmatter vs log. Both leave a
-  // divergence fsck reports (`unbacked-canonical`) and a re-render reconciles — never a silent bad tier.
+  // the human's decision. The frontmatter write below is now a pure DERIVED-CACHE refresh (`effective_
+  // status:`), so a lost/interleaved write can no longer manufacture an authored `canonical` no event
+  // backs — the reader projection (queue, board, skills) never trusts frontmatter for the effective
+  // tier. A stale cache is cosmetic and any re-render / `fsck --materialize-pages` reconciles it.
   const lp = logPath(ctx.wsDir);
   let logged;
   if (decision === "approve") {
@@ -336,7 +338,7 @@ function applyDecision(ctx, body) {
   const tmp = abs + ".bureau-tmp-" + ctx.nextSeq();
   if (!writeNew(tmp, next)) warnings.push("display frontmatter not updated — the log stands; re-render to reconcile");
   else if (safe(() => renameSync(tmp, abs), "fail") === "fail") { safe(() => rmSync(tmp), null); warnings.push("display frontmatter not finalized — the log stands; re-render to reconcile"); }
-  return { code: 200, path: rel, status: changes.status, seq: logged.seq, ...(warnings.length ? { warnings } : {}) };
+  return { code: 200, path: rel, status: changes.effective_status, seq: logged.seq, ...(warnings.length ? { warnings } : {}) };
 }
 
 // append-only record of a rejection (mirrors the CLI review's "append a review minute").

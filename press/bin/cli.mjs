@@ -491,8 +491,12 @@ function runGate() {
 function runFsck() {
   try {
     const docsDir = engineDir();
-    const r = engineFsck({ docsDir, write: !argv.includes("--check") });
-    console.log("fsck: " + r.nodeCount + " pages · fixpoint " + (r.fixpointStable ? "stable ✅" : "UNSTABLE ✗") + " · digest " + r.digest.slice(0, 12) + " · " + r.findings.length + " finding(s)");
+    // `--materialize-pages` refreshes the derived `effective_status:` cache in source pages (ADR-0004
+    // Decision C). It requires write access, so it cannot combine with the read-only `--check`.
+    const materializePages = argv.includes("--materialize-pages");
+    if (materializePages && argv.includes("--check")) die("--materialize-pages writes source pages; it can't combine with --check (read-only)");
+    const r = engineFsck({ docsDir, write: !argv.includes("--check"), materializePages });
+    console.log("fsck: " + r.nodeCount + " pages · fixpoint " + (r.fixpointStable ? "stable ✅" : "UNSTABLE ✗") + " · digest " + r.digest.slice(0, 12) + " · " + r.findings.length + " finding(s)" + (materializePages ? " · effective_status materialized on " + r.materialized + " page(s)" : ""));
     for (const f of r.findings) console.log("  " + (r.blockingFindings.includes(f) ? "✗" : "·") + " " + f.kind + (f.uid ? " " + f.uid : "") + (f.detail ? " — " + f.detail : "") + (f.count ? " ×" + f.count : ""));
     process.exit(r.ok ? 0 : 1); // r.ok = fixpoint stable AND no blocking findings
   } catch (e) { die(e.message); } // a tampered log throws here → non-zero

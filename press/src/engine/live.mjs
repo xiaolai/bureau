@@ -41,7 +41,7 @@ function trustAuthority({ model, committed, corpus, policy }) {
     if (effective !== "canonical" && authored !== "canonical" && rejectedBy == null) continue;
     const page = (corpus && corpus.keyByUid.get(n.uid)) || n.title || n.uid;
     const by = approved.has(n.uid) ? (approvedBy.get(n.uid) || "human") : rejectedBy; // null ⇒ no approve event at all
-    const row = { page, by, authorized: approved.has(n.uid), rejected: rejectedBy != null };
+    const row = { page, uid: n.uid, by, authorized: approved.has(n.uid), rejected: rejectedBy != null };
     canonical.push(row);
     if (by && by !== "human") machineBacked.push(row);
     if (rejectedBy != null) unauthorized.push(row);   // includes a rejected HUMAN approval under a machine-only policy

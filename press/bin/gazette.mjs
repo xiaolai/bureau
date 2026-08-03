@@ -23676,7 +23676,7 @@ function trustAuthority({ model, committed, corpus, policy }) {
     if (effective !== "canonical" && authored !== "canonical" && rejectedBy == null) continue;
     const page = corpus && corpus.keyByUid.get(n.uid) || n.title || n.uid;
     const by = approved.has(n.uid) ? approvedBy.get(n.uid) || "human" : rejectedBy;
-    const row = { page, by, authorized: approved.has(n.uid), rejected: rejectedBy != null };
+    const row = { page, uid: n.uid, by, authorized: approved.has(n.uid), rejected: rejectedBy != null };
     canonical.push(row);
     if (by && by !== "human") machineBacked.push(row);
     if (rejectedBy != null) unauthorized.push(row);
@@ -24574,12 +24574,14 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
     for (const r of fresh.authority && fresh.authority.unauthorized || []) flagByPage.set(r.page, "unauthorized");
     for (const r of fresh.authority && fresh.authority.unbacked || []) flagByPage.set(r.page, "unbacked");
     for (const r of fresh.authority && fresh.authority.stale || []) flagByPage.set(r.page, "stale");
+    const staleUids = new Set((fresh.authority && fresh.authority.stale || []).map((r) => r.uid));
+    const effCanonUids = new Set((fresh.authority && fresh.authority.canonical || []).filter((r) => r.authorized && !staleUids.has(r.uid)).map((r) => r.uid));
     const canvasState = {};
     for (const key of Object.keys(model.nodes)) {
       const n = model.nodes[key];
       canvasState[key] = {
         freshness: fresh.byKey.get(key) || "current",
-        trust: n.trust || n.status || null,
+        trust: effCanonUids.has(n.uid) ? "canonical" : n.trust || n.status || null,
         flag: flagByPage.get(key) || null
       };
     }
@@ -25002,6 +25004,50 @@ function conflictPartners(model) {
   }
   return new Map([...partners].map(([uid, set2]) => [uid, [...set2].sort()]));
 }
+function setFrontmatterKey(text2, key, value) {
+  const m = /^---\n([\s\S]*?)\n---/.exec(text2);
+  if (!m) return null;
+  let found = false, changed = false;
+  const lines = m[1].split("\n").map((line) => {
+    const i = line.indexOf(":");
+    const k = i > 0 ? line.slice(0, i).trim() : null;
+    if (k !== key) return line;
+    found = true;
+    if (value == null) {
+      changed = true;
+      return null;
+    }
+    const next = key + ": " + value;
+    if (next !== line) changed = true;
+    return next;
+  }).filter((l) => l !== null);
+  if (value != null && !found) {
+    lines.push(key + ": " + value);
+    changed = true;
+  }
+  if (!changed) return null;
+  return "---\n" + lines.join("\n") + "\n---" + text2.slice(m[0].length);
+}
+function materializeEffectiveStatus(docsDir, entries, effCanon) {
+  let changed = 0;
+  for (const e of entries) {
+    const want = effCanon.has(e.uid) ? "canonical" : null;
+    const next = setFrontmatterKey(e.raw, "effective_status", want);
+    if (next == null) continue;
+    const abs = join13(docsDir, e.file);
+    if (!existsSync9(abs) || lstatSync9(abs).isSymbolicLink()) continue;
+    const tmp = abs + ".bureau-mat-" + process.pid + "-" + randomBytes(6).toString("hex");
+    const fd = openSync5(tmp, constants4.O_WRONLY | constants4.O_CREAT | constants4.O_EXCL | constants4.O_NOFOLLOW, 384);
+    try {
+      writeFileSync5(fd, next);
+    } finally {
+      closeSync5(fd);
+    }
+    renameSync5(tmp, abs);
+    changed++;
+  }
+  return changed;
+}
 function buildDerived({ model, events, schemaVersion = SCHEMA_VERSION, policy = null }) {
   const spans = projectRevisions(events);
   const gate = computeGate({ model, events, schemaVersion, policy });
@@ -25030,7 +25076,7 @@ function buildDerived({ model, events, schemaVersion = SCHEMA_VERSION, policy = 
 }
 var derivedDigest = (derived) => sha2563(canonicalJSON(derived, 0));
 var ADVISORY = /* @__PURE__ */ new Set(["pending-scan", "unbound-approval", "legacy-canonical"]);
-function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write = true, policy } = {}) {
+function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write = true, policy, materializePages = false } = {}) {
   const c = corpus || loadCorpus({ docsDir });
   const model = buildModel({ corpus: c });
   const evs = events || readLog(logPath(docsDir));
@@ -25103,6 +25149,12 @@ function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write =
     else findings.push({ kind: "unbacked-canonical", uid: n.uid, title: n.title });
   }
   findings.sort((a, b) => canonicalJSON(a) < canonicalJSON(b) ? -1 : 1);
+  const notEff = /* @__PURE__ */ new Set();
+  for (const f of findings) if ((f.kind === "stale-approval" || f.kind === "unbacked-canonical" || f.kind === "unauthorized-canonical") && f.uid != null) notEff.add(f.uid);
+  const effCanon = /* @__PURE__ */ new Set();
+  for (const d of d1.decided) if (d.trust === "canonical" && !notEff.has(d.uid)) effCanon.add(d.uid);
+  let materialized = 0;
+  if (materializePages && write) materialized = materializeEffectiveStatus(c.docsDir || docsDir, c.entries, effCanon);
   const gateFile = gateCachePath(docsDir);
   const cacheDir = dirname3(gateFile);
   const isLink = (p) => existsSync9(p) && lstatSync9(p).isSymbolicLink();
@@ -25123,7 +25175,7 @@ function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write =
     renameSync5(tmp, gateFile);
   }
   const blockingFindings = findings.filter((f) => !ADVISORY.has(f.kind));
-  return { ok: fixpointStable && blockingFindings.length === 0, fixpointStable, digest: digest1, cacheDrift, findings, blockingFindings, derived: d1, nodeCount: model.nodeCount };
+  return { ok: fixpointStable && blockingFindings.length === 0, fixpointStable, digest: digest1, cacheDrift, findings, blockingFindings, derived: d1, nodeCount: model.nodeCount, materialized };
 }
 
 // src/engine/mutation.mjs
@@ -25978,8 +26030,10 @@ function runGate() {
 function runFsck() {
   try {
     const docsDir = engineDir();
-    const r = fsck({ docsDir, write: !argv.includes("--check") });
-    console.log("fsck: " + r.nodeCount + " pages \xB7 fixpoint " + (r.fixpointStable ? "stable \u2705" : "UNSTABLE \u2717") + " \xB7 digest " + r.digest.slice(0, 12) + " \xB7 " + r.findings.length + " finding(s)");
+    const materializePages = argv.includes("--materialize-pages");
+    if (materializePages && argv.includes("--check")) die("--materialize-pages writes source pages; it can't combine with --check (read-only)");
+    const r = fsck({ docsDir, write: !argv.includes("--check"), materializePages });
+    console.log("fsck: " + r.nodeCount + " pages \xB7 fixpoint " + (r.fixpointStable ? "stable \u2705" : "UNSTABLE \u2717") + " \xB7 digest " + r.digest.slice(0, 12) + " \xB7 " + r.findings.length + " finding(s)" + (materializePages ? " \xB7 effective_status materialized on " + r.materialized + " page(s)" : ""));
     for (const f of r.findings) console.log("  " + (r.blockingFindings.includes(f) ? "\u2717" : "\xB7") + " " + f.kind + (f.uid ? " " + f.uid : "") + (f.detail ? " \u2014 " + f.detail : "") + (f.count ? " \xD7" + f.count : ""));
     process.exit(r.ok ? 0 : 1);
   } catch (e) {

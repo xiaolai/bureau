@@ -364,12 +364,19 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
     for (const r of (fresh.authority && fresh.authority.unauthorized) || []) flagByPage.set(r.page, "unauthorized");
     for (const r of (fresh.authority && fresh.authority.unbacked) || []) flagByPage.set(r.page, "unbacked");
     for (const r of (fresh.authority && fresh.authority.stale) || []) flagByPage.set(r.page, "stale");
+    // Effective tier is the LOG projection, not authored `status:` (Decision C): a page approved in the
+    // log reads `canonical` even though its authored `status:` still records the proposed/verified
+    // INTENT. A backed-but-STALE approval is NOT effective (it draws the stale flag instead), so it
+    // keeps its authored tier. Keyed by uid — the identity the log uses.
+    const staleUids = new Set(((fresh.authority && fresh.authority.stale) || []).map((r) => r.uid));
+    const effCanonUids = new Set(((fresh.authority && fresh.authority.canonical) || [])
+      .filter((r) => r.authorized && !staleUids.has(r.uid)).map((r) => r.uid));
     const canvasState = {};
     for (const key of Object.keys(model.nodes)) {
       const n = model.nodes[key];
       canvasState[key] = {
         freshness: fresh.byKey.get(key) || "current",
-        trust: n.trust || n.status || null,
+        trust: effCanonUids.has(n.uid) ? "canonical" : (n.trust || n.status || null),
         flag: flagByPage.get(key) || null,
       };
     }

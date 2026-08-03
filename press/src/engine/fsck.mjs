@@ -50,6 +50,50 @@ function conflictPartners(model) {
 
 // The ONE derived artifact: a canonical projection of (corpus + log). Everything mechanical the
 // engine knows, in a byte-stable shape. Pure - identical inputs always yield identical bytes.
+// Rewrite a page's leading frontmatter to set (value) or remove (value == null) exactly ONE key,
+// leaving every other line and the whole body byte-identical. Returns the new text, or null when
+// nothing would change / there is no frontmatter. Pure.
+function setFrontmatterKey(text, key, value) {
+  const m = /^---\n([\s\S]*?)\n---/.exec(text);
+  if (!m) return null;
+  let found = false, changed = false;
+  const lines = m[1].split("\n").map((line) => {
+    const i = line.indexOf(":");
+    const k = i > 0 ? line.slice(0, i).trim() : null;
+    if (k !== key) return line;
+    found = true;
+    if (value == null) { changed = true; return null; }          // remove the key
+    const next = key + ": " + value;
+    if (next !== line) changed = true;
+    return next;
+  }).filter((l) => l !== null);
+  if (value != null && !found) { lines.push(key + ": " + value); changed = true; }
+  if (!changed) return null;
+  return "---\n" + lines.join("\n") + "\n---" + text.slice(m[0].length);
+}
+
+// Materialize the DERIVED effective-canonical tier into source pages as a non-authoritative
+// `effective_status:` cache (ADR-0004 Decision C) — plain-file legibility for the log projection.
+// Authored `status:` is NEVER touched; `effective_status: canonical` is written on effectively-
+// canonical pages and removed elsewhere, so the cache tracks the log. Invoked ONLY under
+// `fsck --materialize-pages`; a symlinked page is skipped and the write is atomic + O_NOFOLLOW.
+function materializeEffectiveStatus(docsDir, entries, effCanon) {
+  let changed = 0;
+  for (const e of entries) {
+    const want = effCanon.has(e.uid) ? "canonical" : null;
+    const next = setFrontmatterKey(e.raw, "effective_status", want);
+    if (next == null) continue;                                  // no change / no frontmatter
+    const abs = join(docsDir, e.file);
+    if (!existsSync(abs) || lstatSync(abs).isSymbolicLink()) continue; // never write through a symlink
+    const tmp = abs + ".bureau-mat-" + process.pid + "-" + randomBytes(6).toString("hex");
+    const fd = openSync(tmp, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+    try { writeFileSync(fd, next); } finally { closeSync(fd); }
+    renameSync(tmp, abs);
+    changed++;
+  }
+  return changed;
+}
+
 export function buildDerived({ model, events, schemaVersion = SCHEMA_VERSION, policy = null }) {
   const spans = projectRevisions(events);
   const gate = computeGate({ model, events, schemaVersion, policy });
@@ -108,7 +152,7 @@ export const derivedDigest = (derived) => sha256(canonicalJSON(derived, 0));
 // via the Phase-6 manifest, voided on any change). `pending-scan` stays advisory (normal mid-edit).
 const ADVISORY = new Set(["pending-scan", "unbound-approval", "legacy-canonical"]);
 
-export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write = true, policy } = {}) {
+export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write = true, policy, materializePages = false } = {}) {
   const c = corpus || loadCorpus({ docsDir });
   const model = buildModel({ corpus: c });
   const evs = events || readLog(logPath(docsDir)); // strict: integrity failure throws here (caller-supplied events are pre-verified)
@@ -208,6 +252,17 @@ export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, 
   }
   findings.sort((a, b) => (canonicalJSON(a) < canonicalJSON(b) ? -1 : 1));
 
+  // The EFFECTIVELY-canonical set: the derived tier projects `canonical`, and the gate does not flag
+  // the backing as stale / unbacked / unauthorized. Same rule readers use via `engine/effective.mjs`.
+  const notEff = new Set();
+  for (const f of findings) if ((f.kind === "stale-approval" || f.kind === "unbacked-canonical" || f.kind === "unauthorized-canonical") && f.uid != null) notEff.add(f.uid);
+  const effCanon = new Set();
+  for (const d of d1.decided) if (d.trust === "canonical" && !notEff.has(d.uid)) effCanon.add(d.uid);
+  // opt-in ONLY: plain `gazette fsck` must never mutate a source page. `--materialize-pages` refreshes
+  // the derived, non-authoritative `effective_status:` cache (authored `status:` untouched).
+  let materialized = 0;
+  if (materializePages && write) materialized = materializeEffectiveStatus(c.docsDir || docsDir, c.entries, effCanon);
+
   // refresh the mechanical-derived cache (OUTSIDE the workspace); report drift vs the previous copy.
   // Reject a symlinked cache dir/file (a swap could redirect the write) and write atomically.
   const gateFile = gateCachePath(docsDir);
@@ -231,5 +286,5 @@ export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, 
   }
 
   const blockingFindings = findings.filter((f) => !ADVISORY.has(f.kind));
-  return { ok: fixpointStable && blockingFindings.length === 0, fixpointStable, digest: digest1, cacheDrift, findings, blockingFindings, derived: d1, nodeCount: model.nodeCount };
+  return { ok: fixpointStable && blockingFindings.length === 0, fixpointStable, digest: digest1, cacheDrift, findings, blockingFindings, derived: d1, nodeCount: model.nodeCount, materialized };
 }

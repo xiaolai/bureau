@@ -174,7 +174,9 @@ test("serve: approve WITH the token promotes to canonical + stamps reviewed", as
   });
   assert.equal(r.status, 200);
   const text = readFileSync(join(cwd, "canon", "decisions", "0002-ttl.md"), "utf8");
-  assert.match(text, /^status: canonical$/m, "promoted to canonical");
+  // Decision C: the authored `status:` INTENT is preserved; the effective tier is a derived cache.
+  assert.match(text, /^status: proposed$/m, "authored status is NOT overwritten (Decision C base state)");
+  assert.match(text, /^effective_status: canonical$/m, "the derived effective tier is cached in frontmatter");
   assert.match(text, /^reviewed: \d{4}-\d{2}-\d{2}$/m, "reviewed date stamped");
   // ADR-0004: the approval is now BACKED by a content-bound log event (fixes unbacked-canonical)
   const log = readFileSync(join(cwd, "canon", "_log.jsonl"), "utf8");
@@ -199,7 +201,9 @@ test("serve: reject WITH the token sets contested + appends a review minute", as
     body: JSON.stringify({ path: "decisions/0003-retry.md", decision: "reject", reason: "needs a source" }),
   });
   assert.equal(r.status, 200);
-  assert.match(readFileSync(join(cwd, "canon", "decisions", "0003-retry.md"), "utf8"), /^status: contested$/m, "sent back to contested");
+  const sent = readFileSync(join(cwd, "canon", "decisions", "0003-retry.md"), "utf8");
+  assert.match(sent, /^status: proposed$/m, "authored status preserved on reject too (Decision C)");
+  assert.match(sent, /^effective_status: contested$/m, "reject caches effective_status: contested");
   assert.equal(minuteFiles().length, beforeMin + 1, "an append-only review minute was written");
   const rejLog = readFileSync(join(cwd, "canon", "_log.jsonl"), "utf8");
   assert.match(rejLog, /"type":"reject"/, "a reject event was logged");

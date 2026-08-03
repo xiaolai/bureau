@@ -140,14 +140,15 @@ blocks again. The command never appends a decision event — it only writes the 
   reader surfaces**: `stale-approval` **blocks** `fsck` (the gate), a stale approval **re-enters** the
   chamber review queue as `needs-review`, and the board **flags** it on the canvas + Health page. The
   single projection helper `engine/effective.mjs` (derived from `fsck`) gives every reader one answer.
-- **Remaining Decision-C refinement (not a correctness gap):** the chamber still writes a transitional
-  frontmatter **dual-write** — it overwrites authored `status: proposed → canonical` on approval rather
-  than writing a derived, non-authoritative `effective_status:` and preserving the authored base state.
-  Completing it is a *coordinated* change (the chamber writes `effective_status:`; the board **tier**
-  and the recall/query/status skills key off the log projection instead of authored `status:`; the
-  optional `gazette fsck --materialize-pages` refreshes the legibility cache for pages the chamber did
-  not decide). The log is already authoritative and enforcement is live on every surface, so this is a
-  base-state-provenance/purity improvement, sequenced but not blocking.
+- **Decision C is now complete — no dual-write.** The chamber no longer overwrites authored `status:`;
+  it writes a derived, non-authoritative `effective_status:` (authored proposed/verified INTENT is
+  preserved as the base state). Every reader keys off the log projection, not authored `status:`: the
+  chamber queue (already), the **board tier** (`build.mjs` canvas reads the effective-canonical set
+  from `liveFreshness.authority` — a page approved in the log renders `canonical` though its `status:`
+  stays `proposed`; a stale approval drops back to its authored tier + the stale flag), and the
+  **recall** skill (reads `effective_status:` / cross-checks `fsck`, never authored `status:` alone).
+  `gazette fsck --materialize-pages` refreshes the `effective_status:` legibility cache for pages the
+  chamber did not decide (e.g. CLI-approved) — opt-in; plain `fsck` never mutates a source page.
 
 ## Open
 

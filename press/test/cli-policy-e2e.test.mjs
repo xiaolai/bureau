@@ -101,6 +101,24 @@ test("cli e2e: `legacy-migrate` grandfathers an unbacked canonical → advisory 
   } finally { w.cleanup(); }
 });
 
+test("cli e2e: `fsck --materialize-pages` caches effective_status without overwriting authored status (--check refuses)", () => {
+  const w = ws({ "p.md": "---\nid: P\ntitle: Pee\nstatus: proposed\n---\n# Pee\nx ^p\n" });
+  try {
+    gz(w.dir, ["scan"]);
+    assert.equal(gz(w.dir, ["approve", "Pee", "--by", "human"]).code, 0);
+    const mat = gz(w.dir, ["fsck", "--materialize-pages"]);
+    assert.equal(mat.code, 0);
+    assert.match(mat.out, /effective_status materialized on 1 page/);
+    const text = readFileSync(join(w.dir, "p.md"), "utf8");
+    assert.match(text, /^status: proposed$/m, "authored status is NOT overwritten (Decision C)");
+    assert.match(text, /^effective_status: canonical$/m, "the derived effective tier is cached");
+    // the source-mutating flag must refuse the read-only --check
+    const bad = gz(w.dir, ["fsck", "--materialize-pages", "--check"]);
+    assert.notEqual(bad.code, 0);
+    assert.match(bad.out, /can't combine with --check/);
+  } finally { w.cleanup(); }
+});
+
 test("cli e2e: the `resolve` policy gates a machine resolution end to end", () => {
   const w = ws({ "a.md": A, "b.md": B });
   try {
