@@ -10,7 +10,7 @@
 //   gazette build [opts]          build dist/
 //   gazette serve [--port 8080]   build, then serve dist/ locally
 // opts: --docs <dir>(=docs)  --data <dir>(=data)  --out <dir>(=dist)
-import { existsSync, mkdirSync, writeFileSync, appendFileSync, readFileSync, statSync, lstatSync, readdirSync, realpathSync, rmSync, watch } from "fs";
+import { existsSync, mkdirSync, writeFileSync, appendFileSync, readFileSync, readSync, statSync, lstatSync, readdirSync, realpathSync, rmSync, watch } from "fs";
 import { join, resolve, dirname, extname, sep, relative } from "path";
 import { createServer } from "http";
 import { spawn } from "child_process";
@@ -25,17 +25,19 @@ import { prettify } from "../src/shared/prettify.mjs";
 // recursion engine (ADR-0001): scan → gate → fsck → report + ledgers
 import { scan as engineScan } from "../src/engine/scan.mjs";
 import { computeGate, blastRadius } from "../src/engine/gate.mjs";
-import { loadPolicy } from "../src/engine/policy.mjs";
+import { loadPolicy, authorityClass, isAuthorized } from "../src/engine/policy.mjs";
 import { fsck as engineFsck } from "../src/engine/fsck.mjs";
+import { reviewQueue } from "../src/engine/review-queue.mjs";
 import { report as engineReport, renderMetricsText } from "../src/engine/metrics.mjs";
 import { projectTimeline, renderTimelineText } from "../src/engine/telemetry.mjs";
-import { recordVerification, recheckVerification, markCompiled, uncompiled } from "../src/engine/ledgers.mjs";
+import { recordVerification, recheckVerification, markCompiled, uncompiled, logbookSessionIds } from "../src/engine/ledgers.mjs";
 import { loadCorpus, buildModel } from "../src/core/model.mjs";
 import { reviewDigest } from "../src/engine/review-digest.mjs";
 import { legacyCandidates, legacyPath, LEGACY_BASENAME } from "../src/engine/legacy.mjs";
 import { resolveWorkspace } from "../src/core/workspace-map.mjs";
-import { logPath, readLog, appendEvent } from "../src/engine/log.mjs";
-import { conflictKey } from "../src/engine/state.mjs";
+import { logPath, readLog, appendEvent, appendBatch } from "../src/engine/log.mjs";
+import { createHash, randomBytes } from "crypto";
+import { conflictKey, projectDecisions } from "../src/engine/state.mjs";
 import { buildAtRef, logDiff, snapshotCreate, readSnapshots, resolveSnapshotOrRef, gitRootFor } from "../src/engine/versions.mjs";
 import { nfc } from "../src/services/i18n.mjs";
 
@@ -502,6 +504,57 @@ function runFsck() {
   } catch (e) { die(e.message); } // a tampered log throws here → non-zero
 }
 
+// review: the ordered, typed review queue (ADR-0005 Decision A). Read-only — surfaces WHAT to review
+// next, in dependency order (upstream-first), and the action that clears each item. `--next N` shows the
+// first N; a resolve-conflict component is ONE atomic item and is never split. Exits 0 — a queue is a
+// to-do list, not a pass/fail gate.
+function runReview() {
+  try {
+    const docsDir = engineDir();
+    const q = reviewQueue({ docsDir });
+    const total = q.items.length;
+    let items = q.items;
+    const nextRaw = opt("next");
+    if (nextRaw != null) {
+      const n = parseInt(nextRaw, 10);
+      if (!Number.isInteger(n) || n <= 0 || String(n) !== String(nextRaw).trim()) die("--next needs a positive integer");
+      items = items.slice(0, n); // each item (incl. a conflict component) is atomic → never split
+    }
+    // machine-readable queue — approve/reapprove items carry a `digest` so you can seed a `--from`
+    // manifest: `gazette review --json > decisions.json`, keep what you vetted, add reject reasons.
+    // Emitted AFTER --next is validated/applied, so `--json --next N` yields a consistent sliced set.
+    if (argv.includes("--json")) {
+      const counts = {}; for (const it of items) counts[it.kind] = (counts[it.kind] || 0) + 1;
+      process.stdout.write(JSON.stringify({ items, counts, total }, null, 2) + "\n");
+      return;
+    }
+    const summary = Object.entries(q.counts).map(([k, c]) => c + " " + k).join(" · ") || "nothing";
+    console.log("review queue: " + total + " item(s) — " + summary);
+    if (!total) { console.log("  ✅ nothing awaiting review"); return; }
+    // Titles are UNTRUSTED (quotes, `$( )`, ANSI control chars) and these lines are printed to a terminal
+    // and meant to be copied into a shell — strip control chars (terminal-injection) then POSIX
+    // single-quote (shell-injection) every interpolated title.
+    const shq = (s) => "'" + stripControl(String(s == null ? "" : s)).replace(/'/g, "'\\''") + "'";
+    const disp = (t) => (t == null ? "(untitled)" : stripControl(String(t)));
+    const action = {
+      approve: (it) => "gazette approve " + shq(it.titles[0]) + " --by human",
+      reapprove: (it) => "gazette approve " + shq(it.titles[0]) + " --by human   (rebinds the edited bytes)",
+      "confirm-dependencies": (it) => "gazette confirm " + shq(it.titles[0]) + " --by human",
+      // a component of >2 pages is resolved pair-by-pair (`resolve` takes exactly two) — one command each.
+      "resolve-conflict": (it) => (it.pairs && it.pairs.length ? it.pairs : [it.titles.slice(0, 2)])
+        .map((p) => "gazette resolve " + shq(p[0]) + " " + shq(p[1]) + " --winner … --by human").join("\n      → "),
+      "repair-edge": () => "edit the page — its rests_on names a missing target/span",
+    };
+    items.forEach((it, i) => {
+      const who = it.titles.map(disp).join(" × ");
+      console.log("  " + (i + 1) + ". [" + it.kind + "] " + who);
+      console.log("      why: " + it.why);
+      console.log("      → " + action[it.kind](it));
+    });
+    if (nextRaw != null && items.length < total) console.log("  … " + (total - items.length) + " more (drop --next to see all)");
+  } catch (e) { die(e.message); }
+}
+
 // report: the deterministic, auditable metrics block. Exit tracks r.ok (fixpoint + broken edges +
 // mutation survivors + blocking findings) — a "needs attention" report never returns success.
 function runReport() {
@@ -546,10 +599,196 @@ function requireBy(cmd) {
   if (!by || !String(by).trim()) die(cmd + " requires --by <authority> (e.g. `--by human` when you are the reviewer, or `--by invariant` for an automated gate) — a decision is never silently 'human'.");
   return by;
 }
+
+// Validate a decisions manifest WHOLE before any write (ADR-0005 Decision B): every page resolves, every
+// approve carries a `digest` that matches the current reviewed bytes (a bare title is refused — a batch
+// approval must pin bytes), every reject carries a `because`, and no page appears twice or in both
+// lists. Any failure → die with the full list; zero events written.
+function validateManifest(docsDir, manifest) {
+  const observedSeq = logHead(docsDir); // the log head these decisions are validated against (CAS baseline)
+  const corpus = loadCorpus({ docsDir });
+  const model = buildModel({ corpus });
+  // project the CURRENT decisions so a manifest reject can be required to target — and scoped to — an
+  // active approval, instead of silently logging an inert reject the CLI would still report as "rejected".
+  let decisions = null; try { decisions = projectDecisions(readLog(logPath(docsDir)), loadPolicy(docsDir)); } catch { decisions = null; }
+  const rawByUid = new Map((corpus.entries || []).map((e) => [e.uid, e.raw]));
+  const byTitle = (t) => model.nodes[nfc(String(t))];
+  // a PRESENT-but-non-array half (including `null`) must be rejected, not silently dropped (which would
+  // commit the valid half) — test presence with hasOwnProperty so `"approve": null` is caught too.
+  const hasKey = (k) => Object.prototype.hasOwnProperty.call(manifest, k);
+  if (hasKey("approve") && !Array.isArray(manifest.approve)) die("manifest `approve` must be an array");
+  if (hasKey("reject") && !Array.isArray(manifest.reject)) die("manifest `reject` must be an array");
+  const approveIn = Array.isArray(manifest.approve) ? manifest.approve : [];
+  const rejectIn = Array.isArray(manifest.reject) ? manifest.reject : [];
+  const seen = new Set(), approvals = [], rejections = [], problems = [];
+  for (const e of approveIn) {
+    const t = typeof e === "string" ? e : (e && e.page);
+    if (!t) { problems.push("an approve entry has no page title"); continue; }
+    const n = byTitle(t);
+    if (!n) { problems.push("approve: no page titled [" + t + "]"); continue; }
+    if (seen.has(n.uid)) { problems.push("page listed twice / in both lists: " + t); continue; }
+    seen.add(n.uid);
+    const provided = (e && typeof e === "object") ? e.digest : null;
+    let current; try { const raw = rawByUid.get(n.uid); current = raw != null ? reviewDigest({ raw, uid: n.uid, title: n.title }) : null; } catch { current = null; }
+    if (current == null) { problems.push("approve: [" + t + "] cannot be content-bound (undigestible)"); continue; }
+    if (!provided) { problems.push('approve: [' + t + '] needs a "digest" — a batch approval must pin the reviewed bytes'); continue; }
+    if (provided !== current) { problems.push("approve: [" + t + "] digest mismatch — the page changed since it was reviewed"); continue; }
+    approvals.push({ uid: n.uid, title: n.title, hash: current });
+  }
+  for (const e of rejectIn) {
+    const t = e && e.page;
+    if (!t) { problems.push("a reject entry has no page"); continue; }
+    const n = byTitle(t);
+    if (!n) { problems.push("reject: no page titled [" + t + "]"); continue; }
+    if (seen.has(n.uid)) { problems.push("page listed twice / in both lists: " + t); continue; }
+    seen.add(n.uid);
+    if (!e.because || !String(e.because).trim()) { problems.push('reject: [' + t + '] needs a "because" reason'); continue; }
+    if (e.approval_seq != null && !(Number.isInteger(e.approval_seq) && e.approval_seq > 0)) { problems.push("reject: [" + t + "] approval_seq must be a positive integer"); continue; }
+    if (e.approval_hash != null && !(typeof e.approval_hash === "string" && e.approval_hash.length > 0)) { problems.push("reject: [" + t + "] approval_hash must be a non-empty string"); continue; }
+    // a manifest reject REVOKES an active approval — require the page to BE approved, and scope the reject
+    // to that exact approval (auto-populate seq+hash; verify any provided values match), so a reject can
+    // never be reported successful while projecting to nothing.
+    if (!decisions || !decisions.approved.has(n.uid)) { problems.push("reject: [" + t + "] is not currently approved — nothing to revoke (a proposed page needs no reject)"); continue; }
+    const activeSeq = decisions.approvedSeq.get(n.uid) ?? null, activeHash = decisions.approvedHash.get(n.uid) ?? null;
+    if (e.approval_seq != null && e.approval_seq !== activeSeq) { problems.push("reject: [" + t + "] approval_seq " + e.approval_seq + " does not match the active approval (" + activeSeq + ") — re-review"); continue; }
+    if (e.approval_hash != null && e.approval_hash !== activeHash) { problems.push("reject: [" + t + "] approval_hash does not match the active approval — re-review"); continue; }
+    rejections.push({ uid: n.uid, because: String(e.because).trim(), approval_seq: activeSeq, approval_hash: activeHash });
+  }
+  if (!approvals.length && !rejections.length) problems.push("the manifest has no decisions");
+  if (problems.length) die("manifest rejected — NO events written:\n  - " + problems.join("\n  - "));
+  return { approvals, rejections, observedSeq };
+}
+
+// Apply a validated batch as ONE commit-gated transaction (ADR-0005 Decision B): batch-begin → N
+// content-bound approves / scoped rejects (each stamped with the batch_id, so the log reveals the bulk)
+// → batch-commit, all under one appendBatch lock. A crash before commit leaves an uncommitted prefix the
+// projection ignores. Shared by `approve --from` and `approve --all`.
+function logHead(docsDir) { try { const evs = readLog(logPath(docsDir)); return evs.length ? evs[evs.length - 1].seq : 0; } catch { return null; } }
+
+function applyBatch(docsDir, { approvals, rejections, mode, by, expectedSeq = null }) {
+  const n = approvals.length + rejections.length;
+  // refuse an unauthorized batch UP FRONT rather than committing an inert one the CLI would still report
+  // as applied — dangerous for a reject, whose target approval would silently stand. (Revocation reuses
+  // the approve authority, ADR-0004.)
+  const pol = loadPolicy(docsDir);
+  if (!isAuthorized(pol, "approve", authorityClass(by))) die("`--by " + by + "` is not an accepted approve authority for this workspace (policy: " + (pol.approve || []).join(", ") + ") — refusing; the batch would commit nothing.");
+  const manifestDigest = "bureau-manifest-v1:" + createHash("sha256")
+    .update(JSON.stringify({ mode, by, approve: approvals.map((a) => [a.uid, a.hash]), reject: rejections.map((r) => [r.uid, r.because, r.approval_seq ?? null, r.approval_hash ?? null]) }))
+    .digest("hex");
+  // FRESH random id per attempt — keeps crash-recovery clean: a batch that crashed mid-append leaves
+  // an uncommitted (inert) bracket, and a rerun writes a brand-new bracket that commits cleanly, with
+  // no id reuse to trip the total-count tombstone. A full rerun of an already-committed APPROVAL
+  // manifest just re-appends a harmless duplicate (re-approving pins the same digest; rejects are
+  // auto-scoped at reject time, so the changed active seq breaks nothing); a rerun that includes a
+  // reject is refused earlier by validateManifest. A content-addressed id was tried and reverted.
+  const batchId = "batch-" + randomBytes(8).toString("hex");
+  const events = [
+    { type: "batch-begin", batch_id: batchId, mode, n, manifest_digest: manifestDigest, by },
+    ...approvals.map((a) => ({ type: "approve", id: a.uid, to_trust: "canonical", by, hash: a.hash, batch_id: batchId })),
+    ...rejections.map((r) => { const ev = { type: "reject", id: r.uid, by, reason: r.because, batch_id: batchId }; if (r.approval_seq != null) ev.approval_seq = r.approval_seq; if (r.approval_hash != null) ev.approval_hash = r.approval_hash; return ev; }),
+    { type: "batch-commit", batch_id: batchId },
+  ];
+  const stored = appendBatch(logPath(docsDir), (current) => {
+    // compare-and-swap: refuse if another writer moved the log head since these decisions were validated,
+    // so a stale batch can't silently supersede a concurrent approve/reject.
+    const head = current.length ? current[current.length - 1].seq : 0;
+    if (expectedSeq != null && head !== expectedSeq) { const e = new Error("the decision log changed since these decisions were prepared (head " + expectedSeq + " → " + head + ") — re-run against the current state"); e.code = "ECASFAIL"; throw e; }
+    return events;
+  });
+  return { batchId, manifestDigest, n, seq: stored[stored.length - 1].seq };
+}
+
+function runApproveFrom(fromFile) {
+  const docsDir = engineDir();
+  const by = requireBy("gazette approve --from");
+  let manifest;
+  try { manifest = JSON.parse(readFileSync(resolve(process.cwd(), fromFile), "utf8")); }
+  catch (e) { die("could not read/parse manifest " + fromFile + ": " + e.message); }
+  if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest)) die("manifest must be a JSON object with `approve` / `reject` arrays");
+  const { approvals, rejections, observedSeq } = validateManifest(docsDir, manifest);
+  const r = applyBatch(docsDir, { approvals, rejections, mode: "from", by, expectedSeq: observedSeq });
+  console.log("✓ batch " + r.batchId + " committed — " + approvals.length + " approved, " + rejections.length + " rejected (log seq " + r.seq + ")");
+  console.log("  note: `canonical` is a projection of these events; `gazette review` shows what remains, `gazette fsck --materialize-pages` refreshes effective_status.");
+}
+
+// Read one line from stdin synchronously (the CLI dispatch is sync). EOF (Ctrl-D) or an empty line reads
+// as "no" — the safe default for the bulk-approve confirmation.
+function readLineSync() {
+  const buf = Buffer.alloc(1); let s = "";
+  for (;;) {
+    let n; try { n = readSync(0, buf, 0, 1, null); } catch (e) { if (e.code === "EAGAIN") continue; break; }
+    if (n === 0) break;
+    const ch = buf.toString("utf8"); if (ch === "\n") break; if (ch !== "\r") s += ch;
+  }
+  return s;
+}
+function confirmYesNo(prompt) { process.stdout.write(prompt); const a = readLineSync().trim().toLowerCase(); return a === "y" || a === "yes"; }
+
+// approve --all (ADR-0005 Decision C): bulk-approve the *approvable* backlog. Warn-and-go, but honest —
+// capture each digest BEFORE the warning (no unseen bytes), condition the warning on the authority,
+// refuse (never hashless) an undigestible page, and stamp a batch_id so the log reveals the bulk. TTY:
+// interactive confirm. Non-TTY: warn to stderr and proceed (no --yes gate) — an owner-accepted weakening.
+function runApproveAll() {
+  const docsDir = engineDir();
+  const by = requireBy("gazette approve --all");
+  const observedSeq = logHead(docsDir); // CAS baseline — refuse at apply time if the log moved meanwhile
+  const q = reviewQueue({ docsDir });
+  const approvable = q.items.filter((it) => it.kind === "approve" || it.kind === "reapprove");
+  const excluded = q.items.filter((it) => it.kind !== "approve" && it.kind !== "reapprove");
+  if (!approvable.length) {
+    console.log("nothing to bulk-approve — 0 approve/reapprove items." + (excluded.length ? " " + excluded.length + " item(s) need resolve/confirm/repair (see `gazette review`)." : ""));
+    return;
+  }
+  // capture each page's digest FIRST — content-bind to the bytes we are about to show, not to whatever
+  // they become during the prompt. Refuse the whole run if any page can't be content-bound (never hashless).
+  const corpus = loadCorpus({ docsDir });
+  const rawByUid = new Map((corpus.entries || []).map((e) => [e.uid, e.raw]));
+  const captured = [], undigestible = [];
+  for (const it of approvable) {
+    const uid = it.uids[0], title = it.titles[0];
+    let hash; try { const raw = rawByUid.get(uid); hash = raw != null ? reviewDigest({ raw, uid, title }) : null; } catch { hash = null; }
+    if (hash == null) undigestible.push(title || uid); else captured.push({ uid, title, hash, kind: it.kind });
+  }
+  const clean = (s) => stripControl(String(s == null ? "" : s)); // titles are untrusted — strip terminal-control chars before printing
+  if (undigestible.length) die("refusing --all: cannot content-bind " + undigestible.length + " page(s) — " + undigestible.map(clean).join(", ") + ". Approve them individually.");
+  // honest warning, conditioned on the actual authority; each page shows its kind (approve vs reapprove)
+  const warn = (s) => process.stderr.write(s + "\n");
+  warn("⚠ BULK APPROVE — " + captured.length + " page(s):");
+  for (const c of captured) warn("    • [" + c.kind + "] " + clean(c.title || c.uid));
+  if (excluded.length) warn("  (excluded — need resolve/confirm/repair, NOT approve: " + excluded.map((e) => e.titles.map(clean).join(" × ")).join(", ") + ")");
+  warn(authorityClass(by) === "human"
+    ? "  This asserts a HUMAN read and vouched for EACH of these " + captured.length + " claims as canonical (`by` is a claim, not authentication — BUREAU.md)."
+    : "  Recorded under `" + by + "` — a cooperating-pipeline authority, NOT a human vouch.");
+  warn("  Each is content-bound to its current bytes and recorded as one bulk batch (batch_id).");
+  if (process.stdin.isTTY && process.stdout.isTTY) {
+    if (!confirmYesNo("Approve all " + captured.length + " page(s)? [y/N] ")) { console.log("aborted — no events written."); return; }
+  } else warn("  (non-interactive — proceeding without a prompt; a human at a keyboard would be asked to confirm)");
+  // TOCTOU guard: a page edited since capture no longer matches → refuse it, never approve unseen bytes
+  const fresh = loadCorpus({ docsDir });
+  const freshRaw = new Map((fresh.entries || []).map((e) => [e.uid, e.raw]));
+  const drifted = [];
+  for (const c of captured) { let now; try { const raw = freshRaw.get(c.uid); now = raw != null ? reviewDigest({ raw, uid: c.uid, title: c.title }) : null; } catch { now = null; } if (now !== c.hash) drifted.push(c.title || c.uid); }
+  if (drifted.length) die("refusing --all: " + drifted.length + " page(s) changed since the warning — " + drifted.map(clean).join(", ") + ". Re-run to review the new bytes.");
+  // re-verify each captured page is STILL a plain approval — during the prompt an upstream span change can
+  // turn a page into repair-edge/confirm-dependencies WITHOUT changing its own bytes (so the digest matched).
+  let freshApprovable;
+  try { freshApprovable = new Set(); for (const it of reviewQueue({ docsDir }).items) if (it.kind === "approve" || it.kind === "reapprove") for (const u of it.uids) freshApprovable.add(u); }
+  catch { die("refusing --all: could not re-verify the review queue after the prompt — re-run `gazette review`."); } // FAIL CLOSED
+  const gone = captured.filter((c) => !freshApprovable.has(c.uid)).map((c) => stripControl(String(c.title || c.uid)));
+  if (gone.length) die("refusing --all: " + gone.length + " page(s) are no longer plain approvals (a dependency or conflict changed) — " + gone.join(", ") + ". Re-run `gazette review`.");
+  const r = applyBatch(docsDir, { approvals: captured, rejections: [], mode: "all", by, expectedSeq: observedSeq });
+  console.log("✓ batch " + r.batchId + " committed — " + captured.length + " approved (log seq " + r.seq + "). `canonical` is a projection; run `gazette review` to see what remains.");
+}
+
 function runApprove() {
   try {
+    const fromFile = opt("from");
+    const wantsAll = argv.includes("--all");
     const title = argv[1] && !argv[1].startsWith("--") ? argv[1] : opt("page");
-    if (!title) die('usage: gazette approve "<page title>" --by <authority>');
+    if ([fromFile != null, wantsAll, title != null].filter(Boolean).length > 1) die("approve takes ONE of: a page title · --from <manifest.json> · --all");
+    if (wantsAll) return runApproveAll();
+    if (fromFile != null) return runApproveFrom(fromFile);
+    if (!title) die('usage: gazette approve "<title>" --by <auth>  |  --from <manifest.json>  |  --all --by <auth>');
     const by = requireBy("gazette approve");
     const docsDir = engineDir();
     const { node, corpus } = resolvePage(docsDir, title);
@@ -559,6 +798,9 @@ function runApprove() {
     let hash; try { if (entry) hash = reviewDigest({ raw: entry.raw, uid: node.uid, title: node.title }); } catch { hash = undefined; }
     const ev = appendEvent(logPath(docsDir), hash ? { type: "approve", id: node.uid, to_trust: "canonical", by, hash } : { type: "approve", id: node.uid, to_trust: "canonical", by });
     console.log("✓ approved [" + node.title + "] → trust: canonical (backed by log seq " + ev.seq + (hash ? ", content-bound" : "") + ")");
+    // the page file is NOT rewritten (ADR-0004 Decision C) — canonical is a projection of this event.
+    console.log("  note: frontmatter still reads its authored `status:` — `canonical` is a PROJECTION of this");
+    console.log("        event. See the `effective_status:` key (refresh: gazette fsck --materialize-pages).");
   } catch (e) { die(e.message); }
 }
 function runReject() {
@@ -670,6 +912,19 @@ function runLegacyMigrate() {
 }
 
 // ledger: the mechanical trust ledgers, callable by the compile/review skills.
+// Positional args to a `ledger` subcommand (the session ids), skipping value-consuming flags — the old
+// `argv.slice(2).filter(a => !a.startsWith("--"))` left a flag's VALUE behind (e.g. `--dir <path>` leaked
+// the path in as a fake session id).
+const LEDGER_VALUE_FLAGS = new Set(["--dir", "--docs", "--data", "--now", "--out", "--page", "--artifact", "--claim"]);
+function ledgerPositionals() {
+  const out = [];
+  for (let i = 2; i < argv.length; i++) {
+    const a = argv[i];
+    if (a.startsWith("--")) { if (LEDGER_VALUE_FLAGS.has(a) && a.indexOf("=") < 0) i++; continue; }
+    out.push(a);
+  }
+  return out;
+}
 function runLedger() {
   try {
     const action = argv[1];
@@ -687,13 +942,21 @@ function runLedger() {
       for (const c of rows) console.log("  " + (c.ok ? "✅ current " : "✗ DRIFTED ") + c.artifact);
       process.exit(rows.every((c) => c.ok) ? 0 : 1);
     } else if (action === "mark-compiled") {
-      const ids = argv.slice(2).filter((a) => !a.startsWith("--"));
+      const ids = ledgerPositionals();
       if (!ids.length) die("usage: gazette ledger mark-compiled <session-id> [<session-id>...]");
+      // validate against the logbook — a non-session id (e.g. a stray "canon") must never enter the ledger
+      const known = new Set(logbookSessionIds(docsDir));
+      const unknown = ids.filter((id) => !known.has(String(id)));
+      if (unknown.length) die("no logbook session matches: " + unknown.join(", ") + " — give a `session:` id that exists under logbook/ (see `gazette ledger uncompiled`).");
       console.log("✓ marked " + markCompiled(docsDir, ids) + " new session(s) compiled");
     } else if (action === "uncompiled") {
-      const ids = argv.slice(2).filter((a) => !a.startsWith("--"));
-      const out = uncompiled(docsDir, ids);
-      console.log(out.length ? out.join("\n") : "(all compiled)");
+      const ids = ledgerPositionals();
+      // no ids → compare against EVERY logbook session, so bare `uncompiled` reports the real backlog
+      // (it used to print "(all compiled)" for an empty list, which read as an answer, not as "no input").
+      const all = ids.length ? ids : logbookSessionIds(docsDir);
+      if (!all.length) { console.log(ids.length ? "(all compiled)" : "no sessions found under logbook/"); return; }
+      const out = uncompiled(docsDir, all);
+      console.log(out.length ? out.join("\n") : "(all " + all.length + " logbook session(s) compiled)");
     } else {
       die("usage: gazette ledger <verify|recheck|mark-compiled|uncompiled> …");
     }
@@ -714,6 +977,7 @@ switch (cmd) {
   case "gate": runGate(); break;
   case "impact": runImpact(); break;
   case "fsck": runFsck(); break;
+  case "review": runReview(); break;
   case "report": runReport(); break;
   case "telemetry": runTelemetry(); break;
   case "ledger": runLedger(); break;

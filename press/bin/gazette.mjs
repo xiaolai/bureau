@@ -15918,13 +15918,13 @@ and ensure you are accounting for this risk.
 });
 
 // bin/cli.mjs
-import { existsSync as existsSync12, mkdirSync as mkdirSync3, writeFileSync as writeFileSync7, appendFileSync as appendFileSync2, readFileSync as readFileSync16, statSync as statSync3, lstatSync as lstatSync12, readdirSync as readdirSync5, realpathSync as realpathSync6, rmSync as rmSync3, watch } from "fs";
+import { existsSync as existsSync12, mkdirSync as mkdirSync3, writeFileSync as writeFileSync7, appendFileSync as appendFileSync2, readFileSync as readFileSync16, readSync as readSync2, statSync as statSync3, lstatSync as lstatSync12, readdirSync as readdirSync6, realpathSync as realpathSync6, rmSync as rmSync3, watch } from "fs";
 import { join as join16, resolve as resolve6, dirname as dirname4, extname as extname2, sep as sep7, relative as relative5 } from "path";
 import { createServer } from "http";
 import { spawn } from "child_process";
 
 // src/build.mjs
-import { readFileSync as readFileSync9, writeFileSync as writeFileSync2, existsSync as existsSync7, mkdirSync, copyFileSync, cpSync, rmSync, renameSync as renameSync2, readdirSync as readdirSync4, lstatSync as lstatSync7, realpathSync as realpathSync3, unlinkSync as unlinkSync2 } from "fs";
+import { readFileSync as readFileSync9, writeFileSync as writeFileSync2, existsSync as existsSync7, mkdirSync, copyFileSync, cpSync, rmSync, renameSync as renameSync2, readdirSync as readdirSync5, lstatSync as lstatSync7, realpathSync as realpathSync3, unlinkSync as unlinkSync2 } from "fs";
 import { join as join10, dirname as dirname2, resolve as resolve2, sep as sep4, relative as relative3 } from "path";
 import { fileURLToPath } from "url";
 import { createHash as createHash5 } from "crypto";
@@ -23182,7 +23182,7 @@ function head(logFile) {
   const last = events[events.length - 1];
   return { seq: last.seq, ic: last.ic };
 }
-var EVENT_TYPES = /* @__PURE__ */ new Set(["introduce", "edit", "rename", "split", "delete", "confirm-edge", "approve", "reject", "resolve"]);
+var EVENT_TYPES = /* @__PURE__ */ new Set(["introduce", "edit", "rename", "split", "delete", "confirm-edge", "approve", "reject", "resolve", "batch-begin", "batch-commit"]);
 var isStr = (v) => typeof v === "string" && v.length > 0;
 var isSpan = (v) => typeof v === "string" && /^\^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(v);
 var TRUST_TIERS = /* @__PURE__ */ new Set(["proposed", "verified", "canonical"]);
@@ -23199,7 +23199,11 @@ var REQUIRED = {
   // a reject OPTIONALLY scopes itself to the approval it revokes (`approval_seq` + `approval_hash`,
   // ADR-0004); both are optional so a legacy unscoped reject still validates.
   reject: (e) => isStr(e.id) && (e.approval_seq == null || Number.isInteger(e.approval_seq) && e.approval_seq > 0) && (e.approval_hash == null || isStr(e.approval_hash)),
-  resolve: (e) => isStr(e.conflict) && isStr(e.winner)
+  resolve: (e) => isStr(e.conflict) && isStr(e.winner),
+  // a batch brackets decisions (ADR-0005). `batch_id` links begin → members → commit; `mode` is how the
+  // batch was produced (`from`/`all`); `manifest_digest` fingerprints the applied manifest for audit.
+  "batch-begin": (e) => isStr(e.batch_id) && isStr(e.mode) && Number.isInteger(e.n) && e.n >= 0 && isStr(e.manifest_digest),
+  "batch-commit": (e) => isStr(e.batch_id)
 };
 function validateEvent(event) {
   if (event === null || typeof event !== "object" || Array.isArray(event)) throw new Error("log event must be an object");
@@ -23255,11 +23259,9 @@ function appendBatch(logFile, produce) {
   return withLock(logFile, () => {
     const current = readLog(logFile);
     const toAppend = produce(current) || [];
+    for (const ev of toAppend) validateEvent(ev);
     const stored = [];
-    for (const ev of toAppend) {
-      validateEvent(ev);
-      stored.push(appendLocked(logFile, ev));
-    }
+    for (const ev of toAppend) stored.push(appendLocked(logFile, ev));
     return stored;
   });
 }
@@ -23539,7 +23541,46 @@ function projectDecisions(events, policy = null) {
   const unauthorizedResolutions = /* @__PURE__ */ new Map();
   const unauthorizedRejections = /* @__PURE__ */ new Map();
   const staleRejections = [];
-  for (const ev of events) {
+  const validMemberIdx = /* @__PURE__ */ new Set();
+  {
+    const tagCount = /* @__PURE__ */ new Map();
+    for (const ev of events) if (ev.batch_id != null) tagCount.set(ev.batch_id, (tagCount.get(ev.batch_id) || 0) + 1);
+    const seenId = /* @__PURE__ */ new Set();
+    let i = 0;
+    while (i < events.length) {
+      const ev = events[i];
+      if (ev.type !== "batch-begin") {
+        i++;
+        continue;
+      }
+      const id = ev.batch_id, n = ev.n;
+      let ok = !seenId.has(id) && Number.isInteger(n) && n >= 0;
+      seenId.add(id);
+      let j = i + 1;
+      const members = [];
+      for (let c = 0; ok && c < n; c++, j++) {
+        const m = events[j];
+        if (!m || m.batch_id !== id || m.type !== "approve" && m.type !== "reject") {
+          ok = false;
+          break;
+        }
+        if (m.type === "approve" && !(typeof m.hash === "string" && m.hash.length > 0)) {
+          ok = false;
+          break;
+        }
+        members.push(j);
+      }
+      if (ok && events[j] && events[j].type === "batch-commit" && events[j].batch_id === id && tagCount.get(id) === n + 2) {
+        for (const mi of members) validMemberIdx.add(mi);
+        i = j + 1;
+        continue;
+      }
+      i++;
+    }
+  }
+  for (let idx = 0; idx < events.length; idx++) {
+    const ev = events[idx];
+    if (ev.batch_id != null && !validMemberIdx.has(idx)) continue;
     if (ev.type === "approve") {
       const by = authorityClass(ev.by);
       if (policy && !isAuthorized(policy, "approve", by)) {
@@ -23744,7 +23785,7 @@ function liveFreshness({ corpus, docsDir, model, policy }) {
 }
 
 // src/engine/ledgers.mjs
-import { existsSync as existsSync6, readFileSync as readFileSync8, writeFileSync, renameSync, realpathSync as realpathSync2, lstatSync as lstatSync5, openSync as openSync3, closeSync as closeSync3, fstatSync as fstatSync2, readSync, constants as constants2 } from "fs";
+import { existsSync as existsSync6, readFileSync as readFileSync8, writeFileSync, renameSync, realpathSync as realpathSync2, lstatSync as lstatSync5, openSync as openSync3, closeSync as closeSync3, fstatSync as fstatSync2, readSync, readdirSync as readdirSync3, constants as constants2 } from "fs";
 import { join as join8, resolve, sep as sep3, isAbsolute } from "path";
 import { createHash as createHash4 } from "crypto";
 var VERIFY_BASENAME = "_verify.json";
@@ -23863,6 +23904,41 @@ function markCompiled(workspaceDir, ids) {
 function uncompiled(workspaceDir, allSessionIds) {
   const set2 = readCompiled(workspaceDir);
   return [...allSessionIds].map(String).filter((id) => !set2.has(id));
+}
+function logbookSessionIds(workspaceDir) {
+  const ids = /* @__PURE__ */ new Set();
+  const sessionOf = (file) => {
+    let text2;
+    try {
+      text2 = readFileSync8(file, "utf8");
+    } catch {
+      return null;
+    }
+    text2 = text2.replace(/\r\n/g, "\n");
+    const fm = /^---\n([\s\S]*?)\n---/.exec(text2);
+    if (!fm) return null;
+    const m = /^session:[ \t]*(.+)$/m.exec(fm[1]);
+    return m && m[1].trim() ? m[1].trim() : null;
+  };
+  const walk4 = (dir) => {
+    let entries;
+    try {
+      entries = readdirSync3(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (e.name.startsWith(".") || e.isSymbolicLink()) continue;
+      const p = join8(dir, e.name);
+      if (e.isDirectory()) walk4(p);
+      else if (e.isFile() && e.name.endsWith(".md")) {
+        const s = sessionOf(p);
+        if (s && /^[A-Za-z0-9_-]{1,128}$/.test(s)) ids.add(s);
+      }
+    }
+  };
+  walk4(join8(workspaceDir, "logbook"));
+  return [...ids].sort();
 }
 
 // src/engine/artifacts.mjs
@@ -24253,13 +24329,13 @@ function emitCssVars(tokens) {
 }
 
 // src/services/assets.mjs
-import { readdirSync as readdirSync3, lstatSync as lstatSync6 } from "fs";
+import { readdirSync as readdirSync4, lstatSync as lstatSync6 } from "fs";
 import { join as join9 } from "path";
 var DEFAULT_BUDGET = 8 * 1024 * 1024;
 function walk3(dir) {
   let total = 0;
   const files = [];
-  for (const name of readdirSync3(dir)) {
+  for (const name of readdirSync4(dir)) {
     const p = join9(dir, name);
     const st = lstatSync6(p);
     if (st.isSymbolicLink()) continue;
@@ -24350,7 +24426,7 @@ function buildAssetIndex(assetsDir) {
   if (!existsSync7(assetsDir)) return index;
   const baseCount = /* @__PURE__ */ new Map();
   const walk4 = (dir, rel) => {
-    for (const name of readdirSync4(dir).sort()) {
+    for (const name of readdirSync5(dir).sort()) {
       const p = join10(dir, name);
       let st;
       try {
@@ -24422,7 +24498,7 @@ function hashInputs({ root, docsDir, dataDir, now, topSkip = null }) {
     } catch {
       return;
     }
-    for (const name of readdirSync4(dir).sort()) {
+    for (const name of readdirSync5(dir).sort()) {
       if (topSkip2 && topSkip2.has(name)) continue;
       const p = join10(dir, name);
       let st;
@@ -24461,7 +24537,7 @@ function hashInputs({ root, docsDir, dataDir, now, topSkip = null }) {
     const statDir = (dir) => {
       let names;
       try {
-        names = readdirSync4(dir).sort();
+        names = readdirSync5(dir).sort();
       } catch {
         return;
       }
@@ -25151,6 +25227,7 @@ function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write =
   findings.sort((a, b) => canonicalJSON(a) < canonicalJSON(b) ? -1 : 1);
   const notEff = /* @__PURE__ */ new Set();
   for (const f of findings) if ((f.kind === "stale-approval" || f.kind === "unbacked-canonical" || f.kind === "unauthorized-canonical") && f.uid != null) notEff.add(f.uid);
+  for (const d of d1.decided) if (d.conflict === "contested") notEff.add(d.uid);
   const effCanon = /* @__PURE__ */ new Set();
   for (const d of d1.decided) if (d.trust === "canonical" && !notEff.has(d.uid)) effCanon.add(d.uid);
   let materialized = 0;
@@ -25176,6 +25253,192 @@ function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write =
   }
   const blockingFindings = findings.filter((f) => !ADVISORY.has(f.kind));
   return { ok: fixpointStable && blockingFindings.length === 0, fixpointStable, digest: digest1, cacheDrift, findings, blockingFindings, derived: d1, nodeCount: model.nodeCount, materialized };
+}
+
+// src/engine/effective.mjs
+var NOT_BACKED = /* @__PURE__ */ new Set(["stale-approval", "unbacked-canonical", "unauthorized-canonical"]);
+function effectiveReview({ docsDir, corpus, events, policy } = {}) {
+  const report2 = fsck({ docsDir, corpus, events, policy, write: false });
+  const needsReview = /* @__PURE__ */ new Set();
+  for (const f of report2.findings) if (NOT_BACKED.has(f.kind) && f.uid != null) needsReview.add(f.uid);
+  for (const d of report2.derived.decided) if (d.conflict === "contested") needsReview.add(d.uid);
+  const canonical = /* @__PURE__ */ new Set();
+  for (const d of report2.derived.decided) if (d.trust === "canonical" && !needsReview.has(d.uid)) canonical.add(d.uid);
+  return { canonical, needsReview, report: report2 };
+}
+
+// src/engine/review-queue.mjs
+var APPROVE_INTENT = /* @__PURE__ */ new Set(["proposed", "verified", "stale", "contested"]);
+var WHY = {
+  approve: "not yet approved \u2014 read and approve to make it canonical",
+  reapprove: "approved, then edited \u2014 re-approve to rebind the reviewed bytes",
+  "confirm-dependencies": "canonical but rests on a changed/broken upstream span \u2014 confirm the edge",
+  "repair-edge": "rests_on a missing target/span \u2014 fix the link",
+  "resolve-conflict": "contested \u2014 resolve which claim stands (do NOT approve both)"
+};
+function sccOrder(uids, deps) {
+  const pos = new Map(uids.map((u, i) => [u, i]));
+  const member = new Set(uids);
+  const index = /* @__PURE__ */ new Map(), low = /* @__PURE__ */ new Map(), onStack = /* @__PURE__ */ new Set(), stack = [];
+  const comps = [];
+  let idx = 0;
+  for (const start of uids) {
+    if (index.has(start)) continue;
+    const work = [{ u: start, i: 0, succ: null }];
+    while (work.length) {
+      const frame = work[work.length - 1], u = frame.u;
+      if (frame.succ === null) {
+        index.set(u, idx);
+        low.set(u, idx);
+        idx++;
+        stack.push(u);
+        onStack.add(u);
+        frame.succ = [...deps.get(u) || []].filter((v) => member.has(v)).sort((a, b) => pos.get(a) - pos.get(b));
+      }
+      if (frame.i < frame.succ.length) {
+        const v = frame.succ[frame.i++];
+        if (!index.has(v)) work.push({ u: v, i: 0, succ: null });
+        else if (onStack.has(v)) low.set(u, Math.min(low.get(u), index.get(v)));
+      } else {
+        if (low.get(u) === index.get(u)) {
+          const comp = [];
+          for (; ; ) {
+            const w = stack.pop();
+            onStack.delete(w);
+            comp.push(w);
+            if (w === u) break;
+          }
+          comps.push(comp);
+        }
+        work.pop();
+        if (work.length) {
+          const p = work[work.length - 1].u;
+          low.set(p, Math.min(low.get(p), low.get(u)));
+        }
+      }
+    }
+  }
+  const order = [];
+  for (let i = 0; i < comps.length; i++) for (const m of comps[i].sort((a, b) => pos.get(a) - pos.get(b))) order.push(m);
+  return order;
+}
+function reviewQueue({ docsDir, corpus, model, events, policy } = {}) {
+  corpus = corpus || loadCorpus({ docsDir });
+  model = model || buildModel({ corpus });
+  const nodes = Object.values(model.nodes);
+  const byUid = new Map(nodes.map((n) => [n.uid, n]));
+  const keyByUid = corpus.keyByUid, uidByKey = corpus.uidByKey;
+  const { canonical, report: report2 } = effectiveReview({ docsDir, corpus, events, policy });
+  const decided = new Map(report2.derived.decided.map((d) => [d.uid, d]));
+  const findingKinds = /* @__PURE__ */ new Map();
+  for (const f of report2.findings) if (f.uid != null) {
+    if (!findingKinds.has(f.uid)) findingKinds.set(f.uid, /* @__PURE__ */ new Set());
+    findingKinds.get(f.uid).add(f.kind);
+  }
+  const fresh = liveFreshness({ corpus, docsDir, model, policy });
+  const freshOf = (uid) => (keyByUid ? fresh.byKey.get(keyByUid.get(uid)) : null) || "current";
+  const restsOn = /* @__PURE__ */ new Map(), contradicts = /* @__PURE__ */ new Map(), brokenEdge = /* @__PURE__ */ new Set();
+  for (const e of model.edges) {
+    const src = e.sourceUid, tgt = uidByKey ? uidByKey.get(e.target) : null;
+    if (e.edgeType === "rests_on") {
+      if (tgt == null) {
+        brokenEdge.add(src);
+        continue;
+      }
+      if (!restsOn.has(src)) restsOn.set(src, /* @__PURE__ */ new Set());
+      restsOn.get(src).add(tgt);
+    } else if (e.edgeType === "contradicts" && tgt != null) {
+      if (!contradicts.has(src)) contradicts.set(src, /* @__PURE__ */ new Set());
+      if (!contradicts.has(tgt)) contradicts.set(tgt, /* @__PURE__ */ new Set());
+      contradicts.get(src).add(tgt);
+      contradicts.get(tgt).add(src);
+    }
+  }
+  for (const d of fresh.drift || []) if (d.reason && /broken/i.test(d.reason)) {
+    const u = uidByKey ? uidByKey.get(d.page) : null;
+    if (u) brokenEdge.add(u);
+  }
+  const title = (uid) => byUid.get(uid) ? byUid.get(uid).title : null;
+  const rawByUid = new Map((corpus.entries || []).map((e) => [e.uid, e.raw]));
+  const digestOf = (uid) => {
+    const raw = rawByUid.get(uid), n = byUid.get(uid);
+    try {
+      return raw != null && n ? reviewDigest({ raw, uid, title: n.title }) : null;
+    } catch {
+      return null;
+    }
+  };
+  const baseKind = (uid) => {
+    const kinds = findingKinds.get(uid) || /* @__PURE__ */ new Set();
+    const n = byUid.get(uid), authored = n ? n.trust || n.status || null : null;
+    const fr = freshOf(uid);
+    if (brokenEdge.has(uid)) return "repair-edge";
+    if (kinds.has("stale-approval")) return "reapprove";
+    if (kinds.has("unbacked-canonical") || kinds.has("unauthorized-canonical")) return "approve";
+    if (canonical.has(uid)) return fr === "needs-review" || fr === "stale" ? "confirm-dependencies" : null;
+    if (APPROVE_INTENT.has(authored)) return "approve";
+    return null;
+  };
+  const inConflict = /* @__PURE__ */ new Set();
+  const components = [];
+  const visited = /* @__PURE__ */ new Set();
+  for (const n of nodes) {
+    if (visited.has(n.uid) || !contradicts.has(n.uid)) continue;
+    const comp = [], stack = [n.uid];
+    while (stack.length) {
+      const u = stack.pop();
+      if (visited.has(u)) continue;
+      visited.add(u);
+      comp.push(u);
+      for (const p of contradicts.get(u) || []) if (!visited.has(p)) stack.push(p);
+    }
+    if (comp.some((u) => (decided.get(u) || {}).conflict === "contested")) {
+      for (const u of comp) inConflict.add(u);
+      components.push(comp.sort((a, b) => a < b ? -1 : 1));
+    }
+  }
+  const repOf = new Map(nodes.map((n) => [n.uid, n.uid]));
+  for (const comp of components) for (const u of comp) repOf.set(u, comp[0]);
+  const rep = (u) => repOf.get(u) || u;
+  const mergedRestsOn = /* @__PURE__ */ new Map();
+  for (const [u, deps] of restsOn) {
+    const ru = rep(u);
+    if (!mergedRestsOn.has(ru)) mergedRestsOn.set(ru, /* @__PURE__ */ new Set());
+    for (const d of deps) {
+      const rd = rep(d);
+      if (rd !== ru) mergedRestsOn.get(ru).add(rd);
+    }
+  }
+  const repUids = [...new Set(nodes.map((n) => rep(n.uid)))];
+  const repPos = new Map(sccOrder(repUids, mergedRestsOn).map((u, i) => [u, i]));
+  const posByUid = new Map(nodes.map((n) => [n.uid, repPos.get(rep(n.uid)) ?? 0]));
+  const items = [];
+  for (const comp of components) {
+    const memberSet = new Set(comp), pairs = [], seenPair = /* @__PURE__ */ new Set();
+    for (const u of comp) for (const p of contradicts.get(u) || []) if (memberSet.has(p)) {
+      const [a, b] = [u, p].sort((x, y) => x < y ? -1 : 1), k = a + "\0" + b;
+      if (!seenPair.has(k)) {
+        seenPair.add(k);
+        pairs.push([title(a), title(b)]);
+      }
+    }
+    items.push({ kind: "resolve-conflict", uids: comp, titles: comp.map(title), why: WHY["resolve-conflict"], freshness: null, dependsOn: [], conflictPartners: comp, pairs, pos: Math.min(...comp.map((u) => posByUid.get(u) ?? 0)) });
+  }
+  for (const n of nodes) {
+    if (inConflict.has(n.uid)) continue;
+    const kind = baseKind(n.uid);
+    if (!kind) continue;
+    const deps = [...restsOn.get(n.uid) || []].sort((a, b) => a < b ? -1 : 1);
+    const bind = kind === "approve" || kind === "reapprove" ? { digest: digestOf(n.uid) } : {};
+    items.push({ kind, uids: [n.uid], titles: [title(n.uid)], why: WHY[kind], freshness: freshOf(n.uid), dependsOn: deps, conflictPartners: [], ...bind, pos: posByUid.get(n.uid) ?? 0 });
+  }
+  items.sort((a, b) => a.pos - b.pos || ((a.titles[0] || "") < (b.titles[0] || "") ? -1 : 1));
+  const counts = {};
+  for (const it of items) {
+    counts[it.kind] = (counts[it.kind] || 0) + 1;
+    delete it.pos;
+  }
+  return { items, counts };
 }
 
 // src/engine/mutation.mjs
@@ -25371,6 +25634,9 @@ function resolveWorkspace(cwd) {
   if (!check.ok) return { mode: "rejected", id, reason: check.reason };
   return { mode: "external", dir: check.dir, id };
 }
+
+// bin/cli.mjs
+import { createHash as createHash7, randomBytes as randomBytes2 } from "crypto";
 
 // src/engine/versions.mjs
 import { execFileSync as execFileSync3 } from "child_process";
@@ -25572,7 +25838,7 @@ function contentDir() {
   if (res.mode === "rejected") die("this repo's external bureau workspace was refused: " + res.reason);
   try {
     const root = process.cwd();
-    const ws = readdirSync5(root, { withFileTypes: true }).filter((d) => d.isDirectory() && !d.name.startsWith(".") && existsSync12(join16(root, d.name, "bureau.json"))).map((d) => d.name);
+    const ws = readdirSync6(root, { withFileTypes: true }).filter((d) => d.isDirectory() && !d.name.startsWith(".") && existsSync12(join16(root, d.name, "bureau.json"))).map((d) => d.name);
     if (ws.length === 1) return ws[0];
   } catch {
   }
@@ -25636,7 +25902,7 @@ function watchTree(dir, cb) {
     }
     let entries;
     try {
-      entries = readdirSync5(d, { withFileTypes: true });
+      entries = readdirSync6(d, { withFileTypes: true });
     } catch {
       return;
     }
@@ -26040,6 +26306,51 @@ function runFsck() {
     die(e.message);
   }
 }
+function runReview() {
+  try {
+    const docsDir = engineDir();
+    const q = reviewQueue({ docsDir });
+    const total = q.items.length;
+    let items = q.items;
+    const nextRaw = opt("next");
+    if (nextRaw != null) {
+      const n = parseInt(nextRaw, 10);
+      if (!Number.isInteger(n) || n <= 0 || String(n) !== String(nextRaw).trim()) die("--next needs a positive integer");
+      items = items.slice(0, n);
+    }
+    if (argv.includes("--json")) {
+      const counts = {};
+      for (const it of items) counts[it.kind] = (counts[it.kind] || 0) + 1;
+      process.stdout.write(JSON.stringify({ items, counts, total }, null, 2) + "\n");
+      return;
+    }
+    const summary = Object.entries(q.counts).map(([k, c]) => c + " " + k).join(" \xB7 ") || "nothing";
+    console.log("review queue: " + total + " item(s) \u2014 " + summary);
+    if (!total) {
+      console.log("  \u2705 nothing awaiting review");
+      return;
+    }
+    const shq = (s) => "'" + stripControl(String(s == null ? "" : s)).replace(/'/g, "'\\''") + "'";
+    const disp = (t) => t == null ? "(untitled)" : stripControl(String(t));
+    const action = {
+      approve: (it) => "gazette approve " + shq(it.titles[0]) + " --by human",
+      reapprove: (it) => "gazette approve " + shq(it.titles[0]) + " --by human   (rebinds the edited bytes)",
+      "confirm-dependencies": (it) => "gazette confirm " + shq(it.titles[0]) + " --by human",
+      // a component of >2 pages is resolved pair-by-pair (`resolve` takes exactly two) — one command each.
+      "resolve-conflict": (it) => (it.pairs && it.pairs.length ? it.pairs : [it.titles.slice(0, 2)]).map((p) => "gazette resolve " + shq(p[0]) + " " + shq(p[1]) + " --winner \u2026 --by human").join("\n      \u2192 "),
+      "repair-edge": () => "edit the page \u2014 its rests_on names a missing target/span"
+    };
+    items.forEach((it, i) => {
+      const who = it.titles.map(disp).join(" \xD7 ");
+      console.log("  " + (i + 1) + ". [" + it.kind + "] " + who);
+      console.log("      why: " + it.why);
+      console.log("      \u2192 " + action[it.kind](it));
+    });
+    if (nextRaw != null && items.length < total) console.log("  \u2026 " + (total - items.length) + " more (drop --next to see all)");
+  } catch (e) {
+    die(e.message);
+  }
+}
 function runReport() {
   try {
     const r = report({ docsDir: engineDir() });
@@ -26073,10 +26384,258 @@ function requireBy(cmd2) {
   if (!by || !String(by).trim()) die(cmd2 + " requires --by <authority> (e.g. `--by human` when you are the reviewer, or `--by invariant` for an automated gate) \u2014 a decision is never silently 'human'.");
   return by;
 }
+function validateManifest(docsDir, manifest) {
+  const observedSeq = logHead2(docsDir);
+  const corpus = loadCorpus({ docsDir });
+  const model = buildModel({ corpus });
+  let decisions = null;
+  try {
+    decisions = projectDecisions(readLog(logPath(docsDir)), loadPolicy(docsDir));
+  } catch {
+    decisions = null;
+  }
+  const rawByUid = new Map((corpus.entries || []).map((e) => [e.uid, e.raw]));
+  const byTitle = (t) => model.nodes[nfc(String(t))];
+  const hasKey = (k) => Object.prototype.hasOwnProperty.call(manifest, k);
+  if (hasKey("approve") && !Array.isArray(manifest.approve)) die("manifest `approve` must be an array");
+  if (hasKey("reject") && !Array.isArray(manifest.reject)) die("manifest `reject` must be an array");
+  const approveIn = Array.isArray(manifest.approve) ? manifest.approve : [];
+  const rejectIn = Array.isArray(manifest.reject) ? manifest.reject : [];
+  const seen = /* @__PURE__ */ new Set(), approvals = [], rejections = [], problems = [];
+  for (const e of approveIn) {
+    const t = typeof e === "string" ? e : e && e.page;
+    if (!t) {
+      problems.push("an approve entry has no page title");
+      continue;
+    }
+    const n = byTitle(t);
+    if (!n) {
+      problems.push("approve: no page titled [" + t + "]");
+      continue;
+    }
+    if (seen.has(n.uid)) {
+      problems.push("page listed twice / in both lists: " + t);
+      continue;
+    }
+    seen.add(n.uid);
+    const provided = e && typeof e === "object" ? e.digest : null;
+    let current;
+    try {
+      const raw = rawByUid.get(n.uid);
+      current = raw != null ? reviewDigest({ raw, uid: n.uid, title: n.title }) : null;
+    } catch {
+      current = null;
+    }
+    if (current == null) {
+      problems.push("approve: [" + t + "] cannot be content-bound (undigestible)");
+      continue;
+    }
+    if (!provided) {
+      problems.push("approve: [" + t + '] needs a "digest" \u2014 a batch approval must pin the reviewed bytes');
+      continue;
+    }
+    if (provided !== current) {
+      problems.push("approve: [" + t + "] digest mismatch \u2014 the page changed since it was reviewed");
+      continue;
+    }
+    approvals.push({ uid: n.uid, title: n.title, hash: current });
+  }
+  for (const e of rejectIn) {
+    const t = e && e.page;
+    if (!t) {
+      problems.push("a reject entry has no page");
+      continue;
+    }
+    const n = byTitle(t);
+    if (!n) {
+      problems.push("reject: no page titled [" + t + "]");
+      continue;
+    }
+    if (seen.has(n.uid)) {
+      problems.push("page listed twice / in both lists: " + t);
+      continue;
+    }
+    seen.add(n.uid);
+    if (!e.because || !String(e.because).trim()) {
+      problems.push("reject: [" + t + '] needs a "because" reason');
+      continue;
+    }
+    if (e.approval_seq != null && !(Number.isInteger(e.approval_seq) && e.approval_seq > 0)) {
+      problems.push("reject: [" + t + "] approval_seq must be a positive integer");
+      continue;
+    }
+    if (e.approval_hash != null && !(typeof e.approval_hash === "string" && e.approval_hash.length > 0)) {
+      problems.push("reject: [" + t + "] approval_hash must be a non-empty string");
+      continue;
+    }
+    if (!decisions || !decisions.approved.has(n.uid)) {
+      problems.push("reject: [" + t + "] is not currently approved \u2014 nothing to revoke (a proposed page needs no reject)");
+      continue;
+    }
+    const activeSeq = decisions.approvedSeq.get(n.uid) ?? null, activeHash = decisions.approvedHash.get(n.uid) ?? null;
+    if (e.approval_seq != null && e.approval_seq !== activeSeq) {
+      problems.push("reject: [" + t + "] approval_seq " + e.approval_seq + " does not match the active approval (" + activeSeq + ") \u2014 re-review");
+      continue;
+    }
+    if (e.approval_hash != null && e.approval_hash !== activeHash) {
+      problems.push("reject: [" + t + "] approval_hash does not match the active approval \u2014 re-review");
+      continue;
+    }
+    rejections.push({ uid: n.uid, because: String(e.because).trim(), approval_seq: activeSeq, approval_hash: activeHash });
+  }
+  if (!approvals.length && !rejections.length) problems.push("the manifest has no decisions");
+  if (problems.length) die("manifest rejected \u2014 NO events written:\n  - " + problems.join("\n  - "));
+  return { approvals, rejections, observedSeq };
+}
+function logHead2(docsDir) {
+  try {
+    const evs = readLog(logPath(docsDir));
+    return evs.length ? evs[evs.length - 1].seq : 0;
+  } catch {
+    return null;
+  }
+}
+function applyBatch(docsDir, { approvals, rejections, mode, by, expectedSeq = null }) {
+  const n = approvals.length + rejections.length;
+  const pol = loadPolicy(docsDir);
+  if (!isAuthorized(pol, "approve", authorityClass(by))) die("`--by " + by + "` is not an accepted approve authority for this workspace (policy: " + (pol.approve || []).join(", ") + ") \u2014 refusing; the batch would commit nothing.");
+  const manifestDigest = "bureau-manifest-v1:" + createHash7("sha256").update(JSON.stringify({ mode, by, approve: approvals.map((a) => [a.uid, a.hash]), reject: rejections.map((r) => [r.uid, r.because, r.approval_seq ?? null, r.approval_hash ?? null]) })).digest("hex");
+  const batchId = "batch-" + randomBytes2(8).toString("hex");
+  const events = [
+    { type: "batch-begin", batch_id: batchId, mode, n, manifest_digest: manifestDigest, by },
+    ...approvals.map((a) => ({ type: "approve", id: a.uid, to_trust: "canonical", by, hash: a.hash, batch_id: batchId })),
+    ...rejections.map((r) => {
+      const ev = { type: "reject", id: r.uid, by, reason: r.because, batch_id: batchId };
+      if (r.approval_seq != null) ev.approval_seq = r.approval_seq;
+      if (r.approval_hash != null) ev.approval_hash = r.approval_hash;
+      return ev;
+    }),
+    { type: "batch-commit", batch_id: batchId }
+  ];
+  const stored = appendBatch(logPath(docsDir), (current) => {
+    const head2 = current.length ? current[current.length - 1].seq : 0;
+    if (expectedSeq != null && head2 !== expectedSeq) {
+      const e = new Error("the decision log changed since these decisions were prepared (head " + expectedSeq + " \u2192 " + head2 + ") \u2014 re-run against the current state");
+      e.code = "ECASFAIL";
+      throw e;
+    }
+    return events;
+  });
+  return { batchId, manifestDigest, n, seq: stored[stored.length - 1].seq };
+}
+function runApproveFrom(fromFile) {
+  const docsDir = engineDir();
+  const by = requireBy("gazette approve --from");
+  let manifest;
+  try {
+    manifest = JSON.parse(readFileSync16(resolve6(process.cwd(), fromFile), "utf8"));
+  } catch (e) {
+    die("could not read/parse manifest " + fromFile + ": " + e.message);
+  }
+  if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest)) die("manifest must be a JSON object with `approve` / `reject` arrays");
+  const { approvals, rejections, observedSeq } = validateManifest(docsDir, manifest);
+  const r = applyBatch(docsDir, { approvals, rejections, mode: "from", by, expectedSeq: observedSeq });
+  console.log("\u2713 batch " + r.batchId + " committed \u2014 " + approvals.length + " approved, " + rejections.length + " rejected (log seq " + r.seq + ")");
+  console.log("  note: `canonical` is a projection of these events; `gazette review` shows what remains, `gazette fsck --materialize-pages` refreshes effective_status.");
+}
+function readLineSync() {
+  const buf = Buffer.alloc(1);
+  let s = "";
+  for (; ; ) {
+    let n;
+    try {
+      n = readSync2(0, buf, 0, 1, null);
+    } catch (e) {
+      if (e.code === "EAGAIN") continue;
+      break;
+    }
+    if (n === 0) break;
+    const ch = buf.toString("utf8");
+    if (ch === "\n") break;
+    if (ch !== "\r") s += ch;
+  }
+  return s;
+}
+function confirmYesNo(prompt) {
+  process.stdout.write(prompt);
+  const a = readLineSync().trim().toLowerCase();
+  return a === "y" || a === "yes";
+}
+function runApproveAll() {
+  const docsDir = engineDir();
+  const by = requireBy("gazette approve --all");
+  const observedSeq = logHead2(docsDir);
+  const q = reviewQueue({ docsDir });
+  const approvable = q.items.filter((it) => it.kind === "approve" || it.kind === "reapprove");
+  const excluded = q.items.filter((it) => it.kind !== "approve" && it.kind !== "reapprove");
+  if (!approvable.length) {
+    console.log("nothing to bulk-approve \u2014 0 approve/reapprove items." + (excluded.length ? " " + excluded.length + " item(s) need resolve/confirm/repair (see `gazette review`)." : ""));
+    return;
+  }
+  const corpus = loadCorpus({ docsDir });
+  const rawByUid = new Map((corpus.entries || []).map((e) => [e.uid, e.raw]));
+  const captured = [], undigestible = [];
+  for (const it of approvable) {
+    const uid = it.uids[0], title = it.titles[0];
+    let hash;
+    try {
+      const raw = rawByUid.get(uid);
+      hash = raw != null ? reviewDigest({ raw, uid, title }) : null;
+    } catch {
+      hash = null;
+    }
+    if (hash == null) undigestible.push(title || uid);
+    else captured.push({ uid, title, hash, kind: it.kind });
+  }
+  const clean = (s) => stripControl(String(s == null ? "" : s));
+  if (undigestible.length) die("refusing --all: cannot content-bind " + undigestible.length + " page(s) \u2014 " + undigestible.map(clean).join(", ") + ". Approve them individually.");
+  const warn = (s) => process.stderr.write(s + "\n");
+  warn("\u26A0 BULK APPROVE \u2014 " + captured.length + " page(s):");
+  for (const c of captured) warn("    \u2022 [" + c.kind + "] " + clean(c.title || c.uid));
+  if (excluded.length) warn("  (excluded \u2014 need resolve/confirm/repair, NOT approve: " + excluded.map((e) => e.titles.map(clean).join(" \xD7 ")).join(", ") + ")");
+  warn(authorityClass(by) === "human" ? "  This asserts a HUMAN read and vouched for EACH of these " + captured.length + " claims as canonical (`by` is a claim, not authentication \u2014 BUREAU.md)." : "  Recorded under `" + by + "` \u2014 a cooperating-pipeline authority, NOT a human vouch.");
+  warn("  Each is content-bound to its current bytes and recorded as one bulk batch (batch_id).");
+  if (process.stdin.isTTY && process.stdout.isTTY) {
+    if (!confirmYesNo("Approve all " + captured.length + " page(s)? [y/N] ")) {
+      console.log("aborted \u2014 no events written.");
+      return;
+    }
+  } else warn("  (non-interactive \u2014 proceeding without a prompt; a human at a keyboard would be asked to confirm)");
+  const fresh = loadCorpus({ docsDir });
+  const freshRaw = new Map((fresh.entries || []).map((e) => [e.uid, e.raw]));
+  const drifted = [];
+  for (const c of captured) {
+    let now;
+    try {
+      const raw = freshRaw.get(c.uid);
+      now = raw != null ? reviewDigest({ raw, uid: c.uid, title: c.title }) : null;
+    } catch {
+      now = null;
+    }
+    if (now !== c.hash) drifted.push(c.title || c.uid);
+  }
+  if (drifted.length) die("refusing --all: " + drifted.length + " page(s) changed since the warning \u2014 " + drifted.map(clean).join(", ") + ". Re-run to review the new bytes.");
+  let freshApprovable;
+  try {
+    freshApprovable = /* @__PURE__ */ new Set();
+    for (const it of reviewQueue({ docsDir }).items) if (it.kind === "approve" || it.kind === "reapprove") for (const u of it.uids) freshApprovable.add(u);
+  } catch {
+    die("refusing --all: could not re-verify the review queue after the prompt \u2014 re-run `gazette review`.");
+  }
+  const gone = captured.filter((c) => !freshApprovable.has(c.uid)).map((c) => stripControl(String(c.title || c.uid)));
+  if (gone.length) die("refusing --all: " + gone.length + " page(s) are no longer plain approvals (a dependency or conflict changed) \u2014 " + gone.join(", ") + ". Re-run `gazette review`.");
+  const r = applyBatch(docsDir, { approvals: captured, rejections: [], mode: "all", by, expectedSeq: observedSeq });
+  console.log("\u2713 batch " + r.batchId + " committed \u2014 " + captured.length + " approved (log seq " + r.seq + "). `canonical` is a projection; run `gazette review` to see what remains.");
+}
 function runApprove() {
   try {
+    const fromFile = opt("from");
+    const wantsAll = argv.includes("--all");
     const title = argv[1] && !argv[1].startsWith("--") ? argv[1] : opt("page");
-    if (!title) die('usage: gazette approve "<page title>" --by <authority>');
+    if ([fromFile != null, wantsAll, title != null].filter(Boolean).length > 1) die("approve takes ONE of: a page title \xB7 --from <manifest.json> \xB7 --all");
+    if (wantsAll) return runApproveAll();
+    if (fromFile != null) return runApproveFrom(fromFile);
+    if (!title) die('usage: gazette approve "<title>" --by <auth>  |  --from <manifest.json>  |  --all --by <auth>');
     const by = requireBy("gazette approve");
     const docsDir = engineDir();
     const { node, corpus } = resolvePage(docsDir, title);
@@ -26089,6 +26648,8 @@ function runApprove() {
     }
     const ev = appendEvent(logPath(docsDir), hash ? { type: "approve", id: node.uid, to_trust: "canonical", by, hash } : { type: "approve", id: node.uid, to_trust: "canonical", by });
     console.log("\u2713 approved [" + node.title + "] \u2192 trust: canonical (backed by log seq " + ev.seq + (hash ? ", content-bound" : "") + ")");
+    console.log("  note: frontmatter still reads its authored `status:` \u2014 `canonical` is a PROJECTION of this");
+    console.log("        event. See the `effective_status:` key (refresh: gazette fsck --materialize-pages).");
   } catch (e) {
     die(e.message);
   }
@@ -26205,6 +26766,19 @@ function runLegacyMigrate() {
     die(e.message);
   }
 }
+var LEDGER_VALUE_FLAGS = /* @__PURE__ */ new Set(["--dir", "--docs", "--data", "--now", "--out", "--page", "--artifact", "--claim"]);
+function ledgerPositionals() {
+  const out = [];
+  for (let i = 2; i < argv.length; i++) {
+    const a = argv[i];
+    if (a.startsWith("--")) {
+      if (LEDGER_VALUE_FLAGS.has(a) && a.indexOf("=") < 0) i++;
+      continue;
+    }
+    out.push(a);
+  }
+  return out;
+}
 function runLedger() {
   try {
     const action = argv[1];
@@ -26226,13 +26800,21 @@ function runLedger() {
       for (const c of rows) console.log("  " + (c.ok ? "\u2705 current " : "\u2717 DRIFTED ") + c.artifact);
       process.exit(rows.every((c) => c.ok) ? 0 : 1);
     } else if (action === "mark-compiled") {
-      const ids = argv.slice(2).filter((a) => !a.startsWith("--"));
+      const ids = ledgerPositionals();
       if (!ids.length) die("usage: gazette ledger mark-compiled <session-id> [<session-id>...]");
+      const known = new Set(logbookSessionIds(docsDir));
+      const unknown = ids.filter((id) => !known.has(String(id)));
+      if (unknown.length) die("no logbook session matches: " + unknown.join(", ") + " \u2014 give a `session:` id that exists under logbook/ (see `gazette ledger uncompiled`).");
       console.log("\u2713 marked " + markCompiled(docsDir, ids) + " new session(s) compiled");
     } else if (action === "uncompiled") {
-      const ids = argv.slice(2).filter((a) => !a.startsWith("--"));
-      const out = uncompiled(docsDir, ids);
-      console.log(out.length ? out.join("\n") : "(all compiled)");
+      const ids = ledgerPositionals();
+      const all = ids.length ? ids : logbookSessionIds(docsDir);
+      if (!all.length) {
+        console.log(ids.length ? "(all compiled)" : "no sessions found under logbook/");
+        return;
+      }
+      const out = uncompiled(docsDir, all);
+      console.log(out.length ? out.join("\n") : "(all " + all.length + " logbook session(s) compiled)");
     } else {
       die("usage: gazette ledger <verify|recheck|mark-compiled|uncompiled> \u2026");
     }
@@ -26280,6 +26862,9 @@ switch (cmd) {
     break;
   case "fsck":
     runFsck();
+    break;
+  case "review":
+    runReview();
     break;
   case "report":
     runReport();
