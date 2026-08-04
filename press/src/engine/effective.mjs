@@ -23,6 +23,10 @@ export function effectiveReview({ docsDir, corpus, events, policy } = {}) {
   const report = fsck({ docsDir, corpus, events, policy, write: false });
   const needsReview = new Set();
   for (const f of report.findings) if (NOT_BACKED.has(f.kind) && f.uid != null) needsReview.add(f.uid);
+  // ADR-0005 Decision D: a page in an UNRESOLVED contradiction is not fact even if approved — approving
+  // both sides of a `contradicts` never settles it. Exclude a `contested` page from `canonical` (it is a
+  // resolve-conflict work item) and surface it as needing attention.
+  for (const d of report.derived.decided) if (d.conflict === "contested") needsReview.add(d.uid);
   const canonical = new Set();
   for (const d of report.derived.decided) if (d.trust === "canonical" && !needsReview.has(d.uid)) canonical.add(d.uid);
   return { canonical, needsReview, report };

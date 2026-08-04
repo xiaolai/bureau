@@ -256,6 +256,9 @@ export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, 
   // the backing as stale / unbacked / unauthorized. Same rule readers use via `engine/effective.mjs`.
   const notEff = new Set();
   for (const f of findings) if ((f.kind === "stale-approval" || f.kind === "unbacked-canonical" || f.kind === "unauthorized-canonical") && f.uid != null) notEff.add(f.uid);
+  // ADR-0005 Decision D: a page in an unresolved `contested` conflict is not effectively canonical, so
+  // the materialized `effective_status:` cache never marks it fact either.
+  for (const d of d1.decided) if (d.conflict === "contested") notEff.add(d.uid);
   const effCanon = new Set();
   for (const d of d1.decided) if (d.trust === "canonical" && !notEff.has(d.uid)) effCanon.add(d.uid);
   // opt-in ONLY: plain `gazette fsck` must never mutate a source page. `--materialize-pages` refreshes

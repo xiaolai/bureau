@@ -77,7 +77,10 @@ export function head(logFile) {
 // requires (well-formed strings / ^spans / arrays), and no reserved machine fields (seq/ic are
 // assigned here, never by the caller — a caller-set seq is a bug/attack). The log is trust-critical;
 // a malformed event must never enter it.
-const EVENT_TYPES = new Set(["introduce", "edit", "rename", "split", "delete", "confirm-edge", "approve", "reject", "resolve"]);
+// `batch-begin`/`batch-commit` bracket a decision batch (ADR-0005 Decision B). The decision projection
+// IGNORES the events inside a batch that never `batch-commit`ted, so a crash mid-append leaves an
+// uncommitted prefix that never took effect — the honest atomicity contract.
+const EVENT_TYPES = new Set(["introduce", "edit", "rename", "split", "delete", "confirm-edge", "approve", "reject", "resolve", "batch-begin", "batch-commit"]);
 const isStr = (v) => typeof v === "string" && v.length > 0;
 const isSpan = (v) => typeof v === "string" && /^\^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(v);
 // hash/verdict_key are OPAQUE fingerprints (the integrity chain, not their format, guards the log),
@@ -97,6 +100,10 @@ const REQUIRED = {
   // ADR-0004); both are optional so a legacy unscoped reject still validates.
   reject: (e) => isStr(e.id) && (e.approval_seq == null || (Number.isInteger(e.approval_seq) && e.approval_seq > 0)) && (e.approval_hash == null || isStr(e.approval_hash)),
   resolve: (e) => isStr(e.conflict) && isStr(e.winner),
+  // a batch brackets decisions (ADR-0005). `batch_id` links begin → members → commit; `mode` is how the
+  // batch was produced (`from`/`all`); `manifest_digest` fingerprints the applied manifest for audit.
+  "batch-begin": (e) => isStr(e.batch_id) && isStr(e.mode) && Number.isInteger(e.n) && e.n >= 0 && isStr(e.manifest_digest),
+  "batch-commit": (e) => isStr(e.batch_id),
 };
 function validateEvent(event) {
   if (event === null || typeof event !== "object" || Array.isArray(event)) throw new Error("log event must be an object");
@@ -164,8 +171,9 @@ export function appendBatch(logFile, produce) {
   return withLock(logFile, () => {
     const current = readLog(logFile);
     const toAppend = produce(current) || [];
-    const stored = [];
-    for (const ev of toAppend) { validateEvent(ev); stored.push(appendLocked(logFile, ev)); }
+    for (const ev of toAppend) validateEvent(ev); // validate the WHOLE array FIRST — a malformed event
+    const stored = [];                             // must not leave a partially-appended prefix on disk
+    for (const ev of toAppend) stored.push(appendLocked(logFile, ev));
     return stored;
   });
 }

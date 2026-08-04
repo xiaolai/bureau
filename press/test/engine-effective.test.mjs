@@ -55,6 +55,18 @@ test("effectiveReview: a grandfathered legacy-canonical stays canonical (accepte
   assert.ok(!e.needsReview.has("P"), "grandfathered is not flagged for re-review");
 });
 
+test("effectiveReview: an approved page in an unresolved contradiction is NOT canonical (ADR-0005 D)", (t) => {
+  const dir = ws(t, {
+    "p.md": "---\nid: P\ntitle: Pea\nstatus: proposed\ncontradicts: \"[[Que]]\"\n---\n# Pea\nclaim ^p\n",
+    "q.md": "---\nid: Q\ntitle: Que\nstatus: proposed\n---\n# Que\nclaim ^q\n",
+  });
+  scan({ docsDir: dir });
+  appendEvent(logPath(dir), { type: "approve", id: "P", by: "human", hash: reviewDigest({ raw: readFileSync(join(dir, "p.md"), "utf8"), uid: "P", title: "Pea" }) });
+  const e = effectiveReview({ docsDir: dir });
+  assert.ok(!e.canonical.has("P"), "an approved-but-contested page is not presented as fact");
+  assert.ok(e.needsReview.has("P"), "it surfaces as needing attention — resolve the conflict, don't trust either side");
+});
+
 test("effectiveReview: a plain proposed page is neither canonical nor needs-review", (t) => {
   const dir = ws(t, { "p.md": "---\nid: P\ntitle: P\nstatus: proposed\n---\n# P\nbody ^p\n" });
   scan({ docsDir: dir });

@@ -42,7 +42,49 @@ export function projectDecisions(events, policy = null) {
   const unauthorizedResolutions = new Map(); // conflictKey → authority class of a REJECTED resolve
   const unauthorizedRejections = new Map();  // uid → authority class of an INERT (unauthorized) reject
   const staleRejections = [];                // rejects that matched no active/targeted approval (inert)
-  for (const ev of events) {
+  // A batch's members take effect ONLY inside a WELL-FORMED bracket (ADR-0005 Decision B): exactly one
+  // `batch-begin(id, n=k)`, exactly k decision members all sitting strictly between it and exactly one
+  // `batch-commit(id)`. Anything malformed — a commit with no begin, a premature commit, a member
+  // before/after the bracket, a count mismatch, a duplicate begin/commit — makes the whole batch inert,
+  // so a crash mid-append or a hand-corrupted log projects to nothing. Events with no `batch_id` (every
+  // event predating batches) are unaffected, so existing logs project identically.
+  // A valid batch is a CONTIGUOUS run in the log: `batch-begin(id, n=k)` immediately followed by exactly
+  // k decision members — each an `approve`/`reject` carrying `id`, and an `approve` needs a non-empty
+  // `hash` — immediately followed by `batch-commit(id)`. appendBatch holds the lock for the whole batch,
+  // so a real batch is always contiguous; anything interleaved / crossed / out-of-type / count-off /
+  // hashless / duplicate-id is malformed and makes the batch inert.
+  // Collect the exact INDICES of decision members inside a valid bracket — not just the batch id — so a
+  // stray event that merely reuses a valid id (an out-of-bracket member, a duplicate begin/commit, a
+  // `resolve` carrying the id) is still inert: only these precise member events project.
+  const validMemberIdx = new Set();
+  {
+    // total count of events carrying each id — a valid bracket must account for EVERY one of them, so a
+    // duplicate commit, a stray member, or a second begin (extra tagged events) tombstones the batch.
+    const tagCount = new Map();
+    for (const ev of events) if (ev.batch_id != null) tagCount.set(ev.batch_id, (tagCount.get(ev.batch_id) || 0) + 1);
+    const seenId = new Set();
+    let i = 0;
+    while (i < events.length) {
+      const ev = events[i];
+      if (ev.type !== "batch-begin") { i++; continue; }
+      const id = ev.batch_id, n = ev.n;
+      let ok = !seenId.has(id) && Number.isInteger(n) && n >= 0;
+      seenId.add(id);
+      let j = i + 1; const members = [];
+      for (let c = 0; ok && c < n; c++, j++) {
+        const m = events[j];
+        if (!m || m.batch_id !== id || (m.type !== "approve" && m.type !== "reject")) { ok = false; break; }
+        if (m.type === "approve" && !(typeof m.hash === "string" && m.hash.length > 0)) { ok = false; break; }
+        members.push(j);
+      }
+      // exactly begin(1) + n members + commit(1) tagged events for this id — no more, no less
+      if (ok && events[j] && events[j].type === "batch-commit" && events[j].batch_id === id && tagCount.get(id) === n + 2) { for (const mi of members) validMemberIdx.add(mi); i = j + 1; continue; }
+      i++; // malformed begin — its members are not recorded, so they stay inert
+    }
+  }
+  for (let idx = 0; idx < events.length; idx++) {
+    const ev = events[idx];
+    if (ev.batch_id != null && !validMemberIdx.has(idx)) continue; // a batch-carrying event not an accepted member
     if (ev.type === "approve") {
       const by = authorityClass(ev.by);
       if (policy && !isAuthorized(policy, "approve", by)) { unauthorizedApprovals.set(ev.id, by); continue; } // recorded, NOT effective

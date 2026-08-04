@@ -3,7 +3,7 @@
 // state.json` the processed-session watermark. Both are mechanical-derived (in the fsck fixpoint).
 // Artifact paths are JAILED inside a root: absolute paths, `..` escapes, and symlinks that leave the
 // tree are rejected - the same zero-trust boundary the compile skill described in prose.
-import { existsSync, readFileSync, writeFileSync, renameSync, realpathSync, lstatSync, openSync, closeSync, fstatSync, readSync, constants } from "fs";
+import { existsSync, readFileSync, writeFileSync, renameSync, realpathSync, lstatSync, openSync, closeSync, fstatSync, readSync, readdirSync, constants } from "fs";
 import { join, resolve, sep, isAbsolute } from "path";
 import { createHash } from "crypto";
 import { canonicalJSON } from "../services/determinism.mjs";
@@ -145,4 +145,35 @@ export function markCompiled(workspaceDir, ids) {
 export function uncompiled(workspaceDir, allSessionIds) {
   const set = readCompiled(workspaceDir);
   return [...allSessionIds].map(String).filter((id) => !set.has(id));
+}
+
+// The session ids that actually exist under `<workspace>/logbook/`. A session id is a minute's
+// `session:` frontmatter value (what the capture hook writes) — the authoritative identity the compile
+// watermark tracks. A hand-authored minute with no `session:` is not a compilable session and is
+// excluded; this is also the allow-list `mark-compiled` validates against, so a non-session id (e.g. a
+// stray `"canon"`) can never enter `_compile-state.json`.
+export function logbookSessionIds(workspaceDir) {
+  const ids = new Set();
+  const sessionOf = (file) => {
+    let text; try { text = readFileSync(file, "utf8"); } catch { return null; }
+    text = text.replace(/\r\n/g, "\n"); // CRLF-aware, like the canonical document parser
+    const fm = /^---\n([\s\S]*?)\n---/.exec(text);
+    if (!fm) return null;
+    const m = /^session:[ \t]*(.+)$/m.exec(fm[1]);
+    return m && m[1].trim() ? m[1].trim() : null;
+  };
+  const walk = (dir) => {
+    let entries; try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (e.name.startsWith(".") || e.isSymbolicLink()) continue;
+      const p = join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      // only a SAFE session id (the sanitized `safeId` format the capture hook writes) is accepted — a
+      // hand-authored/malicious `session:` with control chars or exotic bytes is excluded, so `ledger
+      // uncompiled` can never print (nor `mark-compiled` accept) a terminal-injection string.
+      else if (e.isFile() && e.name.endsWith(".md")) { const s = sessionOf(p); if (s && /^[A-Za-z0-9_-]{1,128}$/.test(s)) ids.add(s); }
+    }
+  };
+  walk(join(workspaceDir, "logbook"));
+  return [...ids].sort();
 }
