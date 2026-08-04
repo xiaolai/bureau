@@ -254,6 +254,63 @@ test("serve: an approved dossier EDITED after review re-enters the queue as need
   assert.equal(back.status, "needs-review", "surfaced as needs-review");
 });
 
+test("serve: approving a page that needs resolve/confirm is refused by the chamber (ADR-0005 guard)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "bureau-serve-guard-"));
+  try {
+    mkdirSync(join(dir, "canon"), { recursive: true });
+    writeFileSync(join(dir, "canon", "bureau.json"), JSON.stringify({ workspace: "canon", board: "gazette" }));
+    writeFileSync(join(dir, "canon", "p.md"), "---\nid: P\ntitle: Pea\nstatus: proposed\ncontradicts: \"[[Que]]\"\n---\n# Pea\nclaim ^p\n");
+    writeFileSync(join(dir, "canon", "q.md"), "---\nid: Q\ntitle: Que\nstatus: proposed\n---\n# Que\nclaim ^q\n");
+    const s = await start({ cwd: dir, port: 0 });
+    try {
+      const r = await fetch("http://" + s.host + ":" + s.port + "/review/decision", {
+        method: "POST", headers: { "content-type": "application/json", "x-bureau-review": s.reviewToken },
+        body: JSON.stringify({ path: "p.md", decision: "approve" }),
+      });
+      assert.equal(r.status, 409, "approving a contested page is refused (approve would not clear it)");
+      assert.match((await r.json()).err, /resolve/, "the refusal names the real action");
+    } finally { await new Promise((res) => s.server.close(res)); }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("serve: a canonical-but-dependency-dirty page stays in the chamber queue as confirm-dependencies (ADR-0005)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "bureau-serve-cd-"));
+  try {
+    mkdirSync(join(dir, "canon"), { recursive: true });
+    writeFileSync(join(dir, "canon", "bureau.json"), JSON.stringify({ workspace: "canon", board: "gazette" }));
+    writeFileSync(join(dir, "canon", "u.md"), "---\nid: U\ntitle: Upstream\nstatus: proposed\n---\n# Upstream\nthe def ^u\n");
+    writeFileSync(join(dir, "canon", "d.md"), "---\nid: D\ntitle: Downstream\nstatus: proposed\nrests_on:\n  - { page: \"[[Upstream]]\", span: \"^u\", because: \"x\" }\n---\n# Downstream\nclaim ^d\n");
+    const s = await start({ cwd: dir, port: 0 });
+    const base = "http://" + s.host + ":" + s.port;
+    try {
+      const ap = await fetch(base + "/review/decision", { method: "POST", headers: { "content-type": "application/json", "x-bureau-review": s.reviewToken }, body: JSON.stringify({ path: "d.md", decision: "approve" }) });
+      assert.equal(ap.status, 200, "D (proposed) is approvable");
+      // edit the upstream span → D is canonical but its dependency drifted
+      writeFileSync(join(dir, "canon", "u.md"), "---\nid: U\ntitle: Upstream\nstatus: proposed\n---\n# Upstream\nthe def CHANGED ^u\n");
+      const d = (await (await fetch(base + "/review")).json()).pending.find((x) => x.path === "d.md");
+      assert.ok(d, "the canonical-but-dirty page is IN the chamber queue (not dropped as before)");
+      assert.equal(d.kind, "confirm-dependencies", "tagged with the confirm action, not approve");
+    } finally { await new Promise((res) => s.server.close(res)); }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("serve: /review is ordered by the review-queue model and tags each dossier with its kind (ADR-0005)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "bureau-serve-rq-"));
+  try {
+    mkdirSync(join(dir, "canon"), { recursive: true });
+    writeFileSync(join(dir, "canon", "bureau.json"), JSON.stringify({ workspace: "canon", board: "gazette" }));
+    writeFileSync(join(dir, "canon", "u.md"), "---\nid: U\ntitle: Upstream\nstatus: proposed\n---\n# Upstream\ndef ^u\n");
+    writeFileSync(join(dir, "canon", "d.md"), "---\nid: D\ntitle: Downstream\nstatus: proposed\nrests_on:\n  - { page: \"[[Upstream]]\", span: \"^u\", because: \"x\" }\n---\n# Downstream\nclaim ^d\n");
+    const s = await start({ cwd: dir, port: 0 });
+    try {
+      const j = await (await fetch("http://" + s.host + ":" + s.port + "/review")).json();
+      const paths = j.pending.map((d) => d.path);
+      assert.ok(paths.indexOf("u.md") >= 0 && paths.indexOf("u.md") < paths.indexOf("d.md"), "upstream is listed before its dependent (engine order)");
+      assert.ok(j.pending.every((d) => d.kind === "approve"), "each dossier carries its review work-item kind");
+    } finally { await new Promise((r) => s.server.close(r)); }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 // ── port policy: randomized 5-digit default, retry-on-collision, user-pinnable ─
 // A free ephemeral port number: bind :0, read it, release it. Used as a "known-free" target.
 async function freePort() {

@@ -46,9 +46,12 @@ not hand-edit cabinet pages. Memory is gated: **capture** (it lands in the low-a
 `canonical`). The logbook is append-only — never rewrite a past entry.
 
 **You (an AI session) MUST NOT invoke the human-authority decision commands.** That means never
-running `gazette approve`, `gazette confirm`, or `gazette resolve` (nor `bureau:review`'s
-promote/confirm/resolve steps) on your own initiative, and never passing `--by human`, a person's
-name, or omitting `--by` so the event is recorded as human. The authority on a decision event is a
+running `gazette approve` (including its batch forms `approve --from <manifest>` and `approve --all`),
+`gazette confirm`, or `gazette resolve` (nor `bureau:review`'s promote/confirm/resolve steps) on your
+own initiative, and never passing `--by human`, a person's name, or omitting `--by` so the event is
+recorded as human. `approve --all` (bulk approval, ADR-0005) is a **deliberate weakening** of this gate
+— all the more reason it is the human's to run, never yours; surface `gazette review` and let them
+decide. The authority on a decision event is a
 **claim the writer asserts, not an authenticated identity** — the log's hash chain detects a naively edited past entry, but it is unsigned (a writer
 with access can recompute the chain), so nothing stops a caller from writing `by: "human"`. The whole gate rests on you not doing that. Surface what
 is ready for decision and let the human run it; if you are driving an automated pipeline, record it

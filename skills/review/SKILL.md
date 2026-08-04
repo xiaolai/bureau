@@ -36,9 +36,14 @@ never writes `canonical` itself — that tier exists only on the far side of thi
    **path-jailed** inside the repo (absolute paths, `..` escapes, and symlinks pointing outside are
    rejected/reported, never read). Any page reporting `DRIFTED` (or an unreadable artifact) is
    demoted to `stale` and added to the queue. If the page has no recorded fingerprints, skip it.
-3. **Build the queue.** Collect every dossier at tier `proposed`, `verified`, or `stale`
-   (i.e. not yet `canonical`, or fallen out of it). If the queue is empty, report "nothing to
-   review — the canon is approved and current" and stop.
+3. **Build the queue — use the engine's typed order.** Run
+   `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" review --dir <workspace>` (ADR-0005): it returns
+   the review work items in DEPENDENCY order (upstream-first), each typed by the action that clears it —
+   `approve` (a new claim), `reapprove` (approved then edited), `confirm-dependencies` (canonical but its
+   upstream span changed → `confirm`, not approve), `resolve-conflict` (a contested component — decide
+   which claim stands, do NOT approve both sides), `repair-edge` (a broken `rests_on`). Review upstream
+   pages first. If the queue is empty, report "nothing to review — the canon is approved and current"
+   and stop.
 4. **Present a batch digest.** Review is **page-level** — a page is one claim (compile keeps it
    so), and its `status:` is the page's tier. For each queued page show, in one compact block:
    - the page and its claim;
@@ -56,6 +61,14 @@ never writes `canonical` itself — that tier exists only on the far side of thi
    event**, not the frontmatter — so do NOT author `status: canonical` yourself (`gazette fsck` flags
    an authored `canonical` no approval backs, and ADR-0004 makes effective trust log-only). `reviewed:`
    is likewise projected from the approve event, not stamped by you.
+   - **A reviewed backlog, applied at once (ADR-0005).** For many pages, the human can author a JSON
+     manifest *while reading* and apply it in one command — still per-page judgment, and a reviewable
+     artifact. Seed it with `gazette review --json` (each approvable item carries its current `digest`);
+     keep the pages you vetted, move the rest to `reject` with a `because`, then `approve --from
+     decisions.json --by human` (each approval pins the reviewed page digest; a page that drifted since
+     is refused, and the batch commits atomically). `approve --all --by human`
+     bulk-approves the whole *approvable* queue after a warning — a **deliberate weakening** of the
+     human gate (the log marks it as a bulk `batch_id`); it is the human's call to run, **never yours**.
    - **reject** → hand the human `… reject "<title>" --dir <workspace> --by human [--reason "…"]` (an
      unauthorized reject is inert, so naming the human authority is what makes it stick). Once they
      confirm, remove the claim — delete the page only if it holds no other claim, else strike just this

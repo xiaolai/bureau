@@ -31,6 +31,7 @@ import { boardDirName, containedBoardDir } from "../press/src/core/sources.mjs";
 import { appendEvent, logPath } from "../press/src/engine/log.mjs";
 import { reviewDigest } from "../press/src/engine/review-digest.mjs";
 import { effectiveReview } from "../press/src/engine/effective.mjs";
+import { reviewQueue } from "../press/src/engine/review-queue.mjs";
 import { parseMarkdownDoc } from "../press/src/core/parse.mjs";
 
 const LOG_DRAWER = "logbook";
@@ -233,10 +234,19 @@ function leadingFm(s) {
 // approval (edited past its review) or an unbacked `canonical` RE-ENTERS the queue as `needs-review`.
 // Fail-open to a frontmatter-only listing if the log/corpus can't be projected — this read-only
 // listing must never crash (and `write:false` inside means it never touches the gate cache).
+const KIND_STATUS = { approve: null, reapprove: "needs-review", "confirm-dependencies": "needs-review", "repair-edge": "needs-review", "resolve-conflict": "contested" };
 function cabinetDossiers(wsDir) {
   const out = [];
+  // The shared review-queue model is AUTHORITATIVE for what needs review (ADR-0005): a page is in the
+  // chamber queue iff it has a work item — so a canonical-but-dependency-dirty page (`confirm`) or a
+  // `trust:`-only page with no legacy `status:` is included, exactly as `gazette review`, each carrying
+  // its `kind` in dependency order. Fall back to a frontmatter-only listing only if the queue can't be
+  // projected (never crash the read-only listing).
+  const rqKind = new Map(), rqPos = new Map();
+  let rqOk = false;
+  try { reviewQueue({ docsDir: wsDir }).items.forEach((it, i) => it.uids.forEach((u) => { if (!rqKind.has(u)) { rqKind.set(u, it.kind); rqPos.set(u, i); } })); rqOk = true; } catch { /* fall back below */ }
   let canonical = new Set(), needsReview = new Set();
-  try { const eff = effectiveReview({ docsDir: wsDir }); canonical = eff.canonical; needsReview = eff.needsReview; } catch { /* frontmatter-only */ }
+  if (!rqOk) try { const eff = effectiveReview({ docsDir: wsDir }); canonical = eff.canonical; needsReview = eff.needsReview; } catch { /* frontmatter-only */ }
   // top-level non-canon dirs: history, lint findings, the crew source, and — in the CONTAINED
   // layout ONLY — the workspace's own rendered board (never review the render as a dossier). A
   // default-layout board renders OUTSIDE the workspace, so it never appears in this walk.
@@ -254,15 +264,28 @@ function cabinetDossiers(wsDir) {
         // the ENGINE uid (the same parser fsck and the decision endpoint use), so the projection
         // lookup keys on the identity the log does — not `leadingFm`'s permissive read.
         const uid = safe(() => { const m = parseMarkdownDoc(text).meta; return m && m.id != null && String(m.id).trim() ? String(m.id).trim() : null; }, null);
-        if (uid && canonical.has(uid)) continue;               // effectively canonical → not pending
-        const reReview = uid != null && needsReview.has(uid);  // stale / unbacked → back for a decision
-        if (reReview || (fm && REVIEWABLE.has(fm.status)))
-          out.push({ path: childRel, title: (fm && fm.title) || e.name, status: reReview ? "needs-review" : fm.status });
+        if (rqOk) {
+          if (uid != null && rqKind.has(uid)) {                 // reviewQueue membership is authoritative
+            const kind = rqKind.get(uid);
+            out.push({ path: childRel, title: (fm && fm.title) || e.name, status: KIND_STATUS[kind] || (fm && fm.status) || "proposed", kind, pos: rqPos.get(uid) });
+          } else if (uid == null && fm && REVIEWABLE.has(fm.status)) {
+            // no authored id → not keyable by the queue; surface it anyway so the decision endpoint
+            // returns the "add a stable id" hint instead of a generic 404.
+            out.push({ path: childRel, title: (fm && fm.title) || e.name, status: fm.status, kind: null, pos: Infinity });
+          } // else: effectively canonical / current / non-reviewable → not pending
+        } else {                                                // projection failed → frontmatter fallback
+          if (uid && canonical.has(uid)) continue;
+          const reReview = uid != null && needsReview.has(uid);
+          if (reReview || (fm && REVIEWABLE.has(fm.status)))
+            out.push({ path: childRel, title: (fm && fm.title) || e.name, status: reReview ? "needs-review" : fm.status, kind: null, pos: Infinity });
+        }
       }
     }
   };
   walk(wsDir, "");
-  out.sort((a, b) => (a.path < b.path ? -1 : 1));
+  // engine dependency order first (a page with a review work item), then any path-only remainder
+  out.sort((a, b) => (a.pos - b.pos) || (a.path < b.path ? -1 : 1));
+  for (const d of out) delete d.pos;
   return out;
 }
 
@@ -309,6 +332,20 @@ function applyDecision(ctx, body) {
   const meta = safe(() => parseMarkdownDoc(text).meta, null) || {};
   const uid = meta.id != null && String(meta.id).trim() ? String(meta.id).trim() : null;
   if (!uid) return { code: 409, err: "this dossier has no authored `id:` — a decision needs a stable id so it survives a rename (add `id:` and re-scan)" };
+  // Guard (ADR-0005): approving a page that needs resolve/confirm/repair does NOT clear it — a contested
+  // page stays contested, a dirty dependency stays dirty. Refuse the approve and name the real action,
+  // rather than logging a spurious approve that leaves the item stuck in the queue. Best-effort: if the
+  // queue can't be projected, fall through to the prior behaviour. (Reject stays allowed for any kind.)
+  if (decision === "approve") {
+    let kind = null, projFailed = false;
+    try { for (const it of reviewQueue({ docsDir: ctx.wsDir }).items) if (it.uids.includes(uid)) { kind = it.kind; break; } }
+    catch { projFailed = true; }
+    // FAIL CLOSED: if the projection can't run, refuse rather than let a corrupted state slip an approve
+    // past the guard (a hidden resolve-conflict could otherwise be canonized).
+    if (projFailed) return { code: 500, err: "could not verify what this page needs (review-queue projection failed) — fix the log/corpus and retry" };
+    if (kind === "resolve-conflict" || kind === "confirm-dependencies" || kind === "repair-edge")
+      return { code: 409, err: "this page needs `" + kind + "`, not approve — approving would not clear it (use `gazette " + (kind === "resolve-conflict" ? "resolve" : kind === "confirm-dependencies" ? "confirm" : "edit the page") + "`)" };
+  }
   const title = meta.title != null && String(meta.title) !== "" ? String(meta.title) : match.title;
   const date = new Date().toISOString().slice(0, 10);
   // derived cache only — authored `status:` is untouched. `reviewed:` is the review DATE (informational).
@@ -412,7 +449,7 @@ const CHAMBER_SCRIPT = `
         var row = document.createElement("div"); row.className = "prow";
         var meta = document.createElement("div");
         var t = document.createElement("strong"); t.textContent = d.title;             // textContent = no injection
-        var s = document.createElement("span"); s.className = "tier"; s.textContent = " " + d.status + " · " + d.path;
+        var s = document.createElement("span"); s.className = "tier"; s.textContent = " " + (d.kind ? "[" + d.kind + "] " : "") + d.status + " · " + d.path;
         meta.appendChild(t); meta.appendChild(s);
         var ok = document.createElement("button"); ok.textContent = "Approve"; ok.className = "mini";
         var no = document.createElement("button"); no.textContent = "Reject"; no.className = "mini ghost";
