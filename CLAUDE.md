@@ -1,7 +1,7 @@
 # bureau — plugin development
 
 Engine for turning AI sessions into a maintained, human-reviewed knowledge base. This repo
-**dogfoods itself**: its own durable knowledge lives in `canon/`, governed by the trust gate that
+**dogfoods itself**: its own durable knowledge lives in `bureau/`, governed by the trust gate that
 the managed block below imports.
 
 <!-- bureau:start -->
@@ -15,13 +15,13 @@ the managed block below imports.
 
 ## Build & run
 
-- Render the gazette: `node press/bin/gazette.mjs build --dir canon --out gazette`
-- Check canon health: `node press/bin/gazette.mjs health --dir canon`
+- Render the gazette: `node press/bin/gazette.mjs build --dir bureau --out bureau/gazette`
+- Check canon health: `node press/bin/gazette.mjs health --dir bureau`
 - Sync / verify the crew: `node scripts/crew.mjs sync` then `node scripts/crew.mjs check`
 - Recursion engine (ADR-0001, `docs/adr-0001-engine-data-model.md`):
-  `node press/bin/gazette.mjs scan --dir canon` (record span-revision events),
-  `… gate --dir canon` (dirty index), `… fsck --dir canon` (byte-fixpoint, CI gate),
-  `… report --dir canon` (auditable metrics). Rebuild the bundle after editing `press/src/engine/`:
+  `node press/bin/gazette.mjs scan --dir bureau` (record span-revision events),
+  `… gate --dir bureau` (dirty index), `… fsck --dir bureau` (byte-fixpoint, CI gate),
+  `… report --dir bureau` (auditable metrics). Rebuild the bundle after editing `press/src/engine/`:
   `node scripts/build-gazette.mjs`.
 
 ## Test

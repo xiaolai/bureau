@@ -1,4 +1,4 @@
-// Dogfood fixture — bureau maintains its OWN knowledge base at canon/. This builds that real
+// Dogfood fixture — bureau maintains its OWN knowledge base at bureau/. This builds that real
 // workspace with the shipped bundle and asserts it renders healthy. So a future change that
 // breaks the canon (a dangling provenance link, an orphan page, an unresolved contradiction)
 // fails CI: bureau tests itself on real data, not just synthetic examples.
@@ -12,14 +12,14 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const GAZETTE = join(ROOT, "press", "bin", "gazette.mjs");
-const CANON = join(ROOT, "canon");
+const CANON = join(ROOT, "bureau");
 const T = 120000; // per-subprocess timeout so a hung build fails the test, not CI.
 
 test("bureau's own canon builds healthy (self-dogfood)", (t) => {
-  // A missing canon/ is a BROKEN gate, not a pass — only an explicit opt-out may skip it.
+  // A missing bureau/ is a BROKEN gate, not a pass — only an explicit opt-out may skip it.
   if (!existsSync(CANON)) {
-    if (process.env.BUREAU_ALLOW_NO_CANON) return t.skip("no canon/ workspace (opt-out set)");
-    assert.fail("canon/ workspace is missing — the self-dogfood fixture was deleted (set BUREAU_ALLOW_NO_CANON=1 to skip intentionally)");
+    if (process.env.BUREAU_ALLOW_NO_CANON) return t.skip("no bureau/ workspace (opt-out set)");
+    assert.fail("bureau/ workspace is missing — the self-dogfood fixture was deleted (set BUREAU_ALLOW_NO_CANON=1 to skip intentionally)");
   }
   const out = mkdtempSync(join(tmpdir(), "canon-board-"));
   t.after(() => rmSync(out, { recursive: true, force: true }));

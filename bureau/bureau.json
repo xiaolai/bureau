@@ -2,7 +2,7 @@
   "profiles": [
     "software"
   ],
-  "workspace": "canon",
+  "workspace": "bureau",
   "board": "gazette",
   "autoCompile": false
 }

@@ -7,7 +7,7 @@ description: The trust-gate rules binding every AI session in this repo — cons
 **Consult the canon before you derive; honor each dossier's trust tier on every read; route every
 durable write through the gate — never set `canonical` by hand.**
 
-This repository keeps its durable knowledge in a **bureau** workspace (`canon/`): topic
+This repository keeps its durable knowledge in a **bureau** workspace (`bureau/`): topic
 **cabinet** pages (the reviewed canon) plus an append-only **logbook**. `CLAUDE.md` imports this
 file, so the gate below binds **every** session here — honor it whenever you read or write
 knowledge in this repo.
@@ -102,19 +102,19 @@ dependency gate (`docs/adr-0001-engine-data-model.md`):
   `status:` still works — the loader reads it as `trust` when `trust:` is absent.
 - **The decision log is the source of truth.** `canonical` is a **projection** of a logged
   `approve` event, not the frontmatter alone — `gazette fsck` flags any authored `canonical` no
-  approval backs. Never hand-edit `canon/_log.jsonl`; it is append-only, and its hash chain detects naive edits (it is
+  approval backs. Never hand-edit `bureau/_log.jsonl`; it is append-only, and its hash chain detects naive edits (it is
 unsigned, so not proof against a determined rewrite).
 - **Who may approve is policy.** `canonical` is backed by an `approve` event whose *authority* the
   workspace accepts (`_config.json` → `trust_policy`; the default is human-only). Under a policy
   that accepts a machine authority, `canonical` no longer implies a human vouched — so cite the
   backing authority beside the tier, and treat an `unauthorized-canonical` finding as **not** settled.
 - **Mechanical, code-owned** (never hand-write) — run the bundled press,
-  `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" <verb> --dir canon`:
+  `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" <verb> --dir bureau`:
   `scan` (record span-revision events after edits), `gate` (the eager dirty index — a page's real
   freshness), `fsck` (rebuild derived state to a byte-fixpoint; a CI gate), `report` (auditable
   metrics), `approve`/`confirm`/`resolve "<title>"` (the human side of the log), and
   `ledger …` (the `_verify.json` / `_compile-state.json` trust ledgers).
-- **Live board.** `gazette serve --dir canon` renders the gate's freshness onto the board and
+- **Live board.** `gazette serve --dir bureau` renders the gate's freshness onto the board and
   hot-reloads on every save — a page that sits on a changed upstream span shows a `needs-review`
   badge (and a "Drift" section on the Health page) *before* you `scan`, reflecting the working tree.
 - **Versioned board (git-backed).** A git commit bundles `{pages + _log.jsonl + ledgers}`, so it is

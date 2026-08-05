@@ -29,7 +29,7 @@ and its trust tier, so a human can route the fix through the gate.
 
 ## First, ground yourself
 
-The canon lives in `canon/`: topic **cabinet** pages (the reviewed canon) plus an
+The canon lives in `bureau/`: topic **cabinet** pages (the reviewed canon) plus an
 append-only **logbook**. Every dossier carries a `status:` (`canonical` > `verified` >
 `proposed` / `stale` / `contested`). Read `BUREAU.md` for the trust gate. You honor those tiers —
 you never treat a non-`canonical` claim as settled, and you flag any page that overreaches its tier.

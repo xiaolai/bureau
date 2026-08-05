@@ -48,8 +48,8 @@ step("L1 · self-canon fixture (dogfood)", () => run("node", ["--test", "test/ca
 // rebuild to a byte-fixpoint (fsck exits non-zero on drift/tamper) and the wiring kill rate + cutoff
 // must hold (report exits non-zero on a wiring survivor or fixpoint drift). Real data, not fixtures.
 step("L1 · recursion engine on self-canon (fsck + report)", () => {
-  run("node", ["press/bin/gazette.mjs", "fsck", "--dir", "canon", "--check"]);
-  run("node", ["press/bin/gazette.mjs", "report", "--dir", "canon"]);
+  run("node", ["press/bin/gazette.mjs", "fsck", "--dir", "bureau", "--check"]);
+  run("node", ["press/bin/gazette.mjs", "report", "--dir", "bureau"]);
 });
 
 if (process.argv.includes("--e2e"))
