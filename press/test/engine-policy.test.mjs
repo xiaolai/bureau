@@ -39,6 +39,31 @@ test("authorityClass: machine names are reserved; a person / absent / malformed 
   assert.equal(authorityClass(null), "human");
 });
 
+// ---- the `codex` authority class (the Codex-review lane, ADR-0007) ----
+test("authorityClass: `codex` is a reserved MACHINE class — NOT silently classified human", () => {
+  // THE footgun this class fixes: before it, authorityClass("codex") === "human", so `approve --by
+  // codex` was accepted as a HUMAN approval under the default policy. It must classify as its own class.
+  assert.equal(authorityClass("codex"), "codex");
+  for (const v of ["codex", "Codex", "CODEX", " codex ", "\tcodex\n"])
+    assert.equal(authorityClass(v), "codex", JSON.stringify(v)); // normalizes → fails CLOSED, never human
+});
+
+test("isAuthorized: `codex` fails CLOSED under the default, and counts only where a policy opts it in", () => {
+  // default (human-only) MUST reject codex — otherwise a delegate write bypasses the whole gate.
+  assert.equal(isAuthorized(DEFAULT_POLICY, "approve", "codex"), false);
+  // a workspace that opts codex in accepts it — and the human authority is untouched.
+  const p = validatePolicy({ approve: ["human", "codex"] });
+  assert.equal(isAuthorized(p, "approve", "codex"), true);
+  assert.equal(isAuthorized(p, "approve", "xiaolai"), true); // human still approves
+  assert.equal(isAuthorized(p, "confirm-edge", "codex"), false); // opting codex into approve does NOT widen confirm
+  assert.equal(acceptsMachine(p, "approve"), true);
+});
+
+test("validatePolicy: `codex` is a known authority; a typo is still a loud error", () => {
+  assert.deepEqual(validatePolicy({ approve: ["human", "codex"] }).approve, ["human", "codex"]);
+  assert.throws(() => validatePolicy({ approve: ["codexx"] }), /unknown authority/);
+});
+
 // ---- the loader / validator ----
 test("validatePolicy: default is human-only; a partial policy keeps the human default elsewhere", () => {
   assert.deepEqual(DEFAULT_POLICY.approve, ["human"]);
@@ -124,6 +149,22 @@ test("fsck: a human-approved canonical stays clean under the default (backward c
     appendEvent(logPath(w.dir), { type: "approve", id: "P", to_trust: "canonical", by: "xiaolai" });
     const r = fsck({ docsDir: w.dir });
     assert.ok(!r.findings.some((f) => f.kind.startsWith("unauthorized") || f.kind === "unbacked-canonical"));
+  } finally { w.cleanup(); }
+});
+
+test("fsck: a `codex`-approved canonical is unauthorized by default, clean + trustBy=codex once opted in", () => {
+  // end-to-end parity with the invariant path: the whole delegate lane rests on this gate behaving
+  // identically for the new class — refuse under human-only, honor it under an opt-in policy.
+  const w = ws({ "p.md": CANON });
+  try {
+    scan({ docsDir: w.dir });
+    appendEvent(logPath(w.dir), { type: "approve", id: "P", to_trust: "canonical", by: "codex" });
+    const bad = fsck({ docsDir: w.dir, write: false });
+    assert.ok(bad.findings.some((f) => f.kind === "unauthorized-canonical" && f.uid === "P" && f.by === "codex"));
+    assert.equal(bad.ok, false); // blocking under the human-only default
+    const ok = fsck({ docsDir: w.dir, write: false, policy: validatePolicy({ approve: ["human", "codex"] }) });
+    assert.ok(!ok.findings.some((f) => f.kind.startsWith("unauthorized") || f.kind === "unbacked-canonical"));
+    assert.equal(ok.derived.decided.find((x) => x.uid === "P").trustBy, "codex");
   } finally { w.cleanup(); }
 });
 

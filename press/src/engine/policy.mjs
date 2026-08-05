@@ -17,8 +17,14 @@ import { join } from "path";
 // The decisions the policy governs, and the authority classes it recognizes. Frozen: these are
 // validation constants, and a mutated constant would silently widen every gate in the process.
 export const DECISIONS = Object.freeze(["approve", "confirm-edge", "resolve"]);
-export const AUTHORITIES = Object.freeze(["human", "scan", "invariant", "llm"]);
-const MACHINE = new Set(["scan", "invariant", "llm"]); // reserved names; everything else classifies human
+// `codex` (ADR-0007): the external Codex reviewer reachable via cc-suite, invoked as the user's
+// representative over the review queue. It is a MACHINE class — a workspace opts it into `approve`
+// exactly like `invariant`, and `canonical · by codex` is pipeline-trust, NOT human confidence. Adding
+// it here ALSO closes a footgun: without it, `authorityClass("codex")` fell through to `human`, so a
+// stray `approve --by codex` was silently accepted as a HUMAN approval under the default policy. The
+// name denotes the integration, not a promise of authenticated identity (`by` is an unsigned claim).
+export const AUTHORITIES = Object.freeze(["human", "scan", "invariant", "llm", "codex"]);
+const MACHINE = new Set(["scan", "invariant", "llm", "codex"]); // reserved names; everything else classifies human
 
 // Deep-freeze a policy: `Object.freeze` alone leaves the authority ARRAYS mutable, so a stray
 // `DEFAULT_POLICY.approve.push("llm")` would open the trust gate process-wide with no change to any

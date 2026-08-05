@@ -23319,8 +23319,8 @@ function spanRevision(spans, uid, span) {
 import { existsSync as existsSync5, readFileSync as readFileSync7, openSync as openSync2, closeSync as closeSync2, fstatSync, constants } from "fs";
 import { join as join7 } from "path";
 var DECISIONS = Object.freeze(["approve", "confirm-edge", "resolve"]);
-var AUTHORITIES = Object.freeze(["human", "scan", "invariant", "llm"]);
-var MACHINE = /* @__PURE__ */ new Set(["scan", "invariant", "llm"]);
+var AUTHORITIES = Object.freeze(["human", "scan", "invariant", "llm", "codex"]);
+var MACHINE = /* @__PURE__ */ new Set(["scan", "invariant", "llm", "codex"]);
 function freezePolicy(p) {
   for (const k of Object.keys(p)) if (Array.isArray(p[k])) Object.freeze(p[k]);
   return Object.freeze(p);
