@@ -14,6 +14,7 @@ Turn AI sessions into a maintained, human-reviewed, *dependency-aware* knowledge
 | **[ADR-0004 — decision-commit surface](adr-0004-decision-commit-surface.md)** | Content-bound approvals + projection-only trust: `canonical` is a projection of a logged human approve whose `reviewDigest` still matches; an edit past review goes stale. |
 | **[ADR-0005 — review ergonomics](adr-0005-review-ergonomics.md)** | The typed review queue (`gazette review`, upstream-first, one action per page) + commit-gated batch approval (`approve --from` / `--all`). |
 | **[ADR-0006 — ADR-native layer](adr-0006-supersedes-and-superseded-projection.md)** | `supersedes` edges + the projection-only, content-bound `superseded` state (fail-closed cycles, decisions-only targets), the `bureau:adr` scaffold, and the decision-filtered board view. |
+| **[ADR-0007 — Codex-review lane](adr-0007-codex-review-lane.md)** | A `codex` machine-authority class (closing the `--by codex`-as-human footgun) + the `bureau:codex-review` orchestration: advisor mode (Codex advises, human commits) and opt-in delegate mode (Codex commits `--by codex`), content-bound and honest-courier. |
 
 ## The shape of it, in one picture
 

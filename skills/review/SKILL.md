@@ -135,3 +135,8 @@ This skill covers ONLY the human approval gate and staleness re-check. It does *
 sessions (`capture` / `bureau:file-session`), does **not** distil the logbook (`compile` /
 `bureau:compile`), and does **not** run the semantic sweep (`lint` / `bureau:lint`). It acts on
 the cabinets those produce and is invoked by the `bureau:review` command.
+
+To have **Codex** pre-screen the same queue as your representative — recommending approve/hold, then
+either handing you the `--by human` command or (only where the workspace opted the `codex` authority
+in) committing `--by codex` — reach for `bureau:codex-review` (`codex-review`) instead. It drives the
+identical `gazette review --json` / `approve --from` surface; this skill stays the human-only gate.

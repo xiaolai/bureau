@@ -107,6 +107,7 @@ and `gazette/` as repo-root siblings.
 | `bureau:compile` | distil minutes into dossiers (with provenance) |
 | `bureau:adr` | record an architecture decision as a proposed MADR **ADR** page — auto-numbered, optionally `supersedes` a prior one (activated only on approval) |
 | `bureau:review` | the human gate — promote vetted claims to `canonical`, confirm dependencies, resolve conflicts |
+| `bureau:codex-review` | let Codex (via cc-suite) pre-review the queue as your representative — advise (you commit `--by human`), or, where the workspace opted the `codex` authority in, commit `--by codex` |
 | `bureau:lint` | semantic consistency sweep across the cabinets |
 | `bureau:query` | answer from the canon — cited, tier- and freshness-aware, never stating an unverified/stale claim as fact |
 | `bureau:status` | uncompiled sessions · pages by tier · **needs-review / stale (the gate)** |
@@ -131,7 +132,8 @@ lost); `SessionStart`-after-compaction re-grounds the agent from the logbook.
 - **[Live & versioned board](docs/live-and-versioned-board.md)** — `serve`, `build --at`, `diff`, `snapshot`.
 - **[CLI reference](docs/cli-reference.md)** — every `gazette` verb + the artifact map.
 - **[ADR-0001](docs/adr-0001-engine-data-model.md)** — the frozen engine data model.
-- **[ADR-0006](docs/adr-0006-supersedes-and-superseded-projection.md)** — the ADR-native layer: `supersedes` edges + the projected `superseded` state. (ADR-0002–0005 are indexed in the [docs](docs/README.md).)
+- **[ADR-0006](docs/adr-0006-supersedes-and-superseded-projection.md)** — the ADR-native layer: `supersedes` edges + the projected `superseded` state.
+- **[ADR-0007](docs/adr-0007-codex-review-lane.md)** — the Codex-review lane: a `codex` machine-authority class + advisor/delegate modes for having Codex review the queue as your representative. (ADR-0002–0005 are indexed in the [docs](docs/README.md).)
 
 ## Requirements
 

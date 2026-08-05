@@ -84,6 +84,7 @@ route it back through `bureau:review`.
 | Record an architecture decision (a MADR ADR page) | `bureau:adr` | `adr` |
 | Find contradictions / stale / unsupported claims | `bureau:lint` | `lint` |
 | Promote vetted claims to `canonical`; confirm dependencies; resolve conflicts (human gate) | `bureau:review` | `review` |
+| Have Codex (via cc-suite) pre-review the queue as your representative — advise, or (opt-in) commit `--by codex` | `bureau:codex-review` | `codex-review` |
 | Run the whole lifecycle in one pass (compile → scan → lint → review → inspect) | `bureau:cycle` | orchestrates `compile`/`lint`/`review` |
 | See uncompiled sessions + pages by tier **and freshness (needs-review/stale)** | `bureau:status` | — |
 | See what rests on a claim before changing it (blast radius) | `bureau:impact` | — |

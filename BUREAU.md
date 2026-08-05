@@ -61,6 +61,13 @@ with access can recompute the chain), so nothing stops a caller from writing `by
 is ready for decision and let the human run it; if you are driving an automated pipeline, record it
 under its real machine authority (`--by invariant`) and let `trust_policy` decide whether it counts.
 
+**Codex may act as your representative — honestly (ADR-0007).** `bureau:codex-review` runs Codex (via
+cc-suite) over the review queue. By default it only **advises**: Codex recommends approve/hold and the
+**human** commits `--by human`. Only where the workspace opted the `codex` authority into
+`trust_policy.approve` does `--delegate` let it commit `--by codex` — an honest machine authority, never
+`--by human`, and never for an item that retires another decision or resolves a conflict. `canonical ·
+by codex` is pipeline-trust, **not** human confidence: cite the backing authority beside the tier.
+
 ## Cite the minute that introduced the claim
 
 Every cabinet claim links back to the minute that introduced it. **Provenance is a `[[wiki-link]]`
