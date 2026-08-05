@@ -54,8 +54,9 @@ logged human approval, never the frontmatter alone:
 | `needs-review` | it sits on an upstream claim that changed |
 | `stale` | a dependency is broken (target/span gone) |
 
-(Plus `contested`/`resolved` for conflicts, and a `freeze` change-priority hint.) The tier + freshness
-travel with every recalled claim, so an unverified or stale claim can never masquerade as fact.
+(Plus `contested`/`resolved` for conflicts, a `freeze` change-priority hint, and `superseded` — an
+approved decision a later approved one replaced, kept as history, not current fact.) The tier +
+freshness travel with every recalled claim, so an unverified or stale claim can never masquerade as fact.
 
 ## One self-contained plugin
 
@@ -89,6 +90,11 @@ The workspace holds only **source + committed decisions**; every derived artifac
 gate cache, historical builds) lives *outside* it. The sidebar section order is configurable — list
 section ids in `_config.json`'s `groups[]`.
 
+**Contained layout (optional).** `bureau:init --workspace bureau` nests everything under one
+`bureau/` dir — the workspace content, `bureau/crew/`, and the board at `bureau/gazette/` (the one
+case the board renders *inside* the workspace). The default above keeps the workspace, `bureau/crew/`,
+and `gazette/` as repo-root siblings.
+
 ## Commands
 
 **The gated pipeline** (`bureau:*` — capture → compile → review → read):
@@ -99,6 +105,7 @@ section ids in `_config.json`'s `groups[]`.
 | `bureau:note` | take a live note into the running minute (run at decision points) |
 | `bureau:file-session` | file the rich minute for the current session |
 | `bureau:compile` | distil minutes into dossiers (with provenance) |
+| `bureau:adr` | record an architecture decision as a proposed MADR **ADR** page — auto-numbered, optionally `supersedes` a prior one (activated only on approval) |
 | `bureau:review` | the human gate — promote vetted claims to `canonical`, confirm dependencies, resolve conflicts |
 | `bureau:lint` | semantic consistency sweep across the cabinets |
 | `bureau:query` | answer from the canon — cited, tier- and freshness-aware, never stating an unverified/stale claim as fact |
@@ -124,6 +131,7 @@ lost); `SessionStart`-after-compaction re-grounds the agent from the logbook.
 - **[Live & versioned board](docs/live-and-versioned-board.md)** — `serve`, `build --at`, `diff`, `snapshot`.
 - **[CLI reference](docs/cli-reference.md)** — every `gazette` verb + the artifact map.
 - **[ADR-0001](docs/adr-0001-engine-data-model.md)** — the frozen engine data model.
+- **[ADR-0006](docs/adr-0006-supersedes-and-superseded-projection.md)** — the ADR-native layer: `supersedes` edges + the projected `superseded` state. (ADR-0002–0005 are indexed in the [docs](docs/README.md).)
 
 ## Requirements
 
