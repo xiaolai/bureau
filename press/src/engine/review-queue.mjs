@@ -107,7 +107,7 @@ export function reviewQueue({ docsDir, corpus, model, events, policy } = {}) {
       // ADR-0006: approving THIS page activates the supersession — carry the target title so every
       // surface (CLI, chamber, skill) can warn "approving this retires <target>". Falls back to the raw.
       if (!supersedes.has(src)) supersedes.set(src, new Set());
-      supersedes.get(src).add((tgt != null && byUid.get(tgt)) ? byUid.get(tgt).title : e.target);
+      supersedes.get(src).add(byUid.get(tgt)?.title || e.target); // `|| e.target`: fall back on a null/empty title too
     }
   }
   // a BROKEN rests_on (missing target OR missing span) is a repair-edge, not a confirm — `gazette confirm`

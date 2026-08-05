@@ -37,7 +37,9 @@ the answer so an unverified claim can never masquerade as fact.
    --materialize-pages`), and cross-check `gazette fsck`: a page it flags `stale-approval` or
    `unbacked-canonical` is **not** effectively canonical no matter what its `status:` says. A page
    carrying a derived **`superseded_by:`** marker is **superseded** — a later approved decision replaced
-   it (ADR-0006); treat it as settled history, not current fact, and cite its successor. For each
+   it (ADR-0006); treat it as settled history, not current fact, and cite its successor — UNLESS `gazette
+   fsck` flags it `stale-superseded-marker` (the marker no longer holds; re-run `fsck --materialize-pages`
+   and don't trust it). For each
    claim used, name the page, its effective tier (`canonical` / `verified` / `proposed` / `stale` /
    `contested` / `superseded`), its **freshness** if not `current`, and the `[[session …]]` provenance.
 6. **Never state a non-`canonical` OR non-`current` claim as fact.** Fact requires *both*: an effective

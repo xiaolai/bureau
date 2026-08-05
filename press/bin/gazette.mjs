@@ -24180,7 +24180,7 @@ function materializeEffectiveStatus(docsDir, entries, effCanon, supersededBy) {
     let next = e.raw;
     const a = setFrontmatterKey(next, "effective_status", effCanon.has(e.uid) ? "canonical" : null);
     if (a != null) next = a;
-    const b = setFrontmatterKey(next, "superseded_by", supersededBy.get(e.uid) || null);
+    const b = setFrontmatterKey(next, "superseded_by", supersededBy.get(e.uid) ?? null);
     if (b != null) next = b;
     if (next === e.raw) continue;
     const abs = join10(docsDir, e.file);
@@ -24224,7 +24224,7 @@ function buildDerived({ model, events, schemaVersion = SCHEMA_VERSION, policy = 
   };
 }
 var derivedDigest = (derived) => sha2563(canonicalJSON(derived, 0));
-var ADVISORY = /* @__PURE__ */ new Set(["pending-scan", "unbound-approval", "legacy-canonical", "broken-supersedes", "supersedes-ineligible-target"]);
+var ADVISORY = /* @__PURE__ */ new Set(["pending-scan", "unbound-approval", "legacy-canonical", "broken-supersedes", "supersedes-ineligible-target", "stale-superseded-marker"]);
 function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write = true, policy, materializePages = false } = {}) {
   const c = corpus || loadCorpus({ docsDir });
   const model = buildModel({ corpus: c });
@@ -24308,6 +24308,7 @@ function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write =
   for (const cyc of superseded.cycles) findings.push({ kind: "supersedes-cycle", uids: cyc });
   for (const b of superseded.broken) findings.push({ kind: "broken-supersedes", sourceUid: b.sourceUid, target: b.target });
   for (const ig of superseded.ineligible) findings.push({ kind: "supersedes-ineligible-target", sourceUid: ig.sourceUid, targetUid: ig.targetUid });
+  for (const n of Object.values(model.nodes)) if (n.attrs && n.attrs.superseded_by != null && !superseded.supersededBy.has(n.uid)) findings.push({ kind: "stale-superseded-marker", uid: n.uid, title: n.title });
   findings.sort((a, b) => canonicalJSON(a) < canonicalJSON(b) ? -1 : 1);
   const notEff = new Set(notEffBase);
   for (const uid of superseded.supersededBy.keys()) notEff.add(uid);
@@ -24315,7 +24316,7 @@ function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write =
   for (const d of d1.decided) if (d.trust === "canonical" && !notEff.has(d.uid)) effCanon.add(d.uid);
   let materialized = 0;
   const supersededTitles = /* @__PURE__ */ new Map();
-  for (const [uid, byUids] of superseded.supersededBy) supersededTitles.set(uid, byUids.map((u) => nodeByUid.get(u) ? nodeByUid.get(u).title : u).join(", "));
+  for (const [uid, byUids] of superseded.supersededBy) supersededTitles.set(uid, byUids.map((u) => nodeByUid.get(u)?.title || u).join(", "));
   if (materializePages && write) materialized = materializeEffectiveStatus(c.docsDir || docsDir, c.entries, effCanon, supersededTitles);
   const gateFile = gateCachePath(docsDir);
   const cacheDir = dirname2(gateFile);
@@ -25521,7 +25522,7 @@ function reviewQueue({ docsDir, corpus, model, events, policy } = {}) {
       contradicts.get(tgt).add(src);
     } else if (e.edgeType === "supersedes") {
       if (!supersedes.has(src)) supersedes.set(src, /* @__PURE__ */ new Set());
-      supersedes.get(src).add(tgt != null && byUid.get(tgt) ? byUid.get(tgt).title : e.target);
+      supersedes.get(src).add(byUid.get(tgt)?.title || e.target);
     }
   }
   for (const d of fresh.drift || []) if (d.reason && /broken/i.test(d.reason)) {

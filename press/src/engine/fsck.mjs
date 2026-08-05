@@ -88,7 +88,7 @@ function materializeEffectiveStatus(docsDir, entries, effCanon, supersededBy) {
     let next = e.raw;
     const a = setFrontmatterKey(next, "effective_status", effCanon.has(e.uid) ? "canonical" : null);
     if (a != null) next = a;
-    const b = setFrontmatterKey(next, "superseded_by", supersededBy.get(e.uid) || null);
+    const b = setFrontmatterKey(next, "superseded_by", supersededBy.get(e.uid) ?? null);
     if (b != null) next = b;
     if (next === e.raw) continue;                                // no change / no frontmatter
     const abs = join(docsDir, e.file);
@@ -158,7 +158,7 @@ export const derivedDigest = (derived) => sha256(canonicalJSON(derived, 0));
 // hard failure): `unbound-approval` (a REAL human approval predating content-binding — legitimate, just
 // not yet bound; re-approve or grandfather to bind it) and `legacy-canonical` (explicitly grandfathered
 // via the Phase-6 manifest, voided on any change). `pending-scan` stays advisory (normal mid-edit).
-const ADVISORY = new Set(["pending-scan", "unbound-approval", "legacy-canonical", "broken-supersedes", "supersedes-ineligible-target"]);
+const ADVISORY = new Set(["pending-scan", "unbound-approval", "legacy-canonical", "broken-supersedes", "supersedes-ineligible-target", "stale-superseded-marker"]);
 
 export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write = true, policy, materializePages = false } = {}) {
   const c = corpus || loadCorpus({ docsDir });
@@ -279,6 +279,12 @@ export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, 
   for (const cyc of superseded.cycles) findings.push({ kind: "supersedes-cycle", uids: cyc });                                  // blocking — a real contradiction
   for (const b of superseded.broken) findings.push({ kind: "broken-supersedes", sourceUid: b.sourceUid, target: b.target });    // advisory — dangling target
   for (const ig of superseded.ineligible) findings.push({ kind: "supersedes-ineligible-target", sourceUid: ig.sourceUid, targetUid: ig.targetUid }); // advisory — non-decision target
+  // a page carrying a `superseded_by:` marker that is NOT actually superseded — a STALE marker left after a
+  // supersession was reversed, or a spoofed hand-edit. Parity with effective_status (whose staleness is
+  // caught by unbacked-canonical): advisory, so `recall`'s fsck cross-check never trusts it. Re-materialize
+  // to strip it (`fsck --materialize-pages`). Reads the parsed `superseded_by` attr, so a plain-string
+  // marker is caught (the materialized form); the finding does NOT enter the byte-fixpointed digest.
+  for (const n of Object.values(model.nodes)) if (n.attrs && n.attrs.superseded_by != null && !superseded.supersededBy.has(n.uid)) findings.push({ kind: "stale-superseded-marker", uid: n.uid, title: n.title });
   findings.sort((a, b) => (canonicalJSON(a) < canonicalJSON(b) ? -1 : 1));
 
   // The EFFECTIVELY-canonical set: the derived tier projects `canonical`, and the gate does not flag
@@ -293,7 +299,7 @@ export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, 
   let materialized = 0;
   // resolve the superseding uids → a plain-string title list per superseded page, for the reader marker.
   const supersededTitles = new Map();
-  for (const [uid, byUids] of superseded.supersededBy) supersededTitles.set(uid, byUids.map((u) => (nodeByUid.get(u) ? nodeByUid.get(u).title : u)).join(", "));
+  for (const [uid, byUids] of superseded.supersededBy) supersededTitles.set(uid, byUids.map((u) => (nodeByUid.get(u)?.title || u)).join(", ")); // `|| u` is defensive: loadCorpus already forbids an empty title, so a superseding uid always resolves to a non-empty one
   if (materializePages && write) materialized = materializeEffectiveStatus(c.docsDir || docsDir, c.entries, effCanon, supersededTitles);
 
   // refresh the mechanical-derived cache (OUTSIDE the workspace); report drift vs the previous copy.

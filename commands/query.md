@@ -32,7 +32,8 @@ Follow the protocol in the **recall** skill (`skills/recall/SKILL.md`). In short
    machine-approved one are not the same strength. Flag any `canonical` the policy does not accept
    (an `unauthorized-canonical` fsck finding) as **not** settled. A page carrying a `superseded_by:`
    marker is **superseded** (ADR-0006) — settled history, not current fact; cite its successor rather
-   than presenting it as the answer.
+   than presenting it as the answer. (If `gazette fsck` flags it `stale-superseded-marker`, the marker
+   no longer holds — re-materialize and don't trust it.)
 5. If the canon does not answer the question, say so plainly — do not invent. Note the gap
    (a `bureau:lint` gap finding, or a session worth filing).
 6. Report the answer with its citations; offer to capture a notable new conclusion

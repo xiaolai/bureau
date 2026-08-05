@@ -205,6 +205,22 @@ test("G1: --materialize-pages writes a plain-string superseded_by marker; conten
   } finally { w.cleanup(); }
 });
 
+test("G1-hardening: a page carrying superseded_by that is NOT actually superseded → stale-superseded-marker (advisory)", () => {
+  // a page with a leftover/spurious superseded_by marker (nothing actually supersedes it) — parity with
+  // effective_status: recall's fsck cross-check must be able to distrust it. Advisory (does not block).
+  const w = ws({ "p.md": "---\nid: P\ntitle: ADR P\nstatus: proposed\nsuperseded_by: Ghost\n---\n# ADR P\nbody ^p\n" });
+  try {
+    scan({ docsDir: w.dir });
+    const r = fsck({ docsDir: w.dir });
+    assert.ok(r.findings.some((f) => f.kind === "stale-superseded-marker" && f.uid === "P"), "the spurious marker is flagged");
+    assert.equal(r.ok, true);
+  } finally { w.cleanup(); }
+});
+
+// (No empty-title test: loadCorpus rejects a titleless page outright, so the `|| u` fallback in
+// supersededTitles is unreachable belt-and-suspenders, not a reachable bug — verified, Codex's diff-only
+// MEDIUM was a false positive.)
+
 test("G1: --materialize-pages authoritatively REMOVES a spurious/hand-authored superseded_by (spoof-proof)", () => {
   const w = ws({ "k.md": "---\nid: K\ntitle: ADR K\nsuperseded_by: Somebody\n---\n# ADR K\nbody ^k\n" });
   try {

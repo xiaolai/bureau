@@ -94,6 +94,19 @@ returns `null` for a superseded uid — but only an **eligible** one; an ineligi
 work item. No new work-item kind is introduced: a supersession is activated by approving the superseding
 ADR through the existing `approve` item.
 
+**The NL reader surface.** The NL reader skills (`bureau:query`/`recall`) detect effective tier from the
+materialized `effective_status:` cache, not the in-process `report.superseded`. So `fsck --materialize-pages`
+also writes a derived **`superseded_by:`** marker (a **plain-string** title list — never a `[[wiki-link]]`,
+which would mint a phantom edge; and in `reviewDigest`'s `NON_SEMANTIC_KEYS`, so it never invalidates an
+approval). It is authoritatively rewritten/removed, so a stale or hand-spoofed value cannot survive a
+materialize. For **parity with `effective_status`** — whose staleness is caught by `unbacked-canonical` —
+a page carrying a `superseded_by:` marker that is not actually superseded raises an advisory
+**`stale-superseded-marker`**, so a reader that cross-checks `fsck` never trusts a stale marker. Reader
+caveat: like `effective_status`, the marker only appears where a workspace runs `--materialize-pages`
+(which `recall` invokes and the board does); without it, a superseded page is still excluded from *fact*,
+just not positively labelled. The review-queue also carries the `supersedes` target on the superseding
+ADR's `approve` item so every surface warns "approving this retires <target>".
+
 ## Decision G — the authoring surface stays inside the gate
 
 `gazette adr new` / `bureau:adr` scaffold a **`proposed`** MADR page (`kind: adr`, six sections:
