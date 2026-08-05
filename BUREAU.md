@@ -117,6 +117,12 @@ unsigned, so not proof against a determined rewrite).
   the snapshot unit: `gazette build --at <ref|snapshot>` renders any past board, `gazette diff <A>
   <B>` reports what changed from the decision-log slice, `gazette snapshot create <name>` pins a
   named `{commit, log-seq, digest}` (committed in `_snapshots.json`).
+- **Architecture decisions (ADR-0006, `docs/adr-0006-*.md`).** `bureau:adr` / `gazette adr new`
+  scaffolds a `proposed` MADR ADR page (`kind: adr`, auto-numbered) — authored only, never approved;
+  a human promotes it via `bureau:review`. A `supersedes: [[ADR-N]]` edge is a plain typed edge; its
+  target becomes **superseded** (dropped from the effective-`canonical` fact set, *not* flagged for
+  review) only once the *superseding* ADR is approved and content-current. `superseded` is projected
+  in `fsck` (never authored); an unreviewed or since-edited superseding ADR supersedes nothing.
 
 <!-- bureau:crew -->
 @bureau/crew/auditor/brief.md

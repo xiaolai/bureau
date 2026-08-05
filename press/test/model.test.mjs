@@ -70,3 +70,22 @@ test("model: nav section comes from the top-level folder (data-group overrides)"
   assert.equal(m.nodes["Lin"].group, "characters");      // folder "10-characters" → id "characters" (prefix stripped)
   assert.equal(m.nodes["City"].group, "character");       // data-group overrides the "places" folder
 });
+
+// ── WI-1 (ADR layer): supersedes edge surfaces at the model layer with a resolved uid ──
+test("buildModel: supersedes edge surfaces in model.edges with resolved sourceUid", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "wb-supersede-model-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const docsDir = join(root, "docs");
+  mkdirSync(docsDir, { recursive: true });
+  writeFileSync(join(docsDir, "_config.json"), JSON.stringify({ meta: { home: "" } }));
+  writeFileSync(join(docsDir, "m.md"), ["---", "id: M", "title: ADR 0004", "supersedes: [[ADR 0003]]", "---", "# ADR 0004", "body"].join("\n"));
+  writeFileSync(join(docsDir, "n.md"), ["---", "id: N", "title: ADR 0003", "---", "# ADR 0003", "body"].join("\n"));
+  const m = buildModel({ docsDir });
+  const e = m.edges.find((x) => x.edgeType === "supersedes");
+  assert.ok(e, "supersedes edge present in model.edges");
+  // source is the (title) node key; sourceUid is the opaque `id:` — the resolvable identity later WIs gate on
+  assert.deepEqual(
+    { source: e.source, sourceUid: e.sourceUid, target: e.target, edgeType: e.edgeType },
+    { source: "ADR 0004", sourceUid: "M", target: "ADR 0003", edgeType: "supersedes" },
+  );
+});

@@ -128,3 +128,11 @@ test("trust facet: a mixed corpus hides no rows", () => {
   assert.match(h, /data-wiki="Acc"/);
   assert.match(h, /data-wiki="Rej"/);
 });
+
+// ── WI-9 (ADR layer): a drifted ADR Confirmation artifact surfaces on the Health engine view ──
+test("engine view: a drifted ADR Confirmation artifact renders the ADR page as a wiki-link + DRIFTED", () => {
+  const arts = { byKey: new Map(), drift: [{ page: "ADR-0001 Foo", artifact: "confirm.txt", now: "beef" }], counts: { current: 0, drifted: 1, pages: 1 }, error: null };
+  const h = renderHealthHtml(ZERO_HEALTH, FRESH_CLEAN, arts, null);
+  assert.match(h, /data-wiki="ADR-0001 Foo"/, "the ADR page renders as a wiki-link");
+  assert.match(h, /DRIFTED/);
+});

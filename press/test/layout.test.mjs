@@ -60,3 +60,11 @@ test("layout: deterministic — same model twice gives identical coordinates", (
   const a = deriveLayout({ nodes, edges: [] }), b = deriveLayout({ nodes, edges: [] });
   assert.deepEqual(a.nodes, b.nodes);
 });
+
+// ── WI-8 (ADR layer): the layout preserves edgeType (+ tracked) so the decision view can filter/style ──
+test("layout: deriveLayout preserves edgeType and tracked on each edge", (t) => {
+  const m = model({ "u.html": { title: "U", group: "g" }, "d.html": { title: "D", group: "g", supersedes: "[[U]]" } }, t);
+  const e = deriveLayout(m).edges.find((x) => x.edgeType === "supersedes");
+  assert.ok(e, "the supersedes edgeType survives the layout projection");
+  assert.deepEqual({ source: e.source, target: e.target, edgeType: e.edgeType, tracked: e.tracked }, { source: "D", target: "U", edgeType: "supersedes", tracked: false });
+});

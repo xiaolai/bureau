@@ -10,13 +10,14 @@ import { deriveBacklinks } from "./derive/backlinks.mjs";
 import { deriveHealth, healthTotal } from "./derive/health.mjs";
 import { deriveTimeline } from "./derive/timeline.mjs";
 import { deriveLayout } from "./derive/layout.mjs";
-import { renderGraphSvg } from "./render/graph-svg.mjs";
+import { renderGraphSvg, renderDecisionView } from "./render/graph-svg.mjs";
 import { renderCanvasSvg } from "./render/canvas-svg.mjs";
 import { deriveGit, renderTemporalHtml } from "./derive/git.mjs";
 import { scanCode, codeModel } from "./code/scan.mjs";
 import { renderTreemapSvg } from "./code/treemap.mjs";
 import { renderHealthHtml } from "./render/health-report.mjs";
 import { liveFreshness } from "./engine/live.mjs";
+import { effectiveReview } from "./engine/effective.mjs";
 import { liveArtifacts, artifactInputDigest } from "./engine/artifacts.mjs";
 import { projectTimeline } from "./engine/telemetry.mjs";
 import { canonicalJSON } from "./services/determinism.mjs";
@@ -389,6 +390,29 @@ export function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now 
       },
       svg: renderGraphSvg(layout, model, canvasState),
     };
+
+    // ── Decisions (ADR-0006): the ADR subgraph (supersedes + rests_on among kind:adr pages), coloured
+    //    by board state. Emitted ONLY when the workspace has ADR pages — none ⇒ no section, no crash.──
+    const adrKeys = Object.keys(model.nodes).filter((k) => model.nodes[k].kind === "adr");
+    if (adrKeys.length) {
+      const DECISIONS_TITLE = "Decisions";
+      if (realTitles.has(nfc(DECISIONS_TITLE))) throw new Error('generated-doc title collides with a real document: "' + DECISIONS_TITLE + '"');
+      if (!groups.some((g) => g.id === "decisions")) groups.push({ id: "decisions", label: "Decisions" });
+      // grey the effectively-superseded ADRs; other state reuses the canvasState above. Gated on ADRs
+      // existing, so a non-ADR workspace never pays for this extra projection.
+      let supersededKeys = new Set();
+      try {
+        const eff = effectiveReview({ docsDir, corpus, policy: fresh.policy });
+        supersededKeys = new Set((eff.superseded || []).map((sp) => corpus.keyByUid && corpus.keyByUid.get(sp.uid)).filter(Boolean));
+      } catch { /* leave superseded empty — the section still renders */ }
+      const decisionState = {};
+      for (const k of adrKeys) decisionState[k] = { ...(canvasState[k] || {}), superseded: supersededKeys.has(k) };
+      docs[nfc(DECISIONS_TITLE)] = {
+        group: "decisions", icon: "git-branch",
+        meta: { type: "decision graph", status: adrKeys.length + " ADR" + (adrKeys.length === 1 ? "" : "s") },
+        svg: renderDecisionView(model, decisionState),
+      };
+    }
   }
 
   // ── curated Canvas (M6 JSON Canvas): node positions are truth, read-only, strictly separate from the auto Graph.──

@@ -93,3 +93,17 @@ test("artifacts: the projection is deterministic — identical input, identical 
     assert.equal(s(view(r)), s(view(r)));
   } finally { r.cleanup(); }
 });
+
+// ── WI-9 (ADR layer): a MADR Confirmation artifact drifts → surfaces via the existing currency machinery ──
+test("artifacts: a drifted ADR Confirmation artifact surfaces in drift + byKey for the ADR page", () => {
+  const ADR = "---\nid: A\ntitle: ADR-0001 Foo\nkind: adr\n---\n# ADR-0001 Foo\n\n## Confirmation\nconfirmed by confirm.txt ^a\n";
+  const r = repo({ "adr.md": ADR }, { "confirm.txt": "the artifact that confirms this decision" });
+  try {
+    recordVerification(r.dir, { root: r.root, page: "ADR-0001 Foo", artifact: "confirm.txt", date: "2026-08-05" });
+    r.write("confirm.txt", "CHANGED — the confirming artifact drifted; the ADR needs re-review");
+    const a = view(r);
+    assert.equal(a.counts.drifted, 1);
+    assert.ok(a.drift.some((d) => d.page === "ADR-0001 Foo"), "the drift row names the ADR page");
+    assert.equal(a.byKey.get([...a.byKey.keys()][0]).drifted, 1, "the ADR page's chip shows the drift");
+  } finally { r.cleanup(); }
+});

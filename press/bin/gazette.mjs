@@ -10407,90 +10407,90 @@ var require_util = __commonJS({
       return true;
     }
     function compareByOriginalPositions(mappingA, mappingB, onlyCompareOriginal) {
-      var cmp = strcmp(mappingA.source, mappingB.source);
-      if (cmp !== 0) {
-        return cmp;
+      var cmp2 = strcmp(mappingA.source, mappingB.source);
+      if (cmp2 !== 0) {
+        return cmp2;
       }
-      cmp = mappingA.originalLine - mappingB.originalLine;
-      if (cmp !== 0) {
-        return cmp;
+      cmp2 = mappingA.originalLine - mappingB.originalLine;
+      if (cmp2 !== 0) {
+        return cmp2;
       }
-      cmp = mappingA.originalColumn - mappingB.originalColumn;
-      if (cmp !== 0 || onlyCompareOriginal) {
-        return cmp;
+      cmp2 = mappingA.originalColumn - mappingB.originalColumn;
+      if (cmp2 !== 0 || onlyCompareOriginal) {
+        return cmp2;
       }
-      cmp = mappingA.generatedColumn - mappingB.generatedColumn;
-      if (cmp !== 0) {
-        return cmp;
+      cmp2 = mappingA.generatedColumn - mappingB.generatedColumn;
+      if (cmp2 !== 0) {
+        return cmp2;
       }
-      cmp = mappingA.generatedLine - mappingB.generatedLine;
-      if (cmp !== 0) {
-        return cmp;
+      cmp2 = mappingA.generatedLine - mappingB.generatedLine;
+      if (cmp2 !== 0) {
+        return cmp2;
       }
       return strcmp(mappingA.name, mappingB.name);
     }
     exports.compareByOriginalPositions = compareByOriginalPositions;
     function compareByOriginalPositionsNoSource(mappingA, mappingB, onlyCompareOriginal) {
-      var cmp;
-      cmp = mappingA.originalLine - mappingB.originalLine;
-      if (cmp !== 0) {
-        return cmp;
+      var cmp2;
+      cmp2 = mappingA.originalLine - mappingB.originalLine;
+      if (cmp2 !== 0) {
+        return cmp2;
       }
-      cmp = mappingA.originalColumn - mappingB.originalColumn;
-      if (cmp !== 0 || onlyCompareOriginal) {
-        return cmp;
+      cmp2 = mappingA.originalColumn - mappingB.originalColumn;
+      if (cmp2 !== 0 || onlyCompareOriginal) {
+        return cmp2;
       }
-      cmp = mappingA.generatedColumn - mappingB.generatedColumn;
-      if (cmp !== 0) {
-        return cmp;
+      cmp2 = mappingA.generatedColumn - mappingB.generatedColumn;
+      if (cmp2 !== 0) {
+        return cmp2;
       }
-      cmp = mappingA.generatedLine - mappingB.generatedLine;
-      if (cmp !== 0) {
-        return cmp;
+      cmp2 = mappingA.generatedLine - mappingB.generatedLine;
+      if (cmp2 !== 0) {
+        return cmp2;
       }
       return strcmp(mappingA.name, mappingB.name);
     }
     exports.compareByOriginalPositionsNoSource = compareByOriginalPositionsNoSource;
     function compareByGeneratedPositionsDeflated(mappingA, mappingB, onlyCompareGenerated) {
-      var cmp = mappingA.generatedLine - mappingB.generatedLine;
-      if (cmp !== 0) {
-        return cmp;
+      var cmp2 = mappingA.generatedLine - mappingB.generatedLine;
+      if (cmp2 !== 0) {
+        return cmp2;
       }
-      cmp = mappingA.generatedColumn - mappingB.generatedColumn;
-      if (cmp !== 0 || onlyCompareGenerated) {
-        return cmp;
+      cmp2 = mappingA.generatedColumn - mappingB.generatedColumn;
+      if (cmp2 !== 0 || onlyCompareGenerated) {
+        return cmp2;
       }
-      cmp = strcmp(mappingA.source, mappingB.source);
-      if (cmp !== 0) {
-        return cmp;
+      cmp2 = strcmp(mappingA.source, mappingB.source);
+      if (cmp2 !== 0) {
+        return cmp2;
       }
-      cmp = mappingA.originalLine - mappingB.originalLine;
-      if (cmp !== 0) {
-        return cmp;
+      cmp2 = mappingA.originalLine - mappingB.originalLine;
+      if (cmp2 !== 0) {
+        return cmp2;
       }
-      cmp = mappingA.originalColumn - mappingB.originalColumn;
-      if (cmp !== 0) {
-        return cmp;
+      cmp2 = mappingA.originalColumn - mappingB.originalColumn;
+      if (cmp2 !== 0) {
+        return cmp2;
       }
       return strcmp(mappingA.name, mappingB.name);
     }
     exports.compareByGeneratedPositionsDeflated = compareByGeneratedPositionsDeflated;
     function compareByGeneratedPositionsDeflatedNoLine(mappingA, mappingB, onlyCompareGenerated) {
-      var cmp = mappingA.generatedColumn - mappingB.generatedColumn;
-      if (cmp !== 0 || onlyCompareGenerated) {
-        return cmp;
+      var cmp2 = mappingA.generatedColumn - mappingB.generatedColumn;
+      if (cmp2 !== 0 || onlyCompareGenerated) {
+        return cmp2;
       }
-      cmp = strcmp(mappingA.source, mappingB.source);
-      if (cmp !== 0) {
-        return cmp;
+      cmp2 = strcmp(mappingA.source, mappingB.source);
+      if (cmp2 !== 0) {
+        return cmp2;
       }
-      cmp = mappingA.originalLine - mappingB.originalLine;
-      if (cmp !== 0) {
-        return cmp;
+      cmp2 = mappingA.originalLine - mappingB.originalLine;
+      if (cmp2 !== 0) {
+        return cmp2;
       }
-      cmp = mappingA.originalColumn - mappingB.originalColumn;
-      if (cmp !== 0) {
-        return cmp;
+      cmp2 = mappingA.originalColumn - mappingB.originalColumn;
+      if (cmp2 !== 0) {
+        return cmp2;
       }
       return strcmp(mappingA.name, mappingB.name);
     }
@@ -10511,25 +10511,25 @@ var require_util = __commonJS({
       return -1;
     }
     function compareByGeneratedPositionsInflated(mappingA, mappingB) {
-      var cmp = mappingA.generatedLine - mappingB.generatedLine;
-      if (cmp !== 0) {
-        return cmp;
+      var cmp2 = mappingA.generatedLine - mappingB.generatedLine;
+      if (cmp2 !== 0) {
+        return cmp2;
       }
-      cmp = mappingA.generatedColumn - mappingB.generatedColumn;
-      if (cmp !== 0) {
-        return cmp;
+      cmp2 = mappingA.generatedColumn - mappingB.generatedColumn;
+      if (cmp2 !== 0) {
+        return cmp2;
       }
-      cmp = strcmp(mappingA.source, mappingB.source);
-      if (cmp !== 0) {
-        return cmp;
+      cmp2 = strcmp(mappingA.source, mappingB.source);
+      if (cmp2 !== 0) {
+        return cmp2;
       }
-      cmp = mappingA.originalLine - mappingB.originalLine;
-      if (cmp !== 0) {
-        return cmp;
+      cmp2 = mappingA.originalLine - mappingB.originalLine;
+      if (cmp2 !== 0) {
+        return cmp2;
       }
-      cmp = mappingA.originalColumn - mappingB.originalColumn;
-      if (cmp !== 0) {
-        return cmp;
+      cmp2 = mappingA.originalColumn - mappingB.originalColumn;
+      if (cmp2 !== 0) {
+        return cmp2;
       }
       return strcmp(mappingA.name, mappingB.name);
     }
@@ -10974,10 +10974,10 @@ var require_binary_search = __commonJS({
     exports.LEAST_UPPER_BOUND = 2;
     function recursiveSearch(aLow, aHigh, aNeedle, aHaystack, aCompare, aBias) {
       var mid = Math.floor((aHigh - aLow) / 2) + aLow;
-      var cmp = aCompare(aNeedle, aHaystack[mid], true);
-      if (cmp === 0) {
+      var cmp2 = aCompare(aNeedle, aHaystack[mid], true);
+      if (cmp2 === 0) {
         return mid;
-      } else if (cmp > 0) {
+      } else if (cmp2 > 0) {
         if (aHigh - mid > 1) {
           return recursiveSearch(mid, aHigh, aNeedle, aHaystack, aCompare, aBias);
         }
@@ -11617,9 +11617,9 @@ var require_source_map_consumer = __commonJS({
         needle,
         this._sections,
         function(needle2, section2) {
-          var cmp = needle2.generatedLine - section2.generatedOffset.generatedLine;
-          if (cmp) {
-            return cmp;
+          var cmp2 = needle2.generatedLine - section2.generatedOffset.generatedLine;
+          if (cmp2) {
+            return cmp2;
           }
           return needle2.generatedColumn - section2.generatedOffset.generatedColumn;
         }
@@ -15918,16 +15918,16 @@ and ensure you are accounting for this risk.
 });
 
 // bin/cli.mjs
-import { existsSync as existsSync12, mkdirSync as mkdirSync3, writeFileSync as writeFileSync7, appendFileSync as appendFileSync2, readFileSync as readFileSync16, readSync as readSync2, statSync as statSync3, lstatSync as lstatSync12, readdirSync as readdirSync6, realpathSync as realpathSync6, rmSync as rmSync3, watch } from "fs";
+import { existsSync as existsSync12, mkdirSync as mkdirSync3, writeFileSync as writeFileSync7, appendFileSync as appendFileSync2, readFileSync as readFileSync16, readSync as readSync2, statSync as statSync3, lstatSync as lstatSync12, readdirSync as readdirSync6, realpathSync as realpathSync6, rmSync as rmSync3, watch, openSync as openSync6, closeSync as closeSync6, constants as constants5 } from "fs";
 import { join as join16, resolve as resolve6, dirname as dirname4, extname as extname2, sep as sep7, relative as relative5 } from "path";
 import { createServer } from "http";
 import { spawn } from "child_process";
 
 // src/build.mjs
-import { readFileSync as readFileSync9, writeFileSync as writeFileSync2, existsSync as existsSync7, mkdirSync, copyFileSync, cpSync, rmSync, renameSync as renameSync2, readdirSync as readdirSync5, lstatSync as lstatSync7, realpathSync as realpathSync3, unlinkSync as unlinkSync2 } from "fs";
-import { join as join10, dirname as dirname2, resolve as resolve2, sep as sep4, relative as relative3 } from "path";
+import { readFileSync as readFileSync11, writeFileSync as writeFileSync3, existsSync as existsSync9, mkdirSync as mkdirSync2, copyFileSync, cpSync, rmSync, renameSync as renameSync3, readdirSync as readdirSync5, lstatSync as lstatSync8, realpathSync as realpathSync3, unlinkSync as unlinkSync2 } from "fs";
+import { join as join12, dirname as dirname3, resolve as resolve3, sep as sep4, relative as relative3 } from "path";
 import { fileURLToPath } from "url";
-import { createHash as createHash5 } from "crypto";
+import { createHash as createHash6 } from "crypto";
 import { execFileSync as execFileSync2 } from "child_process";
 
 // src/core/model.mjs
@@ -22567,7 +22567,9 @@ function deriveLayout(model) {
   const gRows = Math.ceil(groups.length / gCols);
   return {
     nodes,
-    edges: model.edges.map((e) => ({ source: e.source, target: e.target })),
+    // edgeType/tracked are preserved additively (ADR-0006): the default renderer ignores them, so the
+    // main Graph SVG is byte-identical; the decision view reads them to filter + style the ADR subgraph.
+    edges: model.edges.map((e) => ({ source: e.source, target: e.target, edgeType: e.edgeType ?? null, tracked: e.tracked === true })),
     groups,
     width: quantize(gCols * (regionBox + GAP)),
     height: quantize(gRows * (regionBox + GAP)),
@@ -22580,6 +22582,7 @@ var R = 7;
 var groupColor = (g) => "hsl(" + hash32(g) % 360 + ", 32%, 56%)";
 var fin = (v, d = 0) => Number.isFinite(v) ? v : Number.isFinite(+v) ? +v : d;
 var STATE_FILL = {
+  superseded: "var(--ink-faint, #9aa3ad)",
   unbacked: "var(--rust-deep, #a8322a)",
   unauthorized: "var(--rust-deep, #a8322a)",
   stale: "var(--rust-deep, #a8322a)",
@@ -22589,19 +22592,23 @@ var STATE_FILL = {
 };
 function nodeState(st) {
   if (!st) return "current";
+  if (st.superseded) return "superseded";
   if (st.flag === "unbacked" || st.flag === "unauthorized" || st.flag === "stale") return st.flag;
   const f = st.freshness;
   if (f === "stale" || f === "needs-review" || f === "modified") return f;
   return "current";
 }
-function renderGraphSvg(layout, model, state = null) {
+function renderGraphSvg(layout, model, state = null, opts = null) {
+  const decision = !!(opts && opts.decision);
   const W2 = fin(layout.width, 100) || 100, H2 = fin(layout.height, 100) || 100;
   let s = '<svg viewBox="0 0 ' + W2 + " " + H2 + '" width="' + W2 + '" height="' + H2 + '" xmlns="http://www.w3.org/2000/svg" font-family="var(--sans)" class="wb-canvas">';
   const placed = (k) => Object.prototype.hasOwnProperty.call(layout.nodes, k);
   for (const e of layout.edges) {
     const a = placed(e.source) ? layout.nodes[e.source] : null, b = placed(e.target) ? layout.nodes[e.target] : null;
     if (!a || !b) continue;
-    s += '<line x1="' + fin(a.x) + '" y1="' + fin(a.y) + '" x2="' + fin(b.x) + '" y2="' + fin(b.y) + '" stroke="var(--line-strong)" stroke-width="1" opacity="0.7"/>';
+    let extra = "";
+    if (decision && e.edgeType) extra = ' class="wb-edge-' + e.edgeType + '"' + (e.edgeType === "supersedes" ? ' stroke-dasharray="5 3"' : "");
+    s += '<line x1="' + fin(a.x) + '" y1="' + fin(a.y) + '" x2="' + fin(b.x) + '" y2="' + fin(b.y) + '" stroke="var(--line-strong)" stroke-width="1" opacity="0.7"' + extra + "/>";
   }
   const ids = Object.keys(layout.nodes);
   const stateOf = (id) => nodeState(state && Object.prototype.hasOwnProperty.call(state, id) ? state[id] : null);
@@ -22619,8 +22626,8 @@ function renderGraphSvg(layout, model, state = null) {
   }
   s += '<g class="lod lod--far">';
   for (const g of Object.keys(box).sort()) {
-    const b = box[g], pad = R * 3;
-    const x = b.minX - pad, y = b.minY - pad, w = b.maxX - b.minX + pad * 2, h = b.maxY - b.minY + pad * 2;
+    const b = box[g], pad2 = R * 3;
+    const x = b.minX - pad2, y = b.minY - pad2, w = b.maxX - b.minX + pad2 * 2, h = b.maxY - b.minY + pad2 * 2;
     s += '<rect x="' + fin(x) + '" y="' + fin(y) + '" width="' + fin(w) + '" height="' + fin(h) + '" rx="10" fill="none" stroke="' + groupColor(g) + '" stroke-width="2" opacity="0.65"/>';
     s += '<text x="' + fin(x + 8) + '" y="' + fin(y + 20) + '" font-size="15" font-weight="600" fill="var(--ink-soft)">' + escapeHtml2(g || "root") + (b.bad ? " \xB7 " + b.bad + "/" + b.n + " need attention" : " \xB7 " + b.n) + "</text>";
   }
@@ -22654,6 +22661,14 @@ function renderGraphSvg(layout, model, state = null) {
   s += "</g>";
   s += "</svg>";
   return s;
+}
+function renderDecisionView(model, state = null) {
+  const adr = new Set(Object.keys(model.nodes).filter((k) => model.nodes[k].kind === "adr"));
+  const nodes = {};
+  for (const k of adr) nodes[k] = model.nodes[k];
+  const edges = model.edges.filter((e) => (e.edgeType === "supersedes" || e.edgeType === "rests_on") && adr.has(e.source) && adr.has(e.target));
+  const sub = { ...model, nodes, edges, nodeCount: adr.size };
+  return renderGraphSvg(deriveLayout(sub), sub, state, { decision: true });
 }
 
 // src/render/canvas-svg.mjs
@@ -22729,11 +22744,11 @@ function deriveGit({ cwd, pathspec = "docs", exclude = DEFAULT_EXCLUDE, now = nu
     churn[f] = (churn[f] || 0) + 1;
     last[f] = Math.max(last[f] || 0, c.ct);
   }
-  const cmp = (k) => (a, b) => b[k] - a[k] || (a.file < b.file ? -1 : 1);
-  const hotspots = Object.entries(churn).map(([file, commits2]) => ({ file, commits: commits2 })).sort(cmp("commits")).slice(0, 10);
+  const cmp2 = (k) => (a, b) => b[k] - a[k] || (a.file < b.file ? -1 : 1);
+  const hotspots = Object.entries(churn).map(([file, commits2]) => ({ file, commits: commits2 })).sort(cmp2("commits")).slice(0, 10);
   const np = parseDate(now);
   const nowTs = np.valid ? np.ts : commits[commits.length - 1].ct * 1e3;
-  const dormant = Object.entries(last).map(([file, ts]) => ({ file, days: Math.floor((nowTs - ts * 1e3) / DAY2) })).sort(cmp("days")).slice(0, 10);
+  const dormant = Object.entries(last).map(([file, ts]) => ({ file, days: Math.floor((nowTs - ts * 1e3) / DAY2) })).sort(cmp2("days")).slice(0, 10);
   const pair = {};
   for (const c of commits) {
     const fs = [...new Set(c.files)].sort();
@@ -23784,9 +23799,67 @@ function liveFreshness({ corpus, docsDir, model, policy }) {
   return { byKey, drift, pending: planned.length, counts, integrity: null, committed, policy: pol, authority };
 }
 
+// src/engine/fsck.mjs
+import { existsSync as existsSync8, readFileSync as readFileSync10, writeFileSync as writeFileSync2, mkdirSync, lstatSync as lstatSync6, renameSync as renameSync2, openSync as openSync5, closeSync as closeSync5, constants as constants4 } from "fs";
+import { join as join10, dirname as dirname2, resolve as resolve2, basename as basename2 } from "path";
+import { createHash as createHash5, randomBytes } from "crypto";
+
+// src/engine/legacy.mjs
+import { existsSync as existsSync6, openSync as openSync3, closeSync as closeSync3, fstatSync as fstatSync2, readFileSync as readFileSync8, constants as constants2 } from "fs";
+import { join as join8 } from "path";
+var LEGACY_BASENAME = "_legacy-canonical.json";
+function legacyPath(dir) {
+  return join8(dir, LEGACY_BASENAME);
+}
+function loadLegacy(dir) {
+  const p = legacyPath(dir);
+  const empty = () => ({ schema: 1, pins: /* @__PURE__ */ Object.create(null) });
+  if (!existsSync6(p)) return empty();
+  let fd = null, text2;
+  try {
+    fd = openSync3(p, constants2.O_RDONLY | constants2.O_NOFOLLOW);
+    if (!fstatSync2(fd).isFile()) return empty();
+    text2 = readFileSync8(fd, "utf8");
+  } catch (e) {
+    if (e && (e.code === "ELOOP" || e.code === "EMLINK")) return empty();
+    throw e;
+  } finally {
+    if (fd != null) try {
+      closeSync3(fd);
+    } catch {
+    }
+  }
+  let cfg;
+  try {
+    cfg = JSON.parse(text2);
+  } catch (e) {
+    throw new Error(LEGACY_BASENAME + " is not valid JSON (" + p + "): " + e.message);
+  }
+  if (cfg === null || typeof cfg !== "object" || Array.isArray(cfg)) throw new Error(LEGACY_BASENAME + " must be a JSON object (" + p + ")");
+  const pins = /* @__PURE__ */ Object.create(null);
+  const raw = cfg.pins && typeof cfg.pins === "object" && !Array.isArray(cfg.pins) ? cfg.pins : {};
+  for (const k of Object.keys(raw)) if (typeof raw[k] === "string" && raw[k]) pins[k] = raw[k];
+  return { schema: 1, pins };
+}
+function isGrandfathered(legacy, uid, digest) {
+  return !!legacy && !!legacy.pins && digest != null && Object.prototype.hasOwnProperty.call(legacy.pins, uid) && legacy.pins[uid] === digest;
+}
+function legacyCandidates({ model, events, policy, digestFor }) {
+  const { approved, approvedHash } = projectDecisions(events, policy);
+  const out = /* @__PURE__ */ Object.create(null);
+  for (const n of Object.values(model.nodes)) {
+    const effectiveCanonical = approved.has(n.uid) || (n.trust || n.status) === "canonical";
+    if (!effectiveCanonical) continue;
+    if (approved.has(n.uid) && approvedHash.get(n.uid) != null) continue;
+    const d = digestFor(n.uid);
+    if (d != null) out[n.uid] = d;
+  }
+  return out;
+}
+
 // src/engine/ledgers.mjs
-import { existsSync as existsSync6, readFileSync as readFileSync8, writeFileSync, renameSync, realpathSync as realpathSync2, lstatSync as lstatSync5, openSync as openSync3, closeSync as closeSync3, fstatSync as fstatSync2, readSync, readdirSync as readdirSync3, constants as constants2 } from "fs";
-import { join as join8, resolve, sep as sep3, isAbsolute } from "path";
+import { existsSync as existsSync7, readFileSync as readFileSync9, writeFileSync, renameSync, realpathSync as realpathSync2, lstatSync as lstatSync5, openSync as openSync4, closeSync as closeSync4, fstatSync as fstatSync3, readSync, readdirSync as readdirSync3, constants as constants3 } from "fs";
+import { join as join9, resolve, sep as sep3, isAbsolute } from "path";
 import { createHash as createHash4 } from "crypto";
 var VERIFY_BASENAME = "_verify.json";
 var COMPILE_BASENAME = "_compile-state.json";
@@ -23797,10 +23870,10 @@ function toNullProtoMap(obj) {
   return out;
 }
 function readJsonObject(file) {
-  if (!existsSync6(file)) return null;
+  if (!existsSync7(file)) return null;
   let v;
   try {
-    v = JSON.parse(readFileSync8(file, "utf8"));
+    v = JSON.parse(readFileSync9(file, "utf8"));
   } catch (e) {
     throw new Error(file + " is not valid JSON: " + e.message);
   }
@@ -23813,23 +23886,23 @@ function writeJsonAtomic(file, obj) {
   renameSync(tmp, file);
 }
 function hashJailed(realPath) {
-  const fd = openSync3(realPath, constants2.O_RDONLY | constants2.O_NOFOLLOW);
+  const fd = openSync4(realPath, constants3.O_RDONLY | constants3.O_NOFOLLOW);
   try {
-    if (!fstatSync2(fd).isFile()) throw new Error("artifact is not a regular file: " + realPath);
+    if (!fstatSync3(fd).isFile()) throw new Error("artifact is not a regular file: " + realPath);
     const h = createHash4("sha256");
     const buf = Buffer.allocUnsafe(65536);
     let n;
     while ((n = readSync(fd, buf, 0, buf.length, null)) > 0) h.update(buf.subarray(0, n));
     return h.digest("hex");
   } finally {
-    closeSync3(fd);
+    closeSync4(fd);
   }
 }
 function jailPath(root, rel) {
   if (isAbsolute(rel) || rel.split(/[\\/]/).includes("..")) throw new Error("artifact path must be repo-relative with no `..`: " + rel);
   const rootReal = realpathSync2(root);
   const abs = resolve(rootReal, rel);
-  if (!existsSync6(abs)) throw new Error("artifact not found: " + rel);
+  if (!existsSync7(abs)) throw new Error("artifact not found: " + rel);
   const real = realpathSync2(abs);
   if (real !== rootReal && !real.startsWith(rootReal + sep3)) throw new Error("artifact path escapes the repo (symlink?): " + rel);
   if (!lstatSync5(real).isFile()) throw new Error("artifact is not a regular file: " + rel);
@@ -23841,7 +23914,7 @@ function validateVerifyEntry(page, entry) {
   for (const c of entry.checks) if (c === null || typeof c !== "object" || typeof c.artifact !== "string" || typeof c.hash !== "string") throw new Error(VERIFY_BASENAME + ': a check under "' + page + '" must have string `artifact` and `hash`');
 }
 function readVerify(workspaceDir) {
-  const raw = readJsonObject(join8(workspaceDir, VERIFY_BASENAME));
+  const raw = readJsonObject(join9(workspaceDir, VERIFY_BASENAME));
   if (!raw) return /* @__PURE__ */ Object.create(null);
   const db = toNullProtoMap(raw);
   for (const page of Object.keys(db)) validateVerifyEntry(page, db[page]);
@@ -23850,7 +23923,7 @@ function readVerify(workspaceDir) {
 function recordVerification(workspaceDir, { root, page, artifact, claim, date }) {
   if (typeof page !== "string" || !page) throw new Error("recordVerification needs a non-empty page title");
   const hash = hashJailed(jailPath(root, artifact));
-  const file = join8(workspaceDir, VERIFY_BASENAME);
+  const file = join9(workspaceDir, VERIFY_BASENAME);
   return withLock(file, () => {
     const db = readVerify(workspaceDir);
     const prior = Object.prototype.hasOwnProperty.call(db, page) && db[page] && typeof db[page] === "object" && !DANGEROUS_KEY.has(page) ? db[page] : null;
@@ -23883,13 +23956,13 @@ function recheckVerification(workspaceDir, { root, page }) {
   return entry && Array.isArray(entry.checks) ? recheckChecks(root, entry.checks) : [];
 }
 function readCompiled(workspaceDir) {
-  const db = readJsonObject(join8(workspaceDir, COMPILE_BASENAME));
+  const db = readJsonObject(join9(workspaceDir, COMPILE_BASENAME));
   if (!db) return /* @__PURE__ */ new Set();
   if (db.compiled != null && !Array.isArray(db.compiled)) throw new Error(COMPILE_BASENAME + ': "compiled" must be an array');
   return new Set((db.compiled || []).map(String));
 }
 function markCompiled(workspaceDir, ids) {
-  const file = join8(workspaceDir, COMPILE_BASENAME);
+  const file = join9(workspaceDir, COMPILE_BASENAME);
   return withLock(file, () => {
     const set2 = readCompiled(workspaceDir);
     let added = 0;
@@ -23910,7 +23983,7 @@ function logbookSessionIds(workspaceDir) {
   const sessionOf = (file) => {
     let text2;
     try {
-      text2 = readFileSync8(file, "utf8");
+      text2 = readFileSync9(file, "utf8");
     } catch {
       return null;
     }
@@ -23929,7 +24002,7 @@ function logbookSessionIds(workspaceDir) {
     }
     for (const e of entries) {
       if (e.name.startsWith(".") || e.isSymbolicLink()) continue;
-      const p = join8(dir, e.name);
+      const p = join9(dir, e.name);
       if (e.isDirectory()) walk4(p);
       else if (e.isFile() && e.name.endsWith(".md")) {
         const s = sessionOf(p);
@@ -23937,8 +24010,343 @@ function logbookSessionIds(workspaceDir) {
       }
     }
   };
-  walk4(join8(workspaceDir, "logbook"));
+  walk4(join9(workspaceDir, "logbook"));
   return [...ids].sort();
+}
+
+// src/engine/supersede.mjs
+var cmp = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+function tarjanSCCs(adj) {
+  const uids = [...adj.keys()].sort(cmp);
+  const pos = new Map(uids.map((u, i) => [u, i]));
+  const index = /* @__PURE__ */ new Map(), low = /* @__PURE__ */ new Map(), onStack = /* @__PURE__ */ new Set(), stack = [];
+  const comps = [];
+  let idx = 0;
+  for (const start of uids) {
+    if (index.has(start)) continue;
+    const work = [{ u: start, i: 0, succ: null }];
+    while (work.length) {
+      const frame = work[work.length - 1], u = frame.u;
+      if (frame.succ === null) {
+        index.set(u, idx);
+        low.set(u, idx);
+        idx++;
+        stack.push(u);
+        onStack.add(u);
+        frame.succ = [...adj.get(u) || []].filter((v) => pos.has(v)).sort((a, b) => pos.get(a) - pos.get(b));
+      }
+      if (frame.i < frame.succ.length) {
+        const v = frame.succ[frame.i++];
+        if (!index.has(v)) work.push({ u: v, i: 0, succ: null });
+        else if (onStack.has(v)) low.set(u, Math.min(low.get(u), index.get(v)));
+      } else {
+        if (low.get(u) === index.get(u)) {
+          const comp = [];
+          for (; ; ) {
+            const w = stack.pop();
+            onStack.delete(w);
+            comp.push(w);
+            if (w === u) break;
+          }
+          comps.push(comp);
+        }
+        work.pop();
+        if (work.length) {
+          const p = work[work.length - 1].u;
+          low.set(p, Math.min(low.get(p), low.get(u)));
+        }
+      }
+    }
+  }
+  return comps;
+}
+function projectSupersessions({ model, approvedSources, eligibleTargets } = {}) {
+  const nodes = model && model.nodes || {};
+  const edges = model && model.edges || [];
+  const approved = approvedSources instanceof Set ? approvedSources : new Set(approvedSources || []);
+  const eligible = eligibleTargets instanceof Set ? eligibleTargets : new Set(eligibleTargets || []);
+  const brokenSeen = /* @__PURE__ */ new Set(), broken = [];
+  const candidates = [];
+  for (const e of edges) {
+    if (e.edgeType !== "supersedes") continue;
+    const tgtNode = nodes[e.target];
+    const tgt = tgtNode ? tgtNode.uid : void 0;
+    if (tgt == null) {
+      const k = e.sourceUid + "\0" + e.target;
+      if (!brokenSeen.has(k)) {
+        brokenSeen.add(k);
+        broken.push({ sourceUid: e.sourceUid, target: e.target });
+      }
+      continue;
+    }
+    if (!approved.has(e.sourceUid)) continue;
+    candidates.push({ src: e.sourceUid, tgt });
+  }
+  const adj = /* @__PURE__ */ new Map();
+  const selfLoop = /* @__PURE__ */ new Set();
+  for (const { src, tgt } of candidates) {
+    if (src === tgt) selfLoop.add(src);
+    if (!adj.has(src)) adj.set(src, /* @__PURE__ */ new Set());
+    adj.get(src).add(tgt);
+    if (!adj.has(tgt)) adj.set(tgt, /* @__PURE__ */ new Set());
+  }
+  const cycleUids = new Set(selfLoop);
+  const inBigScc = /* @__PURE__ */ new Set();
+  const cycles = [];
+  for (const comp of tarjanSCCs(adj)) {
+    if (comp.length >= 2) {
+      for (const u of comp) {
+        cycleUids.add(u);
+        inBigScc.add(u);
+      }
+      cycles.push([...comp].sort(cmp));
+    }
+  }
+  for (const u of [...selfLoop].sort(cmp)) if (!inBigScc.has(u)) cycles.push([u]);
+  cycles.sort((a, b) => cmp(a.join("\0"), b.join("\0")));
+  const bySet = /* @__PURE__ */ new Map();
+  const ineligSeen = /* @__PURE__ */ new Set(), ineligible = [];
+  for (const { src, tgt } of candidates) {
+    if (cycleUids.has(src) || cycleUids.has(tgt)) continue;
+    if (!eligible.has(tgt)) {
+      const k = src + "\0" + tgt;
+      if (!ineligSeen.has(k)) {
+        ineligSeen.add(k);
+        ineligible.push({ sourceUid: src, targetUid: tgt });
+      }
+      continue;
+    }
+    if (!bySet.has(tgt)) bySet.set(tgt, /* @__PURE__ */ new Set());
+    bySet.get(tgt).add(src);
+  }
+  ineligible.sort((a, b) => cmp(a.sourceUid + "\0" + a.targetUid, b.sourceUid + "\0" + b.targetUid));
+  broken.sort((a, b) => cmp(a.sourceUid + "\0" + a.target, b.sourceUid + "\0" + b.target));
+  const supersededBy = /* @__PURE__ */ new Map();
+  for (const tgt of [...bySet.keys()].sort(cmp)) supersededBy.set(tgt, [...bySet.get(tgt)].sort(cmp));
+  return { supersededBy, cycles, broken, ineligible };
+}
+
+// src/engine/fsck.mjs
+var sha2563 = (s) => createHash5("sha256").update(String(s)).digest("hex");
+var GATE_CACHE_DIR = ".bureau-cache";
+function gateCachePath(docsDir) {
+  const abs = resolve2(docsDir);
+  const tag = basename2(abs).replace(/[^A-Za-z0-9._-]/g, "_") + "-" + sha2563(abs).slice(0, 8);
+  return join10(dirname2(abs), GATE_CACHE_DIR, tag + ".json");
+}
+function conflictPartners(model) {
+  const partners = /* @__PURE__ */ new Map();
+  const add2 = (a, b) => {
+    if (!partners.has(a)) partners.set(a, /* @__PURE__ */ new Set());
+    partners.get(a).add(b);
+  };
+  for (const e of model.edges) {
+    if (e.edgeType !== "contradicts") continue;
+    const s = model.nodes[e.source], t = model.nodes[e.target];
+    if (!s || !t) continue;
+    add2(s.uid, t.uid);
+    add2(t.uid, s.uid);
+  }
+  return new Map([...partners].map(([uid, set2]) => [uid, [...set2].sort()]));
+}
+function setFrontmatterKey(text2, key, value) {
+  const m = /^---\n([\s\S]*?)\n---/.exec(text2);
+  if (!m) return null;
+  let found = false, changed = false;
+  const lines = m[1].split("\n").map((line) => {
+    const i = line.indexOf(":");
+    const k = i > 0 ? line.slice(0, i).trim() : null;
+    if (k !== key) return line;
+    found = true;
+    if (value == null) {
+      changed = true;
+      return null;
+    }
+    const next = key + ": " + value;
+    if (next !== line) changed = true;
+    return next;
+  }).filter((l) => l !== null);
+  if (value != null && !found) {
+    lines.push(key + ": " + value);
+    changed = true;
+  }
+  if (!changed) return null;
+  return "---\n" + lines.join("\n") + "\n---" + text2.slice(m[0].length);
+}
+function materializeEffectiveStatus(docsDir, entries, effCanon) {
+  let changed = 0;
+  for (const e of entries) {
+    const want = effCanon.has(e.uid) ? "canonical" : null;
+    const next = setFrontmatterKey(e.raw, "effective_status", want);
+    if (next == null) continue;
+    const abs = join10(docsDir, e.file);
+    if (!existsSync8(abs) || lstatSync6(abs).isSymbolicLink()) continue;
+    const tmp = abs + ".bureau-mat-" + process.pid + "-" + randomBytes(6).toString("hex");
+    const fd = openSync5(tmp, constants4.O_WRONLY | constants4.O_CREAT | constants4.O_EXCL | constants4.O_NOFOLLOW, 384);
+    try {
+      writeFileSync2(fd, next);
+    } finally {
+      closeSync5(fd);
+    }
+    renameSync2(tmp, abs);
+    changed++;
+  }
+  return changed;
+}
+function buildDerived({ model, events, schemaVersion = SCHEMA_VERSION, policy = null }) {
+  const spans = projectRevisions(events);
+  const gate = computeGate({ model, events, schemaVersion, policy });
+  const decisions = projectDecisions(events, policy);
+  const partners = conflictPartners(model);
+  const revisions = [...spans.values()].filter((s) => s.alive).map((s) => ({ uid: s.uid, span: s.span, revision: s.revision })).sort((a, b) => canonicalJSON([a.uid, a.span]) < canonicalJSON([b.uid, b.span]) ? -1 : 1);
+  const edges = gate.edges.filter((e) => e.tracked && e.edgeId).map((e) => ({ edgeId: e.edgeId, dep: e.dep, target: e.target, span: e.span, verdictKey: e.verdictKey, open: e.open })).sort((a, b) => a.edgeId < b.edgeId ? -1 : 1);
+  const decided = Object.values(model.nodes).map((n) => {
+    const st = resolveNodeState(n, decisions, partners.get(n.uid) || []);
+    const trustBy = decisions.approvedBy.get(n.uid) || null;
+    const trustAuthorized = st.trust !== "canonical" || trustBy != null && isAuthorized(policy, "approve", trustBy);
+    const rs = st.resolutions && st.resolutions.length ? { resolutions: st.resolutions } : {};
+    return { uid: n.uid, trust: st.trust, trustBacked: st.trustBacked, trustBy, trustAuthorized, conflict: st.conflict, resolutionId: st.resolutionId ?? null, ...rs, freeze: st.freeze };
+  }).sort((a, b) => a.uid < b.uid ? -1 : 1);
+  const marker = policyMarker(policy);
+  return {
+    schemaVersion,
+    ...marker ? { policy: marker } : {},
+    freshness: [...gate.freshness.entries()].map(([uid, level]) => ({ uid, level })).sort((a, b) => a.uid < b.uid ? -1 : 1),
+    dirty: gate.dirty,
+    counts: gate.counts,
+    revisions,
+    edges,
+    decided
+  };
+}
+var derivedDigest = (derived) => sha2563(canonicalJSON(derived, 0));
+var ADVISORY = /* @__PURE__ */ new Set(["pending-scan", "unbound-approval", "legacy-canonical", "broken-supersedes", "supersedes-ineligible-target"]);
+function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write = true, policy, materializePages = false } = {}) {
+  const c = corpus || loadCorpus({ docsDir });
+  const model = buildModel({ corpus: c });
+  const evs = events || readLog(logPath(docsDir));
+  const pol = policy || loadPolicy(docsDir);
+  const d1 = buildDerived({ model, events: evs, schemaVersion, policy: pol });
+  const d2 = buildDerived({ model, events: evs, schemaVersion, policy: pol });
+  const digest1 = derivedDigest(d1), digest2 = derivedDigest(d2);
+  const fixpointStable = digest1 === digest2;
+  const findings = [];
+  const planned = scan({ docsDir, corpus: c, apply: false, events: evs }).planned;
+  if (planned.length) findings.push({ kind: "pending-scan", count: planned.length, detail: "run `gazette scan` - the log does not yet reflect the corpus" });
+  for (const [name, read] of [["_verify.json", readVerify], ["_compile-state.json", readCompiled]]) {
+    try {
+      read(docsDir);
+    } catch (e) {
+      findings.push({ kind: "ledger-malformed", ledger: name, detail: e.message });
+    }
+  }
+  const liveEdgeIds = new Set(d1.edges.map((e) => e.edgeId));
+  const lastConfirmBy = /* @__PURE__ */ new Map();
+  for (const ev of evs) if (ev.type === "confirm-edge") lastConfirmBy.set(ev.edge, ev.by);
+  for (const [eid, by] of lastConfirmBy) {
+    if (!liveEdgeIds.has(eid)) {
+      findings.push({ kind: "orphan-confirm", edge: eid });
+      continue;
+    }
+    if (!isAuthorized(pol, "confirm-edge", by)) findings.push({ kind: "unauthorized-confirm", edge: eid, by: by ?? null, allowed: pol["confirm-edge"] });
+  }
+  const { approved, approvedHash, unauthorizedApprovals, unauthorizedResolutions, unauthorizedRejections } = projectDecisions(evs, pol);
+  const nodeByUid = new Map(Object.values(model.nodes).map((n) => [n.uid, n]));
+  const rawByUid = new Map((c.entries || []).map((e) => [e.uid, e.raw]));
+  const legacy = loadLegacy(docsDir);
+  const digestCache = /* @__PURE__ */ new Map();
+  const digestFor = (uid) => {
+    if (digestCache.has(uid)) return digestCache.get(uid);
+    const raw = rawByUid.get(uid), n = nodeByUid.get(uid);
+    let d = null;
+    try {
+      if (raw != null && n) d = reviewDigest({ raw, uid, title: n.title });
+    } catch {
+      d = null;
+    }
+    digestCache.set(uid, d);
+    return d;
+  };
+  for (const [uid, hash] of approvedHash) {
+    const n = nodeByUid.get(uid);
+    if (hash == null) {
+      if (isGrandfathered(legacy, uid, digestFor(uid))) findings.push({ kind: "legacy-canonical", uid, title: n ? n.title : null });
+      else findings.push({ kind: "unbound-approval", uid, title: n ? n.title : null });
+      continue;
+    }
+    if (digestFor(uid) !== hash) findings.push({ kind: "stale-approval", uid, title: n ? n.title : null });
+  }
+  for (const [uid, by] of unauthorizedApprovals) {
+    const n = nodeByUid.get(uid);
+    findings.push({ kind: "unauthorized-canonical", uid, title: n ? n.title : null, by, allowed: pol.approve });
+  }
+  for (const [uid, by] of unauthorizedRejections) {
+    const n = nodeByUid.get(uid);
+    findings.push({ kind: "unauthorized-reject", uid, title: n ? n.title : null, by, allowed: pol.approve });
+  }
+  for (const [conflict, by] of unauthorizedResolutions) {
+    findings.push({ kind: "unauthorized-resolve", conflict, by, allowed: pol.resolve });
+  }
+  for (const n of Object.values(model.nodes)) {
+    if ((n.trust || n.status) !== "canonical") continue;
+    if (approved.has(n.uid) || unauthorizedApprovals.has(n.uid)) continue;
+    if (isGrandfathered(legacy, n.uid, digestFor(n.uid))) findings.push({ kind: "legacy-canonical", uid: n.uid, title: n.title });
+    else findings.push({ kind: "unbacked-canonical", uid: n.uid, title: n.title });
+  }
+  const notEffBase = /* @__PURE__ */ new Set();
+  for (const f of findings) if ((f.kind === "stale-approval" || f.kind === "unbacked-canonical" || f.kind === "unauthorized-canonical") && f.uid != null) notEffBase.add(f.uid);
+  for (const d of d1.decided) if (d.conflict === "contested") notEffBase.add(d.uid);
+  const eligibleTargets = /* @__PURE__ */ new Set();
+  for (const d of d1.decided) if (d.trust === "canonical" && !notEffBase.has(d.uid)) eligibleTargets.add(d.uid);
+  const freshApprovedSources = /* @__PURE__ */ new Set();
+  for (const [uid, hash] of approvedHash) if (hash != null && digestFor(uid) === hash) freshApprovedSources.add(uid);
+  const superseded = projectSupersessions({ model, approvedSources: freshApprovedSources, eligibleTargets });
+  for (const cyc of superseded.cycles) findings.push({ kind: "supersedes-cycle", uids: cyc });
+  for (const b of superseded.broken) findings.push({ kind: "broken-supersedes", sourceUid: b.sourceUid, target: b.target });
+  for (const ig of superseded.ineligible) findings.push({ kind: "supersedes-ineligible-target", sourceUid: ig.sourceUid, targetUid: ig.targetUid });
+  findings.sort((a, b) => canonicalJSON(a) < canonicalJSON(b) ? -1 : 1);
+  const notEff = new Set(notEffBase);
+  for (const uid of superseded.supersededBy.keys()) notEff.add(uid);
+  const effCanon = /* @__PURE__ */ new Set();
+  for (const d of d1.decided) if (d.trust === "canonical" && !notEff.has(d.uid)) effCanon.add(d.uid);
+  let materialized = 0;
+  if (materializePages && write) materialized = materializeEffectiveStatus(c.docsDir || docsDir, c.entries, effCanon);
+  const gateFile = gateCachePath(docsDir);
+  const cacheDir = dirname2(gateFile);
+  const isLink = (p) => existsSync8(p) && lstatSync6(p).isSymbolicLink();
+  if (isLink(cacheDir)) throw new Error("gate cache dir is a symlink (refused): " + cacheDir);
+  if (isLink(gateFile)) throw new Error("gate cache file is a symlink (refused): " + gateFile);
+  const priorRaw = existsSync8(gateFile) ? readFileSync10(gateFile, "utf8") : null;
+  const nextRaw = canonicalJSON(d1, 2) + "\n";
+  const cacheDrift = priorRaw != null && priorRaw !== nextRaw;
+  if (write) {
+    mkdirSync(cacheDir, { recursive: true });
+    const tmp = gateFile + ".tmp-" + process.pid + "-" + randomBytes(8).toString("hex");
+    const fd = openSync5(tmp, constants4.O_WRONLY | constants4.O_CREAT | constants4.O_EXCL | constants4.O_NOFOLLOW, 384);
+    try {
+      writeFileSync2(fd, nextRaw);
+    } finally {
+      closeSync5(fd);
+    }
+    renameSync2(tmp, gateFile);
+  }
+  const blockingFindings = findings.filter((f) => !ADVISORY.has(f.kind));
+  return { ok: fixpointStable && blockingFindings.length === 0, fixpointStable, digest: digest1, cacheDrift, findings, blockingFindings, derived: d1, superseded: superseded.supersededBy, nodeCount: model.nodeCount, materialized };
+}
+
+// src/engine/effective.mjs
+var NOT_BACKED = /* @__PURE__ */ new Set(["stale-approval", "unbacked-canonical", "unauthorized-canonical"]);
+function effectiveReview({ docsDir, corpus, events, policy } = {}) {
+  const report2 = fsck({ docsDir, corpus, events, policy, write: false });
+  const needsReview = /* @__PURE__ */ new Set();
+  for (const f of report2.findings) if (NOT_BACKED.has(f.kind) && f.uid != null) needsReview.add(f.uid);
+  for (const d of report2.derived.decided) if (d.conflict === "contested") needsReview.add(d.uid);
+  const supersededMap = report2.superseded || /* @__PURE__ */ new Map();
+  const supersededUids = new Set(supersededMap.keys());
+  const superseded = [...supersededUids].sort((a, b) => a < b ? -1 : 1).map((uid) => ({ uid, status: "superseded", supersededBy: supersededMap.get(uid) }));
+  const canonical = /* @__PURE__ */ new Set();
+  for (const d of report2.derived.decided) if (d.trust === "canonical" && !needsReview.has(d.uid) && !supersededUids.has(d.uid)) canonical.add(d.uid);
+  return { canonical, needsReview, superseded, report: report2 };
 }
 
 // src/engine/artifacts.mjs
@@ -24329,15 +24737,15 @@ function emitCssVars(tokens) {
 }
 
 // src/services/assets.mjs
-import { readdirSync as readdirSync4, lstatSync as lstatSync6 } from "fs";
-import { join as join9 } from "path";
+import { readdirSync as readdirSync4, lstatSync as lstatSync7 } from "fs";
+import { join as join11 } from "path";
 var DEFAULT_BUDGET = 8 * 1024 * 1024;
 function walk3(dir) {
   let total = 0;
   const files = [];
   for (const name of readdirSync4(dir)) {
-    const p = join9(dir, name);
-    const st = lstatSync6(p);
+    const p = join11(dir, name);
+    const st = lstatSync7(p);
     if (st.isSymbolicLink()) continue;
     if (st.isDirectory()) {
       const r = walk3(p);
@@ -24358,24 +24766,24 @@ function bundleReport(outDir, budget = DEFAULT_BUDGET) {
 
 // src/build.mjs
 var HEALTH_TITLE = "Health";
-var __dirname = dirname2(fileURLToPath(import.meta.url));
-var TEMPLATE_DIR = resolve2(__dirname, "..", "template");
+var __dirname = dirname3(fileURLToPath(import.meta.url));
+var TEMPLATE_DIR = resolve3(__dirname, "..", "template");
 var ENGINE_LIB = ["app.js", "mermaid.min.js", "echarts.min.js", "js-yaml.min.js", "papaparse.min.js", "viz.min.js", "rough.min.js"];
 function physicalPath(p) {
   let anc = p, tail = [];
-  while (!existsSync7(anc)) {
-    const parent = dirname2(anc);
+  while (!existsSync9(anc)) {
+    const parent = dirname3(anc);
     if (parent === anc) return p;
     tail.unshift(anc.slice(parent.length + 1));
     anc = parent;
   }
-  return tail.length ? join10(realpathSync3(anc), ...tail) : realpathSync3(anc);
+  return tail.length ? join12(realpathSync3(anc), ...tail) : realpathSync3(anc);
 }
 function guardOutDir(root, outDir, docsDir, dataDir, containedBoard) {
   const withSep = (p) => p.endsWith(sep4) ? p : p + sep4;
   const rootP = physicalPath(root), docsP = docsDir && physicalPath(docsDir), dataP = dataDir && physicalPath(dataDir);
   const board = containedBoard !== void 0 ? containedBoard : docsDir ? containedBoardDir(docsDir) : null;
-  const boardOut = board && docsP ? join10(docsP, board) : null;
+  const boardOut = board && docsP ? join12(docsP, board) : null;
   const allowedOut = new Set(boardOut ? [boardOut, boardOut + ".tmp", boardOut + ".bak"] : []);
   const targets = [["--out", outDir], ["--out temp dir", outDir + ".tmp"], ["--out backup dir", outDir + ".bak"]];
   for (const [olabel, o] of targets) {
@@ -24423,14 +24831,14 @@ function htmlExcerpt(html, target) {
 }
 function buildAssetIndex(assetsDir) {
   const index = {};
-  if (!existsSync7(assetsDir)) return index;
+  if (!existsSync9(assetsDir)) return index;
   const baseCount = /* @__PURE__ */ new Map();
   const walk4 = (dir, rel) => {
     for (const name of readdirSync5(dir).sort()) {
-      const p = join10(dir, name);
+      const p = join12(dir, name);
       let st;
       try {
-        st = lstatSync7(p);
+        st = lstatSync8(p);
       } catch {
         continue;
       }
@@ -24486,24 +24894,24 @@ function transcludeEmbeds(html, source) {
   return replaceOutsideRaw(html, (h) => h.replace(EMBED_BLOCK, (m, t, hd) => make(t, hd)).replace(EMBED_INLINE, (m, t, hd) => make(t, hd)));
 }
 function hashInputs({ root, docsDir, dataDir, now, topSkip = null }) {
-  const h = createHash5("sha256");
+  const h = createHash6("sha256");
   h.update("schema:" + SCHEMA_VERSION + "|now:" + (now || ""));
-  for (const f of [...ENGINE_LIB, "theme.css"]) h.update(readFileSync9(join10(TEMPLATE_DIR, "lib", f)));
-  h.update(readFileSync9(join10(TEMPLATE_DIR, "index.html")));
-  h.update(readFileSync9(fileURLToPath(import.meta.url)));
+  for (const f of [...ENGINE_LIB, "theme.css"]) h.update(readFileSync11(join12(TEMPLATE_DIR, "lib", f)));
+  h.update(readFileSync11(join12(TEMPLATE_DIR, "index.html")));
+  h.update(readFileSync11(fileURLToPath(import.meta.url)));
   const addDir = (dir, topSkip2 = null) => {
-    if (!existsSync7(dir)) return;
+    if (!existsSync9(dir)) return;
     try {
-      if (lstatSync7(dir).isSymbolicLink()) return;
+      if (lstatSync8(dir).isSymbolicLink()) return;
     } catch {
       return;
     }
     for (const name of readdirSync5(dir).sort()) {
       if (topSkip2 && topSkip2.has(name)) continue;
-      const p = join10(dir, name);
+      const p = join12(dir, name);
       let st;
       try {
-        st = lstatSync7(p);
+        st = lstatSync8(p);
       } catch {
         continue;
       }
@@ -24511,7 +24919,7 @@ function hashInputs({ root, docsDir, dataDir, now, topSkip = null }) {
       if (st.isDirectory()) addDir(p);
       else if (st.isFile()) {
         try {
-          const buf = readFileSync9(p);
+          const buf = readFileSync11(p);
           h.update("\0" + relative3(root, p) + "\0");
           h.update(buf);
         } catch {
@@ -24521,15 +24929,15 @@ function hashInputs({ root, docsDir, dataDir, now, topSkip = null }) {
   };
   addDir(docsDir, topSkip || topLevelSkips(docsDir));
   addDir(dataDir);
-  addDir(join10(root, "assets"));
+  addDir(join12(root, "assets"));
   for (const f of ["theme.json", "theme.css"]) {
-    const p = join10(root, f);
-    if (existsSync7(p)) h.update(readFileSync9(p));
+    const p = join12(root, f);
+    if (existsSync9(p)) h.update(readFileSync11(p));
   }
   let meta = {};
   try {
-    const cfgPath = join10(docsDir, "_config.json");
-    if (!lstatSync7(cfgPath).isSymbolicLink()) meta = JSON.parse(readFileSync9(cfgPath, "utf8")).meta || {};
+    const cfgPath = join12(docsDir, "_config.json");
+    if (!lstatSync8(cfgPath).isSymbolicLink()) meta = JSON.parse(readFileSync11(cfgPath, "utf8")).meta || {};
   } catch {
   }
   if (meta.code && meta.code.dir) {
@@ -24543,10 +24951,10 @@ function hashInputs({ root, docsDir, dataDir, now, topSkip = null }) {
       }
       for (const name of names) {
         if (SKIP.has(name) || name.startsWith(".")) continue;
-        const p = join10(dir, name);
+        const p = join12(dir, name);
         let st;
         try {
-          st = lstatSync7(p);
+          st = lstatSync8(p);
         } catch {
           continue;
         }
@@ -24555,7 +24963,7 @@ function hashInputs({ root, docsDir, dataDir, now, topSkip = null }) {
         else if (st.isFile()) h.update(p + ":" + st.size + ":" + st.mtimeMs);
       }
     };
-    statDir(resolve2(root, meta.code.dir));
+    statDir(resolve3(root, meta.code.dir));
   }
   if (meta.temporal && meta.temporal.enabled) {
     try {
@@ -24567,7 +24975,7 @@ function hashInputs({ root, docsDir, dataDir, now, topSkip = null }) {
   return h.digest("hex");
 }
 function computeHealth({ docsDir, dataDir, now = null, topSkip = null }) {
-  dataDir = dataDir || join10(docsDir, "_data");
+  dataDir = dataDir || join12(docsDir, "_data");
   const corpus = loadCorpus({ docsDir, dataDir, topSkip });
   const model = buildModel({ corpus });
   const backlinks = deriveBacklinks(model);
@@ -24577,7 +24985,7 @@ function computeHealth({ docsDir, dataDir, now = null, topSkip = null }) {
   if (corpus.meta?.graph?.enabled !== false && model.nodeCount > 0) knownTargets.add(nfc("Graph"));
   for (const cf of corpus.canvasFiles || []) {
     try {
-      JSON.parse(readFileSync9(join10(docsDir, cf), "utf8"));
+      JSON.parse(readFileSync11(join12(docsDir, cf), "utf8"));
     } catch {
       continue;
     }
@@ -24591,18 +24999,18 @@ function computeHealth({ docsDir, dataDir, now = null, topSkip = null }) {
   return { corpus, model, backlinks, health, timeline };
 }
 function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null, force = false } = {}) {
-  root = resolve2(root);
-  docsDir = resolve2(root, docsDir || "gazette");
-  dataDir = resolve2(root, dataDir || join10(docsDir, "_data"));
-  outDir = resolve2(root, outDir || "dist");
+  root = resolve3(root);
+  docsDir = resolve3(root, docsDir || "gazette");
+  dataDir = resolve3(root, dataDir || join12(docsDir, "_data"));
+  outDir = resolve3(root, outDir || "dist");
   const containedBoard = containedBoardDir(docsDir);
   const topSkip = topLevelSkipsFor(containedBoard);
   guardOutDir(root, outDir, docsDir, dataDir, containedBoard);
   const hash = hashInputs({ root, docsDir, dataDir, now, topSkip });
-  const metaPath = join10(outDir, ".buildmeta.json");
-  if (!force && existsSync7(metaPath) && existsSync7(join10(outDir, "index.html"))) {
+  const metaPath = join12(outDir, ".buildmeta.json");
+  if (!force && existsSync9(metaPath) && existsSync9(join12(outDir, "index.html"))) {
     try {
-      const meta = JSON.parse(readFileSync9(metaPath, "utf8"));
+      const meta = JSON.parse(readFileSync11(metaPath, "utf8"));
       if (meta.hash === hash) return { ...meta.summary, outDir, cached: true };
     } catch {
     }
@@ -24671,11 +25079,31 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
       },
       svg: renderGraphSvg(layout, model, canvasState)
     };
+    const adrKeys = Object.keys(model.nodes).filter((k) => model.nodes[k].kind === "adr");
+    if (adrKeys.length) {
+      const DECISIONS_TITLE = "Decisions";
+      if (realTitles.has(nfc(DECISIONS_TITLE))) throw new Error('generated-doc title collides with a real document: "' + DECISIONS_TITLE + '"');
+      if (!groups.some((g) => g.id === "decisions")) groups.push({ id: "decisions", label: "Decisions" });
+      let supersededKeys = /* @__PURE__ */ new Set();
+      try {
+        const eff = effectiveReview({ docsDir, corpus, policy: fresh.policy });
+        supersededKeys = new Set((eff.superseded || []).map((sp) => corpus.keyByUid && corpus.keyByUid.get(sp.uid)).filter(Boolean));
+      } catch {
+      }
+      const decisionState = {};
+      for (const k of adrKeys) decisionState[k] = { ...canvasState[k] || {}, superseded: supersededKeys.has(k) };
+      docs[nfc(DECISIONS_TITLE)] = {
+        group: "decisions",
+        icon: "git-branch",
+        meta: { type: "decision graph", status: adrKeys.length + " ADR" + (adrKeys.length === 1 ? "" : "s") },
+        svg: renderDecisionView(model, decisionState)
+      };
+    }
   }
   for (const cf of corpus.canvasFiles) {
     let canvasJson;
     try {
-      canvasJson = JSON.parse(readFileSync9(join10(docsDir, cf), "utf8"));
+      canvasJson = JSON.parse(readFileSync11(join12(docsDir, cf), "utf8"));
     } catch {
       console.warn("\u26A0 skipping invalid .canvas: " + cf);
       continue;
@@ -24686,7 +25114,7 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
     docs[nfc(title2)] = { group: "canvas", icon: "globe", meta: { type: "JSON Canvas (read-only)" }, svg: renderCanvasSvg(canvasJson) };
   }
   if (corpus.meta && corpus.meta.code && corpus.meta.code.dir) {
-    const scan2 = scanCode({ dir: resolve2(root, corpus.meta.code.dir) });
+    const scan2 = scanCode({ dir: resolve3(root, corpus.meta.code.dir) });
     if (scan2) {
       if (!groups.some((g) => g.id === "code")) groups.push({ id: "code", label: "Code" });
       const tm = "Code \xB7 Module map", dg = "Code \xB7 Dependencies";
@@ -24717,7 +25145,7 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
     body: renderHealthHtml(health, fresh, arts, converge)
     // fresh/arts/converge = the unified live Engine view (freshness · artifacts · convergence)
   };
-  const assetIndex = buildAssetIndex(join10(root, "assets"));
+  const assetIndex = buildAssetIndex(join12(root, "assets"));
   const rawBodies = /* @__PURE__ */ Object.create(null), linksById = /* @__PURE__ */ Object.create(null);
   for (const id of Object.keys(docs)) {
     const d = docs[id];
@@ -24739,61 +25167,61 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
   }
   const backlinks = buildBoardBacklinks(rawBodies, linksById);
   const tmp = outDir + ".tmp";
-  if (existsSync7(tmp)) rmSync(tmp, { recursive: true, force: true });
-  mkdirSync(join10(tmp, "lib"), { recursive: true });
-  writeFileSync2(join10(tmp, "model.json"), canonicalJSON(model) + "\n");
-  writeFileSync2(join10(tmp, "health.json"), canonicalJSON(health) + "\n");
-  if (layout) writeFileSync2(join10(tmp, "graph.json"), canonicalJSON(layout) + "\n");
-  if (temporal) writeFileSync2(join10(tmp, "temporal.json"), canonicalJSON(temporal) + "\n");
+  if (existsSync9(tmp)) rmSync(tmp, { recursive: true, force: true });
+  mkdirSync2(join12(tmp, "lib"), { recursive: true });
+  writeFileSync3(join12(tmp, "model.json"), canonicalJSON(model) + "\n");
+  writeFileSync3(join12(tmp, "health.json"), canonicalJSON(health) + "\n");
+  if (layout) writeFileSync3(join12(tmp, "graph.json"), canonicalJSON(layout) + "\n");
+  if (temporal) writeFileSync3(join12(tmp, "temporal.json"), canonicalJSON(temporal) + "\n");
   const STORY = { meta: corpus.meta, groups: orderGroups(groups, corpus.groupOrder), docs, backlinks };
-  writeFileSync2(
-    join10(tmp, "lib", "content.js"),
+  writeFileSync3(
+    join12(tmp, "lib", "content.js"),
     "// \u26A0 auto-generated. Do not edit. Source is gazette/*.html; rebuild with: gazette build\nwindow.STORY = " + JSON.stringify(STORY, null, 2) + ";\n"
   );
-  for (const f of ENGINE_LIB) copyFileSync(join10(TEMPLATE_DIR, "lib", f), join10(tmp, "lib", f));
+  for (const f of ENGINE_LIB) copyFileSync(join12(TEMPLATE_DIR, "lib", f), join12(tmp, "lib", f));
   let projectTokens = null;
-  const tokensPath = join10(root, "theme.json");
-  if (existsSync7(tokensPath)) {
+  const tokensPath = join12(root, "theme.json");
+  if (existsSync9(tokensPath)) {
     try {
-      projectTokens = JSON.parse(readFileSync9(tokensPath, "utf8"));
+      projectTokens = JSON.parse(readFileSync11(tokensPath, "utf8"));
     } catch (e) {
       throw new Error("theme.json is not valid JSON: " + e.message);
     }
   }
-  const themeCss = readFileSync9(join10(TEMPLATE_DIR, "lib", "theme.css"), "utf8").replace("/*@TOKENS@*/", emitCssVars(resolveTokens(projectTokens)).trim());
-  writeFileSync2(join10(tmp, "lib", "theme.css"), themeCss);
-  let html = readFileSync9(join10(TEMPLATE_DIR, "index.html"), "utf8");
+  const themeCss = readFileSync11(join12(TEMPLATE_DIR, "lib", "theme.css"), "utf8").replace("/*@TOKENS@*/", emitCssVars(resolveTokens(projectTokens)).trim());
+  writeFileSync3(join12(tmp, "lib", "theme.css"), themeCss);
+  let html = readFileSync11(join12(TEMPLATE_DIR, "index.html"), "utf8");
   const title = [corpus.meta?.title, corpus.meta?.subtitle].filter(Boolean).join(" \xB7 ") || "gazette";
   html = html.replace("<!--TITLE-->", escapeHtml2(title)).replace("<!--CSP-->", cspMeta());
   let themeOverride = false;
-  const projectTheme = join10(root, "theme.css");
-  if (existsSync7(projectTheme)) {
-    copyFileSync(projectTheme, join10(tmp, "theme.override.css"));
+  const projectTheme = join12(root, "theme.css");
+  if (existsSync9(projectTheme)) {
+    copyFileSync(projectTheme, join12(tmp, "theme.override.css"));
     html = html.replace("<!--THEME_OVERRIDE-->", '<link rel="stylesheet" href="theme.override.css" />');
     themeOverride = true;
   } else {
     html = html.replace("<!--THEME_OVERRIDE-->", "");
   }
-  writeFileSync2(join10(tmp, "index.html"), html);
+  writeFileSync3(join12(tmp, "index.html"), html);
   let assetsCopied = false;
-  const assetsDir = join10(root, "assets");
-  if (existsSync7(assetsDir)) {
-    cpSync(assetsDir, join10(tmp, "assets"), { recursive: true, dereference: false, filter: (src) => !lstatSync7(src).isSymbolicLink() });
+  const assetsDir = join12(root, "assets");
+  if (existsSync9(assetsDir)) {
+    cpSync(assetsDir, join12(tmp, "assets"), { recursive: true, dereference: false, filter: (src) => !lstatSync8(src).isSymbolicLink() });
     assetsCopied = true;
   }
-  if (existsSync7(outDir)) {
+  if (existsSync9(outDir)) {
     const bak = outDir + ".bak";
-    if (existsSync7(bak)) rmSync(bak, { recursive: true, force: true });
-    renameSync2(outDir, bak);
+    if (existsSync9(bak)) rmSync(bak, { recursive: true, force: true });
+    renameSync3(outDir, bak);
     try {
-      renameSync2(tmp, outDir);
+      renameSync3(tmp, outDir);
     } catch (e) {
-      renameSync2(bak, outDir);
+      renameSync3(bak, outDir);
       throw e;
     }
     rmSync(bak, { recursive: true, force: true });
   } else {
-    renameSync2(tmp, outDir);
+    renameSync3(tmp, outDir);
   }
   const bundle = bundleReport(outDir);
   if (bundle.over) {
@@ -24825,10 +25253,10 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
     // drained/stabilizing/thrashing (null ⇒ suppressed)
   };
   const hashAfter = hashInputs({ root, docsDir, dataDir, now, topSkip });
-  if (hashAfter === hash) writeFileSync2(metaPath, JSON.stringify({ hash, summary }));
+  if (hashAfter === hash) writeFileSync3(metaPath, JSON.stringify({ hash, summary }));
   else {
     try {
-      if (existsSync7(metaPath)) unlinkSync2(metaPath);
+      if (existsSync9(metaPath)) unlinkSync2(metaPath);
     } catch {
     }
   }
@@ -24836,7 +25264,7 @@ function buildSite({ root = process.cwd(), docsDir, dataDir, outDir, now = null,
 }
 
 // src/maintain/rename.mjs
-import { readFileSync as readFileSync10, writeFileSync as writeFileSync3, renameSync as renameSync3, unlinkSync as unlinkSync3 } from "fs";
+import { readFileSync as readFileSync12, writeFileSync as writeFileSync4, renameSync as renameSync4, unlinkSync as unlinkSync3 } from "fs";
 var BAD_TITLE = /[[\]|#]|[\x00-\x1f\x7f-\x9f]/;
 function planRename({ docsDir, from, to }) {
   if (!from || !to) throw new Error("rename needs both <old> and <new> titles");
@@ -24851,7 +25279,7 @@ function planRename({ docsDir, from, to }) {
   const edits = [];
   let linkTotal = 0;
   for (const e of corpus.entries) {
-    const raw = readFileSync10(safeDocPath(docsDir, e.file), "utf8");
+    const raw = readFileSync12(safeDocPath(docsDir, e.file), "utf8");
     const ref = rewriteWikiRef(raw, fromTitle, to);
     let next = ref.html, titleChanged = false;
     if (e.id === fromId) {
@@ -24871,7 +25299,7 @@ function applyRename(plan, docsDir) {
       const dest = safeDocPath(docsDir, e.file);
       const tmp = dest + ".rename-" + process.pid + ".tmp";
       staged.push({ tmp, dest, raw: e.raw });
-      writeFileSync3(tmp, e.next);
+      writeFileSync4(tmp, e.next);
     }
   } catch (err) {
     for (const s of staged) {
@@ -24885,13 +25313,13 @@ function applyRename(plan, docsDir) {
   const done = [];
   try {
     for (const s of staged) {
-      renameSync3(s.tmp, s.dest);
+      renameSync4(s.tmp, s.dest);
       done.push(s);
     }
   } catch (err) {
     for (const s of done) {
       try {
-        writeFileSync3(s.dest, s.raw);
+        writeFileSync4(s.dest, s.raw);
       } catch {
       }
     }
@@ -24907,8 +25335,8 @@ function applyRename(plan, docsDir) {
 }
 
 // src/maintain/doctor.mjs
-import { readFileSync as readFileSync11, writeFileSync as writeFileSync4, renameSync as renameSync4, lstatSync as lstatSync8 } from "fs";
-import { join as join11 } from "path";
+import { readFileSync as readFileSync13, writeFileSync as writeFileSync5, renameSync as renameSync5, lstatSync as lstatSync9 } from "fs";
+import { join as join13 } from "path";
 function levenshtein(a, b) {
   const m = a.length, n = b.length;
   if (!m) return n;
@@ -24961,26 +25389,26 @@ function applySafe(docsDir, fixes, model) {
   const applied = [];
   const drift = fixes.find((f) => f.kind === "drift");
   if (drift) {
-    const cfg = join11(docsDir, "_config.json");
-    if (lstatSync8(cfg).isSymbolicLink()) throw new Error("refusing to write a symlinked _config.json: " + cfg);
-    const c = JSON.parse(readFileSync11(cfg, "utf8"));
+    const cfg = join13(docsDir, "_config.json");
+    if (lstatSync9(cfg).isSymbolicLink()) throw new Error("refusing to write a symlinked _config.json: " + cfg);
+    const c = JSON.parse(readFileSync13(cfg, "utf8"));
     c.meta = c.meta || {};
     c.meta.expectedDocs = drift.actual;
     const tmp = cfg + ".doctor-" + process.pid + ".tmp";
-    writeFileSync4(tmp, JSON.stringify(c, null, 2) + "\n");
-    renameSync4(tmp, cfg);
+    writeFileSync5(tmp, JSON.stringify(c, null, 2) + "\n");
+    renameSync5(tmp, cfg);
     applied.push("drift: expectedDocs \u2192 " + drift.actual);
   }
   for (const f of fixes.filter((x) => x.kind === "dangling" && x.auto)) {
     const node = model.nodes[f.source];
     if (!node) continue;
     const p = safeDocPath(docsDir, node.file);
-    const raw = readFileSync11(p, "utf8");
+    const raw = readFileSync13(p, "utf8");
     const { html: next, count } = rewriteWikiRef(raw, f.target, f.suggest);
     if (count > 0 && next !== raw) {
       const tmp = p + ".doctor-" + process.pid + ".tmp";
-      writeFileSync4(tmp, next);
-      renameSync4(tmp, p);
+      writeFileSync5(tmp, next);
+      renameSync5(tmp, p);
       applied.push("dangling: " + f.source + " [[" + f.target + "]] \u2192 [[" + f.suggest + "]]");
     }
   }
@@ -24997,274 +25425,6 @@ function renderRepairText(fixes, applied) {
   }
   if (applied && applied.length) lines.push("", "applied " + applied.length + " items: ", ...applied.map((a) => "  \u2713 " + a));
   return lines.join("\n");
-}
-
-// src/engine/fsck.mjs
-import { existsSync as existsSync9, readFileSync as readFileSync13, writeFileSync as writeFileSync5, mkdirSync as mkdirSync2, lstatSync as lstatSync9, renameSync as renameSync5, openSync as openSync5, closeSync as closeSync5, constants as constants4 } from "fs";
-import { join as join13, dirname as dirname3, resolve as resolve3, basename as basename2 } from "path";
-import { createHash as createHash6, randomBytes } from "crypto";
-
-// src/engine/legacy.mjs
-import { existsSync as existsSync8, openSync as openSync4, closeSync as closeSync4, fstatSync as fstatSync3, readFileSync as readFileSync12, constants as constants3 } from "fs";
-import { join as join12 } from "path";
-var LEGACY_BASENAME = "_legacy-canonical.json";
-function legacyPath(dir) {
-  return join12(dir, LEGACY_BASENAME);
-}
-function loadLegacy(dir) {
-  const p = legacyPath(dir);
-  const empty = () => ({ schema: 1, pins: /* @__PURE__ */ Object.create(null) });
-  if (!existsSync8(p)) return empty();
-  let fd = null, text2;
-  try {
-    fd = openSync4(p, constants3.O_RDONLY | constants3.O_NOFOLLOW);
-    if (!fstatSync3(fd).isFile()) return empty();
-    text2 = readFileSync12(fd, "utf8");
-  } catch (e) {
-    if (e && (e.code === "ELOOP" || e.code === "EMLINK")) return empty();
-    throw e;
-  } finally {
-    if (fd != null) try {
-      closeSync4(fd);
-    } catch {
-    }
-  }
-  let cfg;
-  try {
-    cfg = JSON.parse(text2);
-  } catch (e) {
-    throw new Error(LEGACY_BASENAME + " is not valid JSON (" + p + "): " + e.message);
-  }
-  if (cfg === null || typeof cfg !== "object" || Array.isArray(cfg)) throw new Error(LEGACY_BASENAME + " must be a JSON object (" + p + ")");
-  const pins = /* @__PURE__ */ Object.create(null);
-  const raw = cfg.pins && typeof cfg.pins === "object" && !Array.isArray(cfg.pins) ? cfg.pins : {};
-  for (const k of Object.keys(raw)) if (typeof raw[k] === "string" && raw[k]) pins[k] = raw[k];
-  return { schema: 1, pins };
-}
-function isGrandfathered(legacy, uid, digest) {
-  return !!legacy && !!legacy.pins && digest != null && Object.prototype.hasOwnProperty.call(legacy.pins, uid) && legacy.pins[uid] === digest;
-}
-function legacyCandidates({ model, events, policy, digestFor }) {
-  const { approved, approvedHash } = projectDecisions(events, policy);
-  const out = /* @__PURE__ */ Object.create(null);
-  for (const n of Object.values(model.nodes)) {
-    const effectiveCanonical = approved.has(n.uid) || (n.trust || n.status) === "canonical";
-    if (!effectiveCanonical) continue;
-    if (approved.has(n.uid) && approvedHash.get(n.uid) != null) continue;
-    const d = digestFor(n.uid);
-    if (d != null) out[n.uid] = d;
-  }
-  return out;
-}
-
-// src/engine/fsck.mjs
-var sha2563 = (s) => createHash6("sha256").update(String(s)).digest("hex");
-var GATE_CACHE_DIR = ".bureau-cache";
-function gateCachePath(docsDir) {
-  const abs = resolve3(docsDir);
-  const tag = basename2(abs).replace(/[^A-Za-z0-9._-]/g, "_") + "-" + sha2563(abs).slice(0, 8);
-  return join13(dirname3(abs), GATE_CACHE_DIR, tag + ".json");
-}
-function conflictPartners(model) {
-  const partners = /* @__PURE__ */ new Map();
-  const add2 = (a, b) => {
-    if (!partners.has(a)) partners.set(a, /* @__PURE__ */ new Set());
-    partners.get(a).add(b);
-  };
-  for (const e of model.edges) {
-    if (e.edgeType !== "contradicts") continue;
-    const s = model.nodes[e.source], t = model.nodes[e.target];
-    if (!s || !t) continue;
-    add2(s.uid, t.uid);
-    add2(t.uid, s.uid);
-  }
-  return new Map([...partners].map(([uid, set2]) => [uid, [...set2].sort()]));
-}
-function setFrontmatterKey(text2, key, value) {
-  const m = /^---\n([\s\S]*?)\n---/.exec(text2);
-  if (!m) return null;
-  let found = false, changed = false;
-  const lines = m[1].split("\n").map((line) => {
-    const i = line.indexOf(":");
-    const k = i > 0 ? line.slice(0, i).trim() : null;
-    if (k !== key) return line;
-    found = true;
-    if (value == null) {
-      changed = true;
-      return null;
-    }
-    const next = key + ": " + value;
-    if (next !== line) changed = true;
-    return next;
-  }).filter((l) => l !== null);
-  if (value != null && !found) {
-    lines.push(key + ": " + value);
-    changed = true;
-  }
-  if (!changed) return null;
-  return "---\n" + lines.join("\n") + "\n---" + text2.slice(m[0].length);
-}
-function materializeEffectiveStatus(docsDir, entries, effCanon) {
-  let changed = 0;
-  for (const e of entries) {
-    const want = effCanon.has(e.uid) ? "canonical" : null;
-    const next = setFrontmatterKey(e.raw, "effective_status", want);
-    if (next == null) continue;
-    const abs = join13(docsDir, e.file);
-    if (!existsSync9(abs) || lstatSync9(abs).isSymbolicLink()) continue;
-    const tmp = abs + ".bureau-mat-" + process.pid + "-" + randomBytes(6).toString("hex");
-    const fd = openSync5(tmp, constants4.O_WRONLY | constants4.O_CREAT | constants4.O_EXCL | constants4.O_NOFOLLOW, 384);
-    try {
-      writeFileSync5(fd, next);
-    } finally {
-      closeSync5(fd);
-    }
-    renameSync5(tmp, abs);
-    changed++;
-  }
-  return changed;
-}
-function buildDerived({ model, events, schemaVersion = SCHEMA_VERSION, policy = null }) {
-  const spans = projectRevisions(events);
-  const gate = computeGate({ model, events, schemaVersion, policy });
-  const decisions = projectDecisions(events, policy);
-  const partners = conflictPartners(model);
-  const revisions = [...spans.values()].filter((s) => s.alive).map((s) => ({ uid: s.uid, span: s.span, revision: s.revision })).sort((a, b) => canonicalJSON([a.uid, a.span]) < canonicalJSON([b.uid, b.span]) ? -1 : 1);
-  const edges = gate.edges.filter((e) => e.tracked && e.edgeId).map((e) => ({ edgeId: e.edgeId, dep: e.dep, target: e.target, span: e.span, verdictKey: e.verdictKey, open: e.open })).sort((a, b) => a.edgeId < b.edgeId ? -1 : 1);
-  const decided = Object.values(model.nodes).map((n) => {
-    const st = resolveNodeState(n, decisions, partners.get(n.uid) || []);
-    const trustBy = decisions.approvedBy.get(n.uid) || null;
-    const trustAuthorized = st.trust !== "canonical" || trustBy != null && isAuthorized(policy, "approve", trustBy);
-    const rs = st.resolutions && st.resolutions.length ? { resolutions: st.resolutions } : {};
-    return { uid: n.uid, trust: st.trust, trustBacked: st.trustBacked, trustBy, trustAuthorized, conflict: st.conflict, resolutionId: st.resolutionId ?? null, ...rs, freeze: st.freeze };
-  }).sort((a, b) => a.uid < b.uid ? -1 : 1);
-  const marker = policyMarker(policy);
-  return {
-    schemaVersion,
-    ...marker ? { policy: marker } : {},
-    freshness: [...gate.freshness.entries()].map(([uid, level]) => ({ uid, level })).sort((a, b) => a.uid < b.uid ? -1 : 1),
-    dirty: gate.dirty,
-    counts: gate.counts,
-    revisions,
-    edges,
-    decided
-  };
-}
-var derivedDigest = (derived) => sha2563(canonicalJSON(derived, 0));
-var ADVISORY = /* @__PURE__ */ new Set(["pending-scan", "unbound-approval", "legacy-canonical"]);
-function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write = true, policy, materializePages = false } = {}) {
-  const c = corpus || loadCorpus({ docsDir });
-  const model = buildModel({ corpus: c });
-  const evs = events || readLog(logPath(docsDir));
-  const pol = policy || loadPolicy(docsDir);
-  const d1 = buildDerived({ model, events: evs, schemaVersion, policy: pol });
-  const d2 = buildDerived({ model, events: evs, schemaVersion, policy: pol });
-  const digest1 = derivedDigest(d1), digest2 = derivedDigest(d2);
-  const fixpointStable = digest1 === digest2;
-  const findings = [];
-  const planned = scan({ docsDir, corpus: c, apply: false, events: evs }).planned;
-  if (planned.length) findings.push({ kind: "pending-scan", count: planned.length, detail: "run `gazette scan` - the log does not yet reflect the corpus" });
-  for (const [name, read] of [["_verify.json", readVerify], ["_compile-state.json", readCompiled]]) {
-    try {
-      read(docsDir);
-    } catch (e) {
-      findings.push({ kind: "ledger-malformed", ledger: name, detail: e.message });
-    }
-  }
-  const liveEdgeIds = new Set(d1.edges.map((e) => e.edgeId));
-  const lastConfirmBy = /* @__PURE__ */ new Map();
-  for (const ev of evs) if (ev.type === "confirm-edge") lastConfirmBy.set(ev.edge, ev.by);
-  for (const [eid, by] of lastConfirmBy) {
-    if (!liveEdgeIds.has(eid)) {
-      findings.push({ kind: "orphan-confirm", edge: eid });
-      continue;
-    }
-    if (!isAuthorized(pol, "confirm-edge", by)) findings.push({ kind: "unauthorized-confirm", edge: eid, by: by ?? null, allowed: pol["confirm-edge"] });
-  }
-  const { approved, approvedHash, unauthorizedApprovals, unauthorizedResolutions, unauthorizedRejections } = projectDecisions(evs, pol);
-  const nodeByUid = new Map(Object.values(model.nodes).map((n) => [n.uid, n]));
-  const rawByUid = new Map((c.entries || []).map((e) => [e.uid, e.raw]));
-  const legacy = loadLegacy(docsDir);
-  const digestCache = /* @__PURE__ */ new Map();
-  const digestFor = (uid) => {
-    if (digestCache.has(uid)) return digestCache.get(uid);
-    const raw = rawByUid.get(uid), n = nodeByUid.get(uid);
-    let d = null;
-    try {
-      if (raw != null && n) d = reviewDigest({ raw, uid, title: n.title });
-    } catch {
-      d = null;
-    }
-    digestCache.set(uid, d);
-    return d;
-  };
-  for (const [uid, hash] of approvedHash) {
-    const n = nodeByUid.get(uid);
-    if (hash == null) {
-      if (isGrandfathered(legacy, uid, digestFor(uid))) findings.push({ kind: "legacy-canonical", uid, title: n ? n.title : null });
-      else findings.push({ kind: "unbound-approval", uid, title: n ? n.title : null });
-      continue;
-    }
-    if (digestFor(uid) !== hash) findings.push({ kind: "stale-approval", uid, title: n ? n.title : null });
-  }
-  for (const [uid, by] of unauthorizedApprovals) {
-    const n = nodeByUid.get(uid);
-    findings.push({ kind: "unauthorized-canonical", uid, title: n ? n.title : null, by, allowed: pol.approve });
-  }
-  for (const [uid, by] of unauthorizedRejections) {
-    const n = nodeByUid.get(uid);
-    findings.push({ kind: "unauthorized-reject", uid, title: n ? n.title : null, by, allowed: pol.approve });
-  }
-  for (const [conflict, by] of unauthorizedResolutions) {
-    findings.push({ kind: "unauthorized-resolve", conflict, by, allowed: pol.resolve });
-  }
-  for (const n of Object.values(model.nodes)) {
-    if ((n.trust || n.status) !== "canonical") continue;
-    if (approved.has(n.uid) || unauthorizedApprovals.has(n.uid)) continue;
-    if (isGrandfathered(legacy, n.uid, digestFor(n.uid))) findings.push({ kind: "legacy-canonical", uid: n.uid, title: n.title });
-    else findings.push({ kind: "unbacked-canonical", uid: n.uid, title: n.title });
-  }
-  findings.sort((a, b) => canonicalJSON(a) < canonicalJSON(b) ? -1 : 1);
-  const notEff = /* @__PURE__ */ new Set();
-  for (const f of findings) if ((f.kind === "stale-approval" || f.kind === "unbacked-canonical" || f.kind === "unauthorized-canonical") && f.uid != null) notEff.add(f.uid);
-  for (const d of d1.decided) if (d.conflict === "contested") notEff.add(d.uid);
-  const effCanon = /* @__PURE__ */ new Set();
-  for (const d of d1.decided) if (d.trust === "canonical" && !notEff.has(d.uid)) effCanon.add(d.uid);
-  let materialized = 0;
-  if (materializePages && write) materialized = materializeEffectiveStatus(c.docsDir || docsDir, c.entries, effCanon);
-  const gateFile = gateCachePath(docsDir);
-  const cacheDir = dirname3(gateFile);
-  const isLink = (p) => existsSync9(p) && lstatSync9(p).isSymbolicLink();
-  if (isLink(cacheDir)) throw new Error("gate cache dir is a symlink (refused): " + cacheDir);
-  if (isLink(gateFile)) throw new Error("gate cache file is a symlink (refused): " + gateFile);
-  const priorRaw = existsSync9(gateFile) ? readFileSync13(gateFile, "utf8") : null;
-  const nextRaw = canonicalJSON(d1, 2) + "\n";
-  const cacheDrift = priorRaw != null && priorRaw !== nextRaw;
-  if (write) {
-    mkdirSync2(cacheDir, { recursive: true });
-    const tmp = gateFile + ".tmp-" + process.pid + "-" + randomBytes(8).toString("hex");
-    const fd = openSync5(tmp, constants4.O_WRONLY | constants4.O_CREAT | constants4.O_EXCL | constants4.O_NOFOLLOW, 384);
-    try {
-      writeFileSync5(fd, nextRaw);
-    } finally {
-      closeSync5(fd);
-    }
-    renameSync5(tmp, gateFile);
-  }
-  const blockingFindings = findings.filter((f) => !ADVISORY.has(f.kind));
-  return { ok: fixpointStable && blockingFindings.length === 0, fixpointStable, digest: digest1, cacheDrift, findings, blockingFindings, derived: d1, nodeCount: model.nodeCount, materialized };
-}
-
-// src/engine/effective.mjs
-var NOT_BACKED = /* @__PURE__ */ new Set(["stale-approval", "unbacked-canonical", "unauthorized-canonical"]);
-function effectiveReview({ docsDir, corpus, events, policy } = {}) {
-  const report2 = fsck({ docsDir, corpus, events, policy, write: false });
-  const needsReview = /* @__PURE__ */ new Set();
-  for (const f of report2.findings) if (NOT_BACKED.has(f.kind) && f.uid != null) needsReview.add(f.uid);
-  for (const d of report2.derived.decided) if (d.conflict === "contested") needsReview.add(d.uid);
-  const canonical = /* @__PURE__ */ new Set();
-  for (const d of report2.derived.decided) if (d.trust === "canonical" && !needsReview.has(d.uid)) canonical.add(d.uid);
-  return { canonical, needsReview, report: report2 };
 }
 
 // src/engine/review-queue.mjs
@@ -25329,6 +25489,7 @@ function reviewQueue({ docsDir, corpus, model, events, policy } = {}) {
   const byUid = new Map(nodes.map((n) => [n.uid, n]));
   const keyByUid = corpus.keyByUid, uidByKey = corpus.uidByKey;
   const { canonical, report: report2 } = effectiveReview({ docsDir, corpus, events, policy });
+  const supersededUids = new Set((report2.superseded || /* @__PURE__ */ new Map()).keys());
   const decided = new Map(report2.derived.decided.map((d) => [d.uid, d]));
   const findingKinds = /* @__PURE__ */ new Map();
   for (const f of report2.findings) if (f.uid != null) {
@@ -25369,6 +25530,7 @@ function reviewQueue({ docsDir, corpus, model, events, policy } = {}) {
     }
   };
   const baseKind = (uid) => {
+    if (supersededUids.has(uid)) return null;
     const kinds = findingKinds.get(uid) || /* @__PURE__ */ new Set();
     const n = byUid.get(uid), authored = n ? n.trust || n.status || null : null;
     const fr = freshOf(uid);
@@ -25637,6 +25799,71 @@ function resolveWorkspace(cwd) {
 
 // bin/cli.mjs
 import { createHash as createHash7, randomBytes as randomBytes2 } from "crypto";
+
+// src/engine/adr.mjs
+var ADR_RE = /^adr[-\s]?0*(\d+)/i;
+var pad = (n) => String(n).padStart(4, "0");
+function nextAdrNumber(model) {
+  const nodes = model && model.nodes || {};
+  let max = 0;
+  for (const n of Object.values(nodes)) {
+    if (n.kind != null && n.kind !== "adr") continue;
+    const m = ADR_RE.exec((n.title || "").trim()) || ADR_RE.exec((n.id || "").trim());
+    if (m) {
+      const num2 = parseInt(m[1], 10);
+      if (num2 > max) max = num2;
+    }
+  }
+  return max + 1;
+}
+function madrScaffold({ number, title, id, date, supersedesTitle } = {}) {
+  const heading2 = "ADR-" + pad(number) + " \u2014 " + title;
+  const fm = [
+    "---",
+    "id: " + id,
+    "title: " + heading2,
+    "status: proposed",
+    "kind: adr",
+    ...date ? ["updated: " + date] : [],
+    ...supersedesTitle ? ['supersedes: "[[' + supersedesTitle + ']]"'] : [],
+    "---"
+  ];
+  const body = [
+    "# " + heading2,
+    "",
+    "## Context and Problem Statement",
+    "",
+    "<!-- What is the issue this decision resolves, and why now? A few sentences. -->",
+    "",
+    "## Decision Drivers",
+    "",
+    "<!-- - a force / concern / constraint that shapes the decision -->",
+    "",
+    "## Considered Options",
+    "",
+    "<!-- - Option A",
+    "     - Option B -->",
+    "",
+    "## Decision Outcome",
+    "",
+    'Chosen option: **"<option>"**, because <justification>.',
+    "",
+    "## Consequences",
+    "",
+    "<!-- - Good, because \u2026 / Bad, because \u2026 / Neutral, because \u2026 -->",
+    "",
+    "## Confirmation",
+    "",
+    "How this decision is verified to hold. Fingerprint the confirming artifact so that when it drifts,",
+    "this ADR is re-flagged for review:",
+    "",
+    "```",
+    'gazette ledger verify --dir <workspace> --page "' + heading2 + '" --artifact <path> --claim "<what it confirms>"',
+    "```",
+    ""
+  ];
+  return fm.join("\n") + "\n" + body.join("\n") + "\n";
+}
 
 // src/engine/versions.mjs
 import { execFileSync as execFileSync3 } from "child_process";
@@ -26713,6 +26940,65 @@ function runResolve() {
     die(e.message);
   }
 }
+function resolveAdrTarget(model, token) {
+  const exact = model.nodes[nfc(String(token))];
+  if (exact) return exact.title;
+  const m = /^(?:adr[-\s]?)?0*(\d+)$/i.exec(String(token).trim());
+  if (!m) return null;
+  const want = parseInt(m[1], 10), startRe = /^adr[-\s]?0*(\d+)/i;
+  for (const n of Object.values(model.nodes)) {
+    if (n.kind != null && n.kind !== "adr") continue;
+    const nm = startRe.exec((n.title || "").trim()) || startRe.exec((n.id || "").trim());
+    if (nm && parseInt(nm[1], 10) === want) return n.title;
+  }
+  return null;
+}
+function runAdr() {
+  try {
+    if (argv[1] !== "new") die('usage: gazette adr new --title "<title>" [--supersedes <ADR-N|title>] [--drawer decisions] [--dir <ws>]');
+    const rawTitle = opt("title");
+    if (!rawTitle || !String(rawTitle).trim()) die('gazette adr new requires --title "<title>"');
+    const title = String(rawTitle).replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim();
+    const docsDir = engineDir();
+    if (!existsSync12(docsDir)) die("no workspace at " + docsDir + " \u2014 run `gazette init` first");
+    const model = buildModel({ corpus: loadCorpus({ docsDir }) });
+    const number = nextAdrNumber(model);
+    let supersedesTitle = null;
+    const sup = opt("supersedes");
+    if (sup) {
+      supersedesTitle = resolveAdrTarget(model, sup);
+      if (!supersedesTitle) die('--supersedes: no ADR or page matches "' + sup + '"');
+    }
+    const id = randomBytes2(8).toString("hex");
+    const text2 = madrScaffold({ number, title, id, date: today(), supersedesTitle });
+    const drawer = opt("drawer") || "decisions";
+    const num2 = String(number).padStart(4, "0");
+    const slug = String(title).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "adr";
+    const rel = drawer + "/ADR-" + num2 + "-" + slug + ".md";
+    const fp = resolve6(docsDir, rel);
+    if (!(fp === docsDir || fp.startsWith(docsDir + sep7))) die("path escapes the workspace: " + rel);
+    const dirReal = realpathSync6(docsDir);
+    mkdirSync3(dirname4(fp), { recursive: true });
+    let anc = dirname4(fp);
+    while (!existsSync12(anc) && anc !== dirname4(anc)) anc = dirname4(anc);
+    const ancReal = realpathSync6(anc);
+    if (!(ancReal === dirReal || ancReal.startsWith(dirReal + sep7))) die("path escapes the workspace (via symlink): " + rel);
+    let fd;
+    try {
+      fd = openSync6(fp, constants5.O_WRONLY | constants5.O_CREAT | constants5.O_EXCL | constants5.O_NOFOLLOW, 420);
+    } catch (e) {
+      die("refused to write " + rel + " (" + (e.code || e.message) + ") \u2014 the target already exists or is a symlink");
+    }
+    try {
+      writeFileSync7(fd, text2);
+    } finally {
+      closeSync6(fd);
+    }
+    console.log("+ " + rel + "   (ADR-" + num2 + ", status: proposed \u2014 awaits `bureau:review`)");
+  } catch (e) {
+    die(e.message);
+  }
+}
 function runLegacyMigrate() {
   try {
     const check = argv.includes("--check");
@@ -26896,6 +27182,9 @@ switch (cmd) {
   case "snapshot":
     runSnapshot();
     break;
+  case "adr":
+    runAdr();
+    break;
   default:
     console.log([
       "gazette \u2014 offline board from a folder of HTML docs (default: gazette/)",
@@ -26925,6 +27214,7 @@ switch (cmd) {
       '  gazette approve "<title>"          log a human approval \u2192 trust: canonical (backs the projection)',
       `  gazette confirm "<title>"          vouch a dependent page's open rests_on edges (gate cutoff)`,
       '  gazette resolve "<A>" "<B>" --winner "<title>"   record a contradicts resolution',
+      '  gazette adr new --title "<t>" [--supersedes <ADR-N>]  scaffold a proposed MADR ADR page (authors only; never approves)',
       "  gazette ledger <verify|recheck|mark-compiled|uncompiled> \u2026   the code-owned trust ledgers",
       "",
       "  versioned board (git-backed):",

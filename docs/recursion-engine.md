@@ -132,6 +132,12 @@ still works and maps onto `trust`):
 A page can be `canonical` **and** `stale` at once — approved by a human, but sitting on a changed
 upstream. That's the whole point: the two axes are independent.
 
+**Superseding a decision (ADR-0006).** An ADR page (`kind: adr`) may carry a `supersedes: [[ADR-N]]`
+edge. Once the *superseding* ADR is approved **and content-current**, its target drops out of the
+effective-`canonical` fact set as **superseded** — settled history, *not* flagged for review — and a
+derived "superseded-by" backlink appears. Like `canonical`, `superseded` is projected, never authored;
+the supersession is inert (and an edit to the superseding ADR reverts it) until a human approves it.
+
 **`canonical` is earned, not written.** `gazette fsck` flags any page authored `canonical` that no
 `approve` event in the decision log backs — because the decision log, not the frontmatter, is the
 source of truth for who approved what.
@@ -174,6 +180,7 @@ bureau repo the workspace is auto-detected, so `--dir` is optional). See
 | `approve "<title>"` | log a human approval → backs `trust: canonical` |
 | `confirm "<title>"` | vouch that a page's open `rests_on` edges still hold → cutoff |
 | `resolve "<A>" "<B>" --winner "<title>"` | record which side of a `contradicts` wins |
+| `adr new --title "<t>" [--supersedes <ADR-N>]` | scaffold a `proposed` MADR ADR page (ADR-0006); a `supersedes` edge takes effect only once the superseding ADR is approved |
 | `ledger …` | the code-owned trust ledgers (`_verify.json` fingerprints, `_compile-state.json`) |
 
 In the bureau workflow you rarely run these raw: `bureau:status` surfaces the gate, `bureau:review`

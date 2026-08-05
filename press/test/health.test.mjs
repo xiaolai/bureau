@@ -246,3 +246,18 @@ test("health/render: a hostile doc title cannot inject raw HTML into the board r
     /<a data-wiki="&lt;img src=x onerror=alert\(1\)&gt;">&lt;img src=x onerror=alert\(1\)&gt;<\/a>/,
   );
 });
+
+// ── WI-1 (ADR layer): the reverse "superseded-by" link is DERIVED, not authored ──────
+test("supersedes: deriveBacklinks inverts the edge (reverse link derived, target file untouched)", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "wb-supersede-bl-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const docsDir = join(root, "docs");
+  mkdirSync(docsDir, { recursive: true });
+  writeFileSync(join(docsDir, "_config.json"), JSON.stringify({ meta: { home: "" } }));
+  writeFileSync(join(docsDir, "m.md"), ["---", "id: M", "title: ADR 0004", "supersedes: [[ADR 0003]]", "---", "# ADR 0004", "body"].join("\n"));
+  writeFileSync(join(docsDir, "n.md"), ["---", "id: N", "title: ADR 0003", "---", "# ADR 0003", "body"].join("\n"));
+  const m = buildModel({ docsDir });
+  assert.ok(deriveBacklinks(m).inbound["ADR 0003"].includes("ADR 0004"), "reverse superseded-by link is derived");
+  // the reverse link is a DERIVED inbound edge — the superseded page's bytes are never hand-written
+  assert.doesNotMatch(readFileSync(join(docsDir, "n.md"), "utf8"), /superseded/i);
+});

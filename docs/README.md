@@ -9,6 +9,7 @@ Turn AI sessions into a maintained, human-reviewed, *dependency-aware* knowledge
 | **[Live & versioned board](live-and-versioned-board.md)** | The live freshness board (`serve`), and git-backed versioning: render any past board (`build --at`), diff two versions (`diff`), pin named snapshots (`snapshot`). |
 | **[CLI reference](cli-reference.md)** | Every `gazette` verb, grouped, with flags — and the on-disk artifact map (what's source vs derived). |
 | **[ADR-0001 — engine data model](adr-0001-engine-data-model.md)** | The frozen data-model spec: the decision-log event grammar, the verdict key, and the frontmatter classes. The deep reference behind the engine guide. |
+| **[ADR-0006 — ADR-native layer](adr-0006-supersedes-and-superseded-projection.md)** | `supersedes` edges + the projection-only, content-bound `superseded` state (fail-closed cycles, decisions-only targets), the `bureau:adr` scaffold, and the decision-filtered board view. |
 
 ## The shape of it, in one picture
 

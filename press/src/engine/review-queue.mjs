@@ -77,6 +77,10 @@ export function reviewQueue({ docsDir, corpus, model, events, policy } = {}) {
 
   // trust + conflict from the projection (fsck, read-only)
   const { canonical, report } = effectiveReview({ docsDir, corpus, events, policy });
+  // ADR-0006: an effectively-superseded page (an eligible target of a fresh-approved supersedes) is
+  // settled history — it leaves the queue entirely. An INELIGIBLE supersedes-target is NOT here, so it
+  // keeps its normal work item (proposal withdrawal is a separate workflow).
+  const supersededUids = new Set((report.superseded || new Map()).keys());
   const decided = new Map(report.derived.decided.map((d) => [d.uid, d]));
   const findingKinds = new Map();
   for (const f of report.findings) if (f.uid != null) {
@@ -113,6 +117,7 @@ export function reviewQueue({ docsDir, corpus, model, events, policy } = {}) {
 
   // base kind (trust/freshness/edge) — conflict is resolved as components below, not per page
   const baseKind = (uid) => {
+    if (supersededUids.has(uid)) return null;           // ADR-0006: superseded → settled history, no action
     const kinds = findingKinds.get(uid) || new Set();
     const n = byUid.get(uid), authored = n ? (n.trust || n.status || null) : null;
     const fr = freshOf(uid);

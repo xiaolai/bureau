@@ -73,3 +73,19 @@ test("effectiveReview: a plain proposed page is neither canonical nor needs-revi
   const e = effectiveReview({ docsDir: dir });
   assert.ok(!e.canonical.has("P") && !e.needsReview.has("P"), "an un-decided proposed page is outside both sets");
 });
+
+// ── WI-4 (ADR layer): an effectively-superseded page leaves the fact set but stays settled history ──
+test("effectiveReview: a superseded canonical page leaves `canonical`, is exposed positively, and is NOT needs-review", (t) => {
+  const dir = ws(t, {
+    "m.md": "---\nid: M\ntitle: ADR M\nstatus: proposed\nsupersedes: [[ADR N]]\n---\n# ADR M\nbody ^m\n",
+    "n.md": "---\nid: N\ntitle: ADR N\nstatus: proposed\n---\n# ADR N\nbody ^n\n",
+  });
+  scan({ docsDir: dir });
+  appendEvent(logPath(dir), { type: "approve", id: "N", by: "human", hash: reviewDigest({ raw: readFileSync(join(dir, "n.md"), "utf8"), uid: "N", title: "ADR N" }) }); // N eligible
+  appendEvent(logPath(dir), { type: "approve", id: "M", by: "human", hash: reviewDigest({ raw: readFileSync(join(dir, "m.md"), "utf8"), uid: "M", title: "ADR M" }) }); // M fresh → effective
+  const e = effectiveReview({ docsDir: dir });
+  assert.ok(!e.canonical.has("N"), "superseded N is not current fact");
+  assert.deepEqual(e.superseded.find((s) => s.uid === "N"), { uid: "N", status: "superseded", supersededBy: ["M"] }); // positive surface, not silent omission
+  assert.ok(!e.needsReview.has("N"), "superseded is settled history, NOT pending work (unlike contested)");
+  assert.equal(e.report.derived.decided.find((d) => d.uid === "N").trust, "canonical"); // history preserved: approval not un-recorded
+});

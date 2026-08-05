@@ -81,6 +81,7 @@ route it back through `bureau:review`.
 | Jot a durable point mid-session | `bureau:note` | `scribe` |
 | File the whole current session as a minute | `bureau:file-session` | `capture` |
 | Distil minutes into dossiers | `bureau:compile` | `compile` |
+| Record an architecture decision (a MADR ADR page) | `bureau:adr` | `adr` |
 | Find contradictions / stale / unsupported claims | `bureau:lint` | `lint` |
 | Promote vetted claims to `canonical`; confirm dependencies; resolve conflicts (human gate) | `bureau:review` | `review` |
 | Run the whole lifecycle in one pass (compile → scan → lint → review → inspect) | `bureau:cycle` | orchestrates `compile`/`lint`/`review` |

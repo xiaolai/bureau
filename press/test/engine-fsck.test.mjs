@@ -6,7 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { scan } from "../src/engine/scan.mjs";
 import { fsck, gateCachePath } from "../src/engine/fsck.mjs";
-import { logPath } from "../src/engine/log.mjs";
+import { logPath, appendEvent } from "../src/engine/log.mjs";
+import { reviewDigest } from "../src/engine/review-digest.mjs";
 
 function ws(files) {
   const root = mkdtempSync(join(tmpdir(), "wb-fsck-"));
@@ -70,5 +71,114 @@ test("fsck: an authored canonical with no approve event is reported unbacked", (
     scan({ docsDir: w.dir });
     const r = fsck({ docsDir: w.dir });
     assert.ok(r.findings.some((f) => f.kind === "unbacked-canonical" && f.uid === "P"));
+  } finally { w.cleanup(); }
+});
+
+// ── WI-3 (ADR layer): `superseded` is a fsck-level projection beside stale-approval/contested ──
+// `buildDerived` stays untouched (byte-fixpoint by construction); superseded is exposed on
+// report.superseded and excluded from effective-canonical. Effectiveness gates on the source's
+// FRESH (content-current) approval; the target must be an eligible decision. Cycles fail-closed.
+const MSN = "---\nid: M\ntitle: ADR M\nsupersedes: [[ADR N]]\n---\n# ADR M\nbody ^m\n";
+const NPLAIN = "---\nid: N\ntitle: ADR N\n---\n# ADR N\nbody ^n\n";
+function approveBound(dir, uid, title, file) {
+  const raw = readFileSync(join(dir, file), "utf8");
+  appendEvent(logPath(dir), { type: "approve", id: uid, by: "human", hash: reviewDigest({ raw, uid, title }) });
+}
+
+test("WI-3: inert supersedes (unapproved source) → derived digest == committed baseline, no superseded", () => {
+  const w = ws({ "m.md": MSN, "n.md": NPLAIN });
+  try {
+    scan({ docsDir: w.dir });
+    const r = fsck({ docsDir: w.dir });
+    // Frozen pre-WI-3 literal: buildDerived is untouched, so this is the guard against ANY leak of
+    // `superseded` into the derived tier. (build-twice determinism alone cannot catch such a leak.)
+    assert.equal(r.digest, "18716df890bc489c760ead304a6c7499c86581a2c1556f1adab11711fdade558");
+    assert.equal(r.superseded.size, 0);
+    assert.ok(r.derived.decided.every((d) => !("supersededBy" in d)));
+  } finally { w.cleanup(); }
+});
+
+test("WI-3: effective supersession → report.superseded on target only, buildDerived untouched, fixpoint holds", () => {
+  const w = ws({ "m.md": MSN, "n.md": NPLAIN });
+  try {
+    scan({ docsDir: w.dir });
+    approveBound(w.dir, "N", "ADR N", "n.md"); // N is an eligible (effective-canonical) decision
+    approveBound(w.dir, "M", "ADR M", "m.md"); // M fresh-approved → supersession is effective
+    const r = fsck({ docsDir: w.dir });
+    assert.deepEqual(r.superseded.get("N"), ["M"]);
+    assert.equal(r.superseded.has("M"), false);
+    assert.ok(r.derived.decided.every((d) => !("supersededBy" in d)), "buildDerived carries no supersededBy key");
+    assert.equal(r.fixpointStable, true);
+  } finally { w.cleanup(); }
+});
+
+test("WI-3: broken-supersedes is advisory (finding present, fsck.ok stays true)", () => {
+  const w = ws({ "m.md": "---\nid: M\ntitle: ADR M\nsupersedes: [[ADR Ghost]]\n---\n# ADR M\nbody ^m\n" });
+  try {
+    scan({ docsDir: w.dir });
+    const r = fsck({ docsDir: w.dir });
+    assert.ok(r.findings.some((f) => f.kind === "broken-supersedes" && f.sourceUid === "M" && f.target === "ADR Ghost"));
+    assert.equal(r.ok, true);
+    assert.ok(!r.blockingFindings.some((f) => f.kind === "broken-supersedes"));
+  } finally { w.cleanup(); }
+});
+
+test("WI-3: supersedes-ineligible-target is advisory; a proposed target is NOT demoted", () => {
+  const w = ws({ "m.md": MSN, "n.md": NPLAIN });
+  try {
+    scan({ docsDir: w.dir });
+    approveBound(w.dir, "M", "ADR M", "m.md"); // M fresh-approved, but N stays proposed → ineligible target
+    const r = fsck({ docsDir: w.dir });
+    assert.ok(r.findings.some((f) => f.kind === "supersedes-ineligible-target" && f.sourceUid === "M" && f.targetUid === "N"));
+    assert.equal(r.ok, true);
+    assert.equal(r.superseded.has("N"), false);
+  } finally { w.cleanup(); }
+});
+
+test("WI-3: approved A↔B supersede-cycle BLOCKS; an unapproved (inert) cycle does NOT", () => {
+  const A = "---\nid: A\ntitle: ADR A\nsupersedes: [[ADR B]]\n---\n# ADR A\nbody ^a\n";
+  const B = "---\nid: B\ntitle: ADR B\nsupersedes: [[ADR A]]\n---\n# ADR B\nbody ^b\n";
+  const w1 = ws({ "a.md": A, "b.md": B });
+  try {
+    scan({ docsDir: w1.dir });
+    approveBound(w1.dir, "A", "ADR A", "a.md");
+    approveBound(w1.dir, "B", "ADR B", "b.md");
+    const r1 = fsck({ docsDir: w1.dir });
+    assert.ok(r1.findings.some((f) => f.kind === "supersedes-cycle"));
+    assert.equal(r1.ok, false); // an effective cycle is a real contradiction — blocking
+  } finally { w1.cleanup(); }
+  const w2 = ws({ "a.md": A, "b.md": B });
+  try {
+    scan({ docsDir: w2.dir }); // neither approved → both edges inert
+    const r2 = fsck({ docsDir: w2.dir });
+    assert.ok(!r2.findings.some((f) => f.kind === "supersedes-cycle"), "an inert cycle must not block the CI gate");
+    assert.equal(r2.ok, true);
+  } finally { w2.cleanup(); }
+});
+
+test("WI-3: --materialize-pages never stamps a superseded target effective_status: canonical", () => {
+  const K = "---\nid: K\ntitle: ADR K\n---\n# ADR K\nbody ^k\n";
+  const w = ws({ "m.md": MSN, "n.md": NPLAIN, "k.md": K });
+  try {
+    scan({ docsDir: w.dir });
+    approveBound(w.dir, "N", "ADR N", "n.md");
+    approveBound(w.dir, "M", "ADR M", "m.md");
+    approveBound(w.dir, "K", "ADR K", "k.md"); // control: canonical, NOT superseded
+    fsck({ docsDir: w.dir, write: true, materializePages: true });
+    assert.doesNotMatch(readFileSync(join(w.dir, "n.md"), "utf8"), /effective_status:\s*canonical/); // superseded N excluded
+    assert.match(readFileSync(join(w.dir, "k.md"), "utf8"), /effective_status:\s*canonical/); // control stamped → materialize ran
+  } finally { w.cleanup(); }
+});
+
+test("WI-3: a hashless (unbound) approved source does NOT activate supersession (fail-closed)", () => {
+  const w = ws({ "m.md": MSN, "n.md": NPLAIN });
+  try {
+    scan({ docsDir: w.dir });
+    approveBound(w.dir, "N", "ADR N", "n.md");                             // N eligible
+    appendEvent(logPath(w.dir), { type: "approve", id: "M", by: "human" }); // HASHLESS approve of M
+    const r = fsck({ docsDir: w.dir });
+    assert.equal(r.superseded.size, 0); // M not content-current (no hash) → supersession inert
+    assert.ok(r.findings.some((f) => f.kind === "unbound-approval" && f.uid === "M"));
+    assert.equal(r.ok, true); // unbound-approval is advisory
   } finally { w.cleanup(); }
 });

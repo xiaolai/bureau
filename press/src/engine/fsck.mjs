@@ -17,6 +17,7 @@ import { computeGate } from "./gate.mjs";
 import { scan } from "./scan.mjs";
 import { readVerify, readCompiled } from "./ledgers.mjs";
 import { loadPolicy, isAuthorized, policyMarker } from "./policy.mjs";
+import { projectSupersessions } from "./supersede.mjs";
 
 const sha256 = (s) => createHash("sha256").update(String(s)).digest("hex");
 // The gate cache is DERIVED state, so it lives OUTSIDE the workspace — in a sibling `.bureau-cache/`
@@ -150,7 +151,7 @@ export const derivedDigest = (derived) => sha256(canonicalJSON(derived, 0));
 // hard failure): `unbound-approval` (a REAL human approval predating content-binding — legitimate, just
 // not yet bound; re-approve or grandfather to bind it) and `legacy-canonical` (explicitly grandfathered
 // via the Phase-6 manifest, voided on any change). `pending-scan` stays advisory (normal mid-edit).
-const ADVISORY = new Set(["pending-scan", "unbound-approval", "legacy-canonical"]);
+const ADVISORY = new Set(["pending-scan", "unbound-approval", "legacy-canonical", "broken-supersedes", "supersedes-ineligible-target"]);
 
 export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write = true, policy, materializePages = false } = {}) {
   const c = corpus || loadCorpus({ docsDir });
@@ -250,15 +251,34 @@ export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, 
     if (isGrandfathered(legacy, n.uid, digestFor(n.uid))) findings.push({ kind: "legacy-canonical", uid: n.uid, title: n.title });
     else findings.push({ kind: "unbacked-canonical", uid: n.uid, title: n.title });
   }
+
+  // ── supersession projection (ADR-0006). `superseded` is a fsck-level state (like stale-approval),
+  // NOT a buildDerived field: effectiveness gates on the source's FRESH (content-current) approval,
+  // which needs raw bytes — so buildDerived is left untouched and the derived digest is byte-stable.
+  // notEffBase = the PRE-supersession not-effective set (stale / unbacked / unauthorized / contested);
+  // eligibleTargets = the pre-supersession effective-canonical set, computed BEFORE superseded is
+  // subtracted (this breaks the circularity and lets contested win over supersession).
+  const notEffBase = new Set();
+  for (const f of findings) if ((f.kind === "stale-approval" || f.kind === "unbacked-canonical" || f.kind === "unauthorized-canonical") && f.uid != null) notEffBase.add(f.uid);
+  for (const d of d1.decided) if (d.conflict === "contested") notEffBase.add(d.uid);
+  const eligibleTargets = new Set();
+  for (const d of d1.decided) if (d.trust === "canonical" && !notEffBase.has(d.uid)) eligibleTargets.add(d.uid);
+  // fresh-approved sources: an effective approval that is content-CURRENT (bound AND its hash still
+  // matches reviewDigest). A stale (hash mismatch) or unbound (hashless) approval is NOT fresh — so an
+  // edit to the superseding ADR, or an unbound legacy approval, never silently demotes its target.
+  const freshApprovedSources = new Set();
+  for (const [uid, hash] of approvedHash) if (hash != null && digestFor(uid) === hash) freshApprovedSources.add(uid);
+  const superseded = projectSupersessions({ model, approvedSources: freshApprovedSources, eligibleTargets });
+  for (const cyc of superseded.cycles) findings.push({ kind: "supersedes-cycle", uids: cyc });                                  // blocking — a real contradiction
+  for (const b of superseded.broken) findings.push({ kind: "broken-supersedes", sourceUid: b.sourceUid, target: b.target });    // advisory — dangling target
+  for (const ig of superseded.ineligible) findings.push({ kind: "supersedes-ineligible-target", sourceUid: ig.sourceUid, targetUid: ig.targetUid }); // advisory — non-decision target
   findings.sort((a, b) => (canonicalJSON(a) < canonicalJSON(b) ? -1 : 1));
 
   // The EFFECTIVELY-canonical set: the derived tier projects `canonical`, and the gate does not flag
-  // the backing as stale / unbacked / unauthorized. Same rule readers use via `engine/effective.mjs`.
-  const notEff = new Set();
-  for (const f of findings) if ((f.kind === "stale-approval" || f.kind === "unbacked-canonical" || f.kind === "unauthorized-canonical") && f.uid != null) notEff.add(f.uid);
-  // ADR-0005 Decision D: a page in an unresolved `contested` conflict is not effectively canonical, so
-  // the materialized `effective_status:` cache never marks it fact either.
-  for (const d of d1.decided) if (d.conflict === "contested") notEff.add(d.uid);
+  // the backing as stale / unbacked / unauthorized / contested (notEffBase), NOR superseded by an
+  // effective ADR (ADR-0006). Same rule readers use via `engine/effective.mjs`.
+  const notEff = new Set(notEffBase);
+  for (const uid of superseded.supersededBy.keys()) notEff.add(uid);
   const effCanon = new Set();
   for (const d of d1.decided) if (d.trust === "canonical" && !notEff.has(d.uid)) effCanon.add(d.uid);
   // opt-in ONLY: plain `gazette fsck` must never mutate a source page. `--materialize-pages` refreshes
@@ -289,5 +309,5 @@ export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, 
   }
 
   const blockingFindings = findings.filter((f) => !ADVISORY.has(f.kind));
-  return { ok: fixpointStable && blockingFindings.length === 0, fixpointStable, digest: digest1, cacheDrift, findings, blockingFindings, derived: d1, nodeCount: model.nodeCount, materialized };
+  return { ok: fixpointStable && blockingFindings.length === 0, fixpointStable, digest: digest1, cacheDrift, findings, blockingFindings, derived: d1, superseded: superseded.supersededBy, nodeCount: model.nodeCount, materialized };
 }

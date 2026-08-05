@@ -74,3 +74,13 @@ test("schema: two _types files claiming the same group throw (was silent last-wi
   writeFileSync(join(docsDir, "_types", "b.html"), "---\napplies: c\nedges: [y]\n---\n<p>two</p>");
   assert.throws(() => buildModel({ docsDir }), /duplicate _types schema for group "c"/);
 });
+
+// ── WI-1 (ADR layer): supersedes is schema-DRIVEN, never hardcoded into the linter ──
+// The two-sided assertion is the guard: if someone hardcodes `supersedes` into a known-edge
+// list inside lintSchema, the omitted-schema half stops flagging and this test fails.
+test("schema: supersedes allowed when the _types schema declares it, flagged when it omits it", (t) => {
+  const declared = model(t, "applies: c\nedges: [supersedes]", { "a.html": { title: "A", group: "c", supersedes: "[[B]]" }, "b.html": { title: "B", group: "c" } });
+  assert.deepEqual(lintSchema(declared, declared.types), []);
+  const omitted = model(t, "applies: c\nedges: [allies]", { "a.html": { title: "A", group: "c", supersedes: "[[B]]" }, "b.html": { title: "B", group: "c" } });
+  assert.deepEqual(lintSchema(omitted, omitted.types), [{ kind: "unknownEdge", node: "A", key: "supersedes" }]);
+});

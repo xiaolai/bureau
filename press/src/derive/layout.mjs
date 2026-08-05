@@ -59,7 +59,9 @@ export function deriveLayout(model) {
   const gRows = Math.ceil(groups.length / gCols);
   return {
     nodes,
-    edges: model.edges.map((e) => ({ source: e.source, target: e.target })),
+    // edgeType/tracked are preserved additively (ADR-0006): the default renderer ignores them, so the
+    // main Graph SVG is byte-identical; the decision view reads them to filter + style the ADR subgraph.
+    edges: model.edges.map((e) => ({ source: e.source, target: e.target, edgeType: e.edgeType ?? null, tracked: e.tracked === true })),
     groups,
     width: quantize(gCols * (regionBox + GAP)),
     height: quantize(gRows * (regionBox + GAP)),

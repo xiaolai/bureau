@@ -61,6 +61,7 @@ See [`recursion-engine.md`](recursion-engine.md) for the model.
 | `gazette reject "<title>" [--reason "…"]` | log a rejection (the authored tier stands; no canonical backing) |
 | `gazette confirm "<title>" [--by <who>]` | vouch that a dependent page's open `rests_on` edges still hold → cutoff (skips broken edges) |
 | `gazette resolve "<A>" "<B>" --winner "<title>"` | record which side of a `contradicts` conflict wins |
+| `gazette adr new --title "<t>" [--supersedes <ADR-N>]` | scaffold a `proposed` MADR ADR page (`kind: adr`, auto-numbered) into the decisions drawer; authors a source file only — never appends to `_log.jsonl`, never approves (ADR-0006) |
 | `gazette ledger verify --page "<title>" --artifact <path> [--claim "…"]` | fingerprint an artifact under a page (path-jailed to the repo) |
 | `gazette ledger recheck --page "<title>"` | re-hash a page's recorded artifacts; reports `current`/`DRIFTED` |
 | `gazette ledger mark-compiled <session-id> …` | record processed sessions (idempotent) |

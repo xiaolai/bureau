@@ -10,7 +10,7 @@
 //   gazette build [opts]          build dist/
 //   gazette serve [--port 8080]   build, then serve dist/ locally
 // opts: --docs <dir>(=docs)  --data <dir>(=data)  --out <dir>(=dist)
-import { existsSync, mkdirSync, writeFileSync, appendFileSync, readFileSync, readSync, statSync, lstatSync, readdirSync, realpathSync, rmSync, watch } from "fs";
+import { existsSync, mkdirSync, writeFileSync, appendFileSync, readFileSync, readSync, statSync, lstatSync, readdirSync, realpathSync, rmSync, watch, openSync, closeSync, constants } from "fs";
 import { join, resolve, dirname, extname, sep, relative } from "path";
 import { createServer } from "http";
 import { spawn } from "child_process";
@@ -38,6 +38,7 @@ import { resolveWorkspace } from "../src/core/workspace-map.mjs";
 import { logPath, readLog, appendEvent, appendBatch } from "../src/engine/log.mjs";
 import { createHash, randomBytes } from "crypto";
 import { conflictKey, projectDecisions } from "../src/engine/state.mjs";
+import { nextAdrNumber, madrScaffold } from "../src/engine/adr.mjs";
 import { buildAtRef, logDiff, snapshotCreate, readSnapshots, resolveSnapshotOrRef, gitRootFor } from "../src/engine/versions.mjs";
 import { nfc } from "../src/services/i18n.mjs";
 
@@ -868,6 +869,64 @@ function runResolve() {
   } catch (e) { die(e.message); }
 }
 
+// ── ADR-native layer (ADR-0006) ─────────────────────────────────────────────────
+// resolve a `--supersedes` token (an exact page title, or an `ADR-N` / bare number) to the target
+// node's TITLE. Returns null when nothing matches → the caller die()s (a broken edge is never written).
+function resolveAdrTarget(model, token) {
+  const exact = model.nodes[nfc(String(token))];
+  if (exact) return exact.title;
+  const m = /^(?:adr[-\s]?)?0*(\d+)$/i.exec(String(token).trim()); // the token must be a clean ADR-N or bare number
+  if (!m) return null;
+  const want = parseInt(m[1], 10), startRe = /^adr[-\s]?0*(\d+)/i;  // a node is an ADR only if it BEGINS with ADR-N
+  for (const n of Object.values(model.nodes)) {
+    if (n.kind != null && n.kind !== "adr") continue;              // skip non-adr kinds; allow kind:adr or unkinded
+    const nm = startRe.exec((n.title || "").trim()) || startRe.exec((n.id || "").trim());
+    if (nm && parseInt(nm[1], 10) === want) return n.title;
+  }
+  return null;
+}
+
+// `gazette adr new` — scaffold a PROPOSED MADR ADR page into the decisions drawer. Authors a source
+// file ONLY: it never touches `_log.jsonl`, never approves, never passes `--by` (the write-gate,
+// ADR-0004/0006). Numbering + templating come from engine/adr.mjs; the write is jailed + atomic
+// (O_CREAT|O_EXCL|O_NOFOLLOW; refuse a path escape or a symlinked target).
+function runAdr() {
+ try {
+  if (argv[1] !== "new") die('usage: gazette adr new --title "<title>" [--supersedes <ADR-N|title>] [--drawer decisions] [--dir <ws>]');
+  const rawTitle = opt("title");
+  if (!rawTitle || !String(rawTitle).trim()) die('gazette adr new requires --title "<title>"');
+  // strip control chars (incl. newlines) + collapse whitespace so a title can never corrupt the
+  // scaffolded frontmatter (a `title:` value spanning lines would break the parser / fsck).
+  const title = String(rawTitle).replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim();
+  const docsDir = engineDir();
+  if (!existsSync(docsDir)) die("no workspace at " + docsDir + " — run `gazette init` first");
+  const model = buildModel({ corpus: loadCorpus({ docsDir }) });
+  const number = nextAdrNumber(model);
+  let supersedesTitle = null;
+  const sup = opt("supersedes");
+  if (sup) { supersedesTitle = resolveAdrTarget(model, sup); if (!supersedesTitle) die('--supersedes: no ADR or page matches "' + sup + '"'); }
+  const id = randomBytes(8).toString("hex"); // opaque identity — the scaffold does not invent identity policy
+  const text = madrScaffold({ number, title, id, date: today(), supersedesTitle });
+  const drawer = opt("drawer") || "decisions";
+  const num = String(number).padStart(4, "0");
+  const slug = String(title).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "adr";
+  const rel = drawer + "/ADR-" + num + "-" + slug + ".md";
+  const fp = resolve(docsDir, rel);
+  if (!(fp === docsDir || fp.startsWith(docsDir + sep))) die("path escapes the workspace: " + rel);
+  const dirReal = realpathSync(docsDir);
+  mkdirSync(dirname(fp), { recursive: true });
+  // a symlinked drawer could redirect the write outside the workspace — realpath the deepest existing ancestor.
+  let anc = dirname(fp); while (!existsSync(anc) && anc !== dirname(anc)) anc = dirname(anc);
+  const ancReal = realpathSync(anc);
+  if (!(ancReal === dirReal || ancReal.startsWith(dirReal + sep))) die("path escapes the workspace (via symlink): " + rel);
+  let fd;
+  try { fd = openSync(fp, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o644); }
+  catch (e) { die("refused to write " + rel + " (" + (e.code || e.message) + ") — the target already exists or is a symlink"); }
+  try { writeFileSync(fd, text); } finally { closeSync(fd); }
+  console.log("+ " + rel + "   (ADR-" + num + ", status: proposed — awaits `bureau:review`)");
+ } catch (e) { die(e.message); } // a corpus/model/fs error reports cleanly, like every other verb
+}
+
 // legacy-migrate (ADR-0004 Phase 6): grandfather EXISTING effective-canonical pages that aren't
 // content-bound (an authored canonical with no approve, or an approve that predates content-binding)
 // into the digest-pinned `_legacy-canonical.json` manifest. `legacy-canonical` is honestly WEAKER than
@@ -988,6 +1047,7 @@ switch (cmd) {
   case "resolve": runResolve(); break;
   case "diff": runDiff(); break;
   case "snapshot": runSnapshot(); break;
+  case "adr": runAdr(); break;
   default:
     console.log([
       "gazette — offline board from a folder of HTML docs (default: gazette/)",
@@ -1017,6 +1077,7 @@ switch (cmd) {
       '  gazette approve "<title>"          log a human approval → trust: canonical (backs the projection)',
       '  gazette confirm "<title>"          vouch a dependent page\'s open rests_on edges (gate cutoff)',
       '  gazette resolve "<A>" "<B>" --winner "<title>"   record a contradicts resolution',
+      '  gazette adr new --title "<t>" [--supersedes <ADR-N>]  scaffold a proposed MADR ADR page (authors only; never approves)',
       "  gazette ledger <verify|recheck|mark-compiled|uncompiled> …   the code-owned trust ledgers",
       "",
       "  versioned board (git-backed):",

@@ -114,3 +114,7 @@ dependency gate:
   the snapshot unit: `gazette build --at <ref|snapshot>` renders any past board, `gazette diff <A>
   <B>` reports what changed from the decision-log slice, `gazette snapshot create <name>` pins a
   named `{commit, log-seq, digest}` (committed in `_snapshots.json`).
+- **Architecture decisions (ADR-0006).** `bureau:adr "<title>" [--supersedes <ADR-N>]` scaffolds a
+  `proposed` MADR ADR page (`kind: adr`, auto-numbered) — authored only; a human promotes it via
+  `bureau:review`. A `supersedes` edge retires its target only once the *superseding* ADR is approved
+  and content-current; a superseded page is history, not current fact, and is not flagged for review.

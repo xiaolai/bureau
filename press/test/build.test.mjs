@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, mkdtempSync, writeFileSync, cpSync, rmSync, readdirSync, statSync } from "fs";
+import { readFileSync, mkdtempSync, writeFileSync, mkdirSync, cpSync, rmSync, readdirSync, statSync } from "fs";
 import { join, dirname, resolve, relative } from "path";
 import { tmpdir } from "os";
 import { fileURLToPath } from "url";
@@ -117,4 +117,26 @@ test("build: a doc linking a generated page ([[Health]]/[[Graph]]) is not falsel
   const health = JSON.parse(readFileSync(join(out, "health.json"), "utf8"));
   const danglingToGenerated = health.dangling.filter((d) => d.target === "Health" || d.target === "Graph");
   assert.deepEqual(danglingToGenerated, [], "links to generated pages must not be dangling");
+});
+
+// ── WI-8 (ADR layer): a Decisions section appears iff the workspace has ADR pages ──
+// the board is a SPA — generated-doc content is serialized into lib/content.js, not per-page HTML.
+const builtContent = (out) => readFileSync(join(out, "lib", "content.js"), "utf8");
+function buildWs(t, files) {
+  const root = mkdtempSync(join(tmpdir(), "wb-decisions-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const docsDir = join(root, "canon"); mkdirSync(docsDir, { recursive: true });
+  writeFileSync(join(docsDir, "_config.json"), JSON.stringify({ meta: { home: "" } }));
+  for (const [k, v] of Object.entries(files)) { const fp = join(docsDir, k); mkdirSync(dirname(fp), { recursive: true }); writeFileSync(fp, v); }
+  const out = join(root, "dist");
+  buildSite({ docsDir, outDir: out, now: FIXED_NOW });
+  return out;
+}
+
+test("buildSite: a workspace with ADR pages gets a Decisions section; one without does not", (t) => {
+  const withAdr = buildWs(t, { "decisions/adr-1.md": "---\nid: A\ntitle: ADR-0001 First\nstatus: proposed\nkind: adr\n---\n# ADR-0001 First\nbody ^a\n" });
+  assert.match(builtContent(withAdr), /decision graph/, "an ADR workspace emits the Decisions section");
+
+  const noAdr = buildWs(t, { "plain.md": "---\nid: P\ntitle: Plain\n---\n# Plain\nbody ^p\n" });
+  assert.doesNotMatch(builtContent(noAdr), /decision graph/, "a workspace with no ADR pages emits no Decisions section");
 });

@@ -27,7 +27,13 @@ export function effectiveReview({ docsDir, corpus, events, policy } = {}) {
   // both sides of a `contradicts` never settles it. Exclude a `contested` page from `canonical` (it is a
   // resolve-conflict work item) and surface it as needing attention.
   for (const d of report.derived.decided) if (d.conflict === "contested") needsReview.add(d.uid);
+  // ADR-0006: an effectively-superseded page is settled history — excluded from the `canonical` fact
+  // set but, UNLIKE `contested`, NOT added to `needsReview` (it is not pending work). The positive
+  // `superseded` surface lets `query`/`recall` say "superseded by M" instead of silently omitting it.
+  const supersededMap = report.superseded || new Map();
+  const supersededUids = new Set(supersededMap.keys());
+  const superseded = [...supersededUids].sort((a, b) => (a < b ? -1 : 1)).map((uid) => ({ uid, status: "superseded", supersededBy: supersededMap.get(uid) }));
   const canonical = new Set();
-  for (const d of report.derived.decided) if (d.trust === "canonical" && !needsReview.has(d.uid)) canonical.add(d.uid);
-  return { canonical, needsReview, report };
+  for (const d of report.derived.decided) if (d.trust === "canonical" && !needsReview.has(d.uid) && !supersededUids.has(d.uid)) canonical.add(d.uid);
+  return { canonical, needsReview, superseded, report };
 }

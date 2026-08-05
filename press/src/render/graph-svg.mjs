@@ -12,6 +12,7 @@
 // stroke so grouping stays legible without competing for the fill channel.
 import { escapeHtml } from "../shared/escape.mjs";
 import { hash32 } from "../shared/hash.mjs";
+import { deriveLayout } from "../derive/layout.mjs";
 
 const R = 7;
 const groupColor = (g) => "hsl(" + (hash32(g) % 360) + ", 32%, 56%)";
@@ -22,6 +23,7 @@ const fin = (v, d = 0) => (Number.isFinite(v) ? v : (Number.isFinite(+v) ? +v : 
 // The state a node is painted with, worst-first. `flag` (an unearned canonical tier) outranks
 // freshness: a page nothing accepted backs is a trust problem, not a staleness one.
 const STATE_FILL = {
+  superseded: "var(--ink-faint, #9aa3ad)",
   unbacked: "var(--rust-deep, #a8322a)",
   unauthorized: "var(--rust-deep, #a8322a)",
   stale: "var(--rust-deep, #a8322a)",
@@ -31,6 +33,9 @@ const STATE_FILL = {
 };
 export function nodeState(st) {
   if (!st) return "current";
+  // ADR-0006: an effectively-superseded page is settled history — painted distinctly (greyed), a state
+  // of its own. It was eligible (canonical) so it carries no trust flag; check it first for clarity.
+  if (st.superseded) return "superseded";
   // a trust flag (unearned/void canonical) outranks freshness. `stale` = a content-bound approval the
   // page was edited past (ADR-0004); it shares the freshness-`stale` fill — both mean "not to be trusted".
   if (st.flag === "unbacked" || st.flag === "unauthorized" || st.flag === "stale") return st.flag;
@@ -39,7 +44,8 @@ export function nodeState(st) {
   return "current";
 }
 
-export function renderGraphSvg(layout, model, state = null) {
+export function renderGraphSvg(layout, model, state = null, opts = null) {
+  const decision = !!(opts && opts.decision); // decision view: style edges by type (opt-in — default unchanged)
   const W = fin(layout.width, 100) || 100, H = fin(layout.height, 100) || 100;
   let s = '<svg viewBox="0 0 ' + W + " " + H + '" width="' + W + '" height="' + H + '" xmlns="http://www.w3.org/2000/svg" font-family="var(--sans)" class="wb-canvas">';
 
@@ -50,7 +56,11 @@ export function renderGraphSvg(layout, model, state = null) {
   for (const e of layout.edges) {
     const a = placed(e.source) ? layout.nodes[e.source] : null, b = placed(e.target) ? layout.nodes[e.target] : null;
     if (!a || !b) continue;
-    s += '<line x1="' + fin(a.x) + '" y1="' + fin(a.y) + '" x2="' + fin(b.x) + '" y2="' + fin(b.y) + '" stroke="var(--line-strong)" stroke-width="1" opacity="0.7"/>';
+    // OPT-IN decoration only: with no `decision` option the string is byte-identical to before, so the
+    // main Graph SVG is unchanged. In the decision view a `supersedes` edge is dashed + typed by class.
+    let extra = "";
+    if (decision && e.edgeType) extra = ' class="wb-edge-' + e.edgeType + '"' + (e.edgeType === "supersedes" ? ' stroke-dasharray="5 3"' : "");
+    s += '<line x1="' + fin(a.x) + '" y1="' + fin(a.y) + '" x2="' + fin(b.x) + '" y2="' + fin(b.y) + '" stroke="var(--line-strong)" stroke-width="1" opacity="0.7"' + extra + "/>";
   }
 
   const ids = Object.keys(layout.nodes); // deriveLayout builds this deterministically
@@ -110,4 +120,16 @@ export function renderGraphSvg(layout, model, state = null) {
 
   s += "</svg>";
   return s;
+}
+
+// The DECISIONS view (ADR-0006): the ADR subgraph only — nodes with `kind:"adr"` and the `supersedes`
+// / `rests_on` edges between them — rendered with the decision styling (supersedes dashed). Reuses the
+// same deterministic layout + renderer; `state` colours each ADR by its board state (incl. superseded).
+export function renderDecisionView(model, state = null) {
+  const adr = new Set(Object.keys(model.nodes).filter((k) => model.nodes[k].kind === "adr"));
+  const nodes = {};
+  for (const k of adr) nodes[k] = model.nodes[k];
+  const edges = model.edges.filter((e) => (e.edgeType === "supersedes" || e.edgeType === "rests_on") && adr.has(e.source) && adr.has(e.target));
+  const sub = { ...model, nodes, edges, nodeCount: adr.size };
+  return renderGraphSvg(deriveLayout(sub), sub, state, { decision: true });
 }

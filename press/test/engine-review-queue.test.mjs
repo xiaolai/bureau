@@ -137,3 +137,41 @@ test("review-queue: a rests_on cycle does not hang and still lists both pages", 
   assert.equal(q.items.length, 2, "both pages present despite the cycle");
   assert.deepEqual(q.items.map((i) => i.uids[0]).slice().sort(), ["A", "B"]);
 });
+
+// ── WI-4 (ADR layer): supersession removes only ELIGIBLE targets from the queue ──────────────
+const SUPM = "---\nid: M\ntitle: ADR M\nstatus: proposed\nsupersedes: [[ADR N]]\n---\n# ADR M\nbody ^m\n";
+const SUPN = "---\nid: N\ntitle: ADR N\nstatus: proposed\n---\n# ADR N\nbody ^n\n";
+
+test("review-queue: an effectively-superseded ELIGIBLE page produces no queue item", (t) => {
+  const dir = ws(t, { "m.md": SUPM, "n.md": SUPN });
+  scan({ docsDir: dir });
+  approve(dir, "n.md", "N", "ADR N"); // N is an eligible (approved-canonical) decision
+  approve(dir, "m.md", "M", "ADR M"); // M fresh-approved → supersession effective
+  const q = reviewQueue({ docsDir: dir });
+  assert.ok(!q.items.some((i) => i.uids.includes("N")), "superseded N left the queue (no trust action needed)");
+});
+
+test("review-queue: an INELIGIBLE (proposed) supersedes-target KEEPS its normal approve item", (t) => {
+  const dir = ws(t, { "m.md": SUPM, "n.md": SUPN });
+  scan({ docsDir: dir });
+  approve(dir, "m.md", "M", "ADR M"); // M fresh-approved, but N stays proposed → ineligible target
+  const q = reviewQueue({ docsDir: dir });
+  assert.ok(q.items.some((i) => i.kind === "approve" && i.uids.includes("N")), "a proposed N is not withdrawn — it keeps its own workflow");
+});
+
+test("review-queue: the superseding ADR stays a normal approve item until approved", (t) => {
+  const dir = ws(t, { "m.md": SUPM, "n.md": SUPN });
+  scan({ docsDir: dir });
+  const q = reviewQueue({ docsDir: dir });
+  assert.ok(q.items.some((i) => i.kind === "approve" && i.uids.includes("M")), "the superseding ADR is a normal approve item");
+});
+
+test("review-queue: an inert supersedes edge does not perturb the queue counts (regression guard)", (t) => {
+  const dir = ws(t, {
+    "a.md": "---\nid: A\ntitle: Ayy\nstatus: proposed\nsupersedes: [[Bee]]\n---\n# Ayy\nclaim ^a\n",
+    "b.md": "---\nid: B\ntitle: Bee\nstatus: proposed\n---\n# Bee\ndef ^b\n",
+  });
+  scan({ docsDir: dir });
+  const q = reviewQueue({ docsDir: dir });
+  assert.deepEqual(q.counts, { approve: 2 }); // both proposed pages are approve items; the inert supersedes changes nothing
+});
