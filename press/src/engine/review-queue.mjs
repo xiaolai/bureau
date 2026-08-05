@@ -92,7 +92,7 @@ export function reviewQueue({ docsDir, corpus, model, events, policy } = {}) {
   const freshOf = (uid) => (keyByUid ? fresh.byKey.get(keyByUid.get(uid)) : null) || "current";
 
   // rests_on (order + broken) and contradicts (conflict components) graphs, keyed by uid
-  const restsOn = new Map(), contradicts = new Map(), brokenEdge = new Set();
+  const restsOn = new Map(), contradicts = new Map(), brokenEdge = new Set(), supersedes = new Map();
   for (const e of model.edges) {
     const src = e.sourceUid, tgt = uidByKey ? uidByKey.get(e.target) : null;
     if (e.edgeType === "rests_on") {
@@ -103,6 +103,11 @@ export function reviewQueue({ docsDir, corpus, model, events, policy } = {}) {
       if (!contradicts.has(src)) contradicts.set(src, new Set());
       if (!contradicts.has(tgt)) contradicts.set(tgt, new Set());
       contradicts.get(src).add(tgt); contradicts.get(tgt).add(src); // a contradiction is mutual
+    } else if (e.edgeType === "supersedes") {
+      // ADR-0006: approving THIS page activates the supersession — carry the target title so every
+      // surface (CLI, chamber, skill) can warn "approving this retires <target>". Falls back to the raw.
+      if (!supersedes.has(src)) supersedes.set(src, new Set());
+      supersedes.get(src).add((tgt != null && byUid.get(tgt)) ? byUid.get(tgt).title : e.target);
     }
   }
   // a BROKEN rests_on (missing target OR missing span) is a repair-edge, not a confirm — `gazette confirm`
@@ -177,7 +182,7 @@ export function reviewQueue({ docsDir, corpus, model, events, policy } = {}) {
     if (!kind) continue;
     const deps = [...(restsOn.get(n.uid) || [])].sort((a, b) => (a < b ? -1 : 1));
     const bind = (kind === "approve" || kind === "reapprove") ? { digest: digestOf(n.uid) } : {};
-    items.push({ kind, uids: [n.uid], titles: [title(n.uid)], why: WHY[kind], freshness: freshOf(n.uid), dependsOn: deps, conflictPartners: [], ...bind, pos: posByUid.get(n.uid) ?? 0 });
+    items.push({ kind, uids: [n.uid], titles: [title(n.uid)], why: WHY[kind], freshness: freshOf(n.uid), dependsOn: deps, conflictPartners: [], ...bind, ...(supersedes.has(n.uid) ? { supersedes: [...supersedes.get(n.uid)].sort() } : {}), pos: posByUid.get(n.uid) ?? 0 });
   }
 
   items.sort((a, b) => (a.pos - b.pos) || ((a.titles[0] || "") < (b.titles[0] || "") ? -1 : 1));

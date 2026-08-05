@@ -19,7 +19,10 @@ It is the right-hand column of the consistency table: judgment, not mechanism.
    says auth tokens last 24h, page B says 1h).
 2. **Superseded** — a page's settled (`verified`/`canonical`) claim is obsoleted by a newer
    dossier on the same topic; the canon still states the old truth. (Lint reads the
-   cabinets, not the logbook — superseded evidence is cabinet-vs-cabinet.)
+   cabinets, not the logbook — superseded evidence is cabinet-vs-cabinet.) This is a **free-text**
+   obsolescence detection, distinct from the engine's typed `supersedes` edge / projected `superseded`
+   state (ADR-0006): when the obsolescence is a genuine *architecture decision* replacing another,
+   the durable expression is a new **ADR** (`bureau:adr --supersedes <ADR-N>`), not just a `stale` flag.
 3. **Gap** — a concept referenced across pages but never defined on its own page.
 4. **Drift** — one concept named differently across pages (vocabulary drift: "cabinet" vs
    "drawer" vs "page" for the same thing).
@@ -80,8 +83,10 @@ decision, never an automatic edit).
 5. **Apply markers** (only when `--apply`): set `contested`/`stale` status and `contradicts:`
    edges for verified contradictions and superseded claims. Never edit a page's prose claims —
    only its status and the contradicts edge.
-6. **Structural check.** Run `bureau:inspect`; report the contradictions the press now renders
-   alongside the lint report.
+6. **Structural check.** Run
+   `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" health --dir <workspace>` — the press's
+   deterministic dangling/orphan/contradiction/stale/schema check (also surfaced by `bureau:inspect`);
+   report the contradictions it now renders alongside the lint report.
 7. **Report.** Summarize counts by type and severity, name each `contested` page, and point the
    user at `lint/findings.md`.
 

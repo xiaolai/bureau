@@ -16,6 +16,8 @@ writes the decision log.
 
 Follow the protocol in the **adr** skill (`skills/adr/SKILL.md`). In short:
 
+If no title was given, ask the user for the decision title before proceeding.
+
 1. Locate the workspace (`bureau.json`; default `canon`). If none, tell the user to run
    `bureau:init` first and stop.
 2. Scaffold the page with the bundled press — pass each argument as its own token (never interpolate
@@ -33,6 +35,8 @@ Follow the protocol in the **adr** skill (`skills/adr/SKILL.md`). In short:
    **Confirmation** that names how the decision is verified (fingerprint the confirming artifact with
    `gazette ledger verify` so drift re-flags the ADR). Edit the body prose only; **never** set
    `status`/`trust`, and never add an approval marker.
-4. Report the created path and number, and state plainly that it is **`proposed` and awaits
-   `bureau:review`** — and, if it supersedes another ADR, that the supersession activates only on
-   approval.
+4. Report the result — in the format below.
+
+**Output format.** One line: `Created <path> (ADR-<NNNN>, proposed) — awaits bureau:review.` When
+`--supersedes` resolved a target, add a second line: `Supersedes <target title> — the supersession
+activates only once a human approves this ADR.`

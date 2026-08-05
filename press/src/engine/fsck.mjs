@@ -78,12 +78,19 @@ function setFrontmatterKey(text, key, value) {
 // Authored `status:` is NEVER touched; `effective_status: canonical` is written on effectively-
 // canonical pages and removed elsewhere, so the cache tracks the log. Invoked ONLY under
 // `fsck --materialize-pages`; a symlinked page is skipped and the write is atomic + O_NOFOLLOW.
-function materializeEffectiveStatus(docsDir, entries, effCanon) {
+function materializeEffectiveStatus(docsDir, entries, effCanon, supersededBy) {
   let changed = 0;
   for (const e of entries) {
-    const want = effCanon.has(e.uid) ? "canonical" : null;
-    const next = setFrontmatterKey(e.raw, "effective_status", want);
-    if (next == null) continue;                                  // no change / no frontmatter
+    // BOTH derived-cache keys are in reviewDigest's NON_SEMANTIC_KEYS, so neither invalidates an
+    // approval. `superseded_by` is a PLAIN-string list of the superseding page titles (never a
+    // [[wiki-link]] — that would mint a phantom edge). Authoritatively rewritten/removed so a
+    // spoofed hand-authored value is never trusted (ADR-0006).
+    let next = e.raw;
+    const a = setFrontmatterKey(next, "effective_status", effCanon.has(e.uid) ? "canonical" : null);
+    if (a != null) next = a;
+    const b = setFrontmatterKey(next, "superseded_by", supersededBy.get(e.uid) || null);
+    if (b != null) next = b;
+    if (next === e.raw) continue;                                // no change / no frontmatter
     const abs = join(docsDir, e.file);
     if (!existsSync(abs) || lstatSync(abs).isSymbolicLink()) continue; // never write through a symlink
     const tmp = abs + ".bureau-mat-" + process.pid + "-" + randomBytes(6).toString("hex");
@@ -284,7 +291,10 @@ export function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, 
   // opt-in ONLY: plain `gazette fsck` must never mutate a source page. `--materialize-pages` refreshes
   // the derived, non-authoritative `effective_status:` cache (authored `status:` untouched).
   let materialized = 0;
-  if (materializePages && write) materialized = materializeEffectiveStatus(c.docsDir || docsDir, c.entries, effCanon);
+  // resolve the superseding uids → a plain-string title list per superseded page, for the reader marker.
+  const supersededTitles = new Map();
+  for (const [uid, byUids] of superseded.supersededBy) supersededTitles.set(uid, byUids.map((u) => (nodeByUid.get(u) ? nodeByUid.get(u).title : u)).join(", "));
+  if (materializePages && write) materialized = materializeEffectiveStatus(c.docsDir || docsDir, c.entries, effCanon, supersededTitles);
 
   // refresh the mechanical-derived cache (OUTSIDE the workspace); report drift vs the previous copy.
   // Reject a symlinked cache dir/file (a swap could redirect the write) and write atomically.

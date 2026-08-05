@@ -166,6 +166,15 @@ test("review-queue: the superseding ADR stays a normal approve item until approv
   assert.ok(q.items.some((i) => i.kind === "approve" && i.uids.includes("M")), "the superseding ADR is a normal approve item");
 });
 
+test("review-queue: an approve item for a superseding ADR carries its supersedes target (approving it retires that ADR)", (t) => {
+  const dir = ws(t, { "m.md": SUPM, "n.md": SUPN });
+  scan({ docsDir: dir });
+  const q = reviewQueue({ docsDir: dir });
+  const mItem = q.items.find((i) => i.uids.includes("M"));
+  assert.ok(mItem && mItem.kind === "approve", "the superseding ADR is an approve item");
+  assert.deepEqual(mItem.supersedes, ["ADR N"], "the item names what approving it will retire");
+});
+
 test("review-queue: an inert supersedes edge does not perturb the queue counts (regression guard)", (t) => {
   const dir = ws(t, {
     "a.md": "---\nid: A\ntitle: Ayy\nstatus: proposed\nsupersedes: [[Bee]]\n---\n# Ayy\nclaim ^a\n",

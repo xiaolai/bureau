@@ -550,6 +550,7 @@ function runReview() {
       const who = it.titles.map(disp).join(" × ");
       console.log("  " + (i + 1) + ". [" + it.kind + "] " + who);
       console.log("      why: " + it.why);
+      if (it.supersedes && it.supersedes.length) console.log("      ⚠ approving this retires: " + it.supersedes.join(", "));
       console.log("      → " + action[it.kind](it));
     });
     if (nextRaw != null && items.length < total) console.log("  … " + (total - items.length) + " more (drop --next to see all)");

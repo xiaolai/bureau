@@ -34,6 +34,10 @@ Every cabinet page carries a `status:`. When you use one as memory or context, *
   load-bearing.
 - `proposed` / `stale` / `contested` — **NOT fact** → verify before relying, and state which tier
   you are leaning on.
+- `superseded` — an approved decision that a **later, approved** decision replaced (ADR-0006) →
+  **settled history, not current fact**. Never present it as the answer; cite the successor named in
+  its derived `superseded_by:` marker (e.g. "superseded by ADR-0007"). It is not a review item — it is
+  the record of what was decided *before*.
 
 Never silently treat a non-`canonical` claim as settled. The tier travels with the claim; if you
 cite a cabinet fact, cite its tier too. `bureau:query` enforces this for you.
@@ -123,6 +127,11 @@ unsigned, so not proof against a determined rewrite).
   target becomes **superseded** (dropped from the effective-`canonical` fact set, *not* flagged for
   review) only once the *superseding* ADR is approved and content-current. `superseded` is projected
   in `fsck` (never authored); an unreviewed or since-edited superseding ADR supersedes nothing.
+  Express a supersession by authoring a `supersedes` edge on a **proposed** ADR via `bureau:adr` —
+  never by hand-adding `supersedes:` to an existing canonical page (a forbidden hand-edit that goes
+  `stale` and won't activate). `fsck` may raise `supersedes-cycle` (**blocking** — two ADRs retire
+  each other; resolve it), `broken-supersedes` (advisory — a dangling target), or
+  `supersedes-ineligible-target` (advisory — the target was never an effective decision).
 
 <!-- bureau:crew -->
 @bureau/crew/auditor/brief.md

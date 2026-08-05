@@ -43,13 +43,19 @@ never writes `canonical` itself — that tier exists only on the far side of thi
    upstream span changed → `confirm`, not approve), `resolve-conflict` (a contested component — decide
    which claim stands, do NOT approve both sides), `repair-edge` (a broken `rests_on`). Review upstream
    pages first. If the queue is empty, report "nothing to review — the canon is approved and current"
-   and stop.
+   and stop. Also surface any ADR-0006 finding from `gazette fsck`: a **`supersedes-cycle`** BLOCKS (two
+   approved ADRs retire each other — it must be resolved before the canon is clean), while
+   `broken-supersedes` (dangling target) and `supersedes-ineligible-target` (the target was never an
+   effective decision) are advisory.
 4. **Present a batch digest.** Review is **page-level** — a page is one claim (compile keeps it
    so), and its `status:` is the page's tier. For each queued page show, in one compact block:
    - the page and its claim;
    - its **provenance** — the `[[session …]]` it traces to (and whether that link resolves);
    - its **check result** — `verified against <artifact>` for an auto-checked fact, or
-     `unverifiable (judgment — needs your eye)` for rationale/design claims.
+     `unverifiable (judgment — needs your eye)` for rationale/design claims;
+   - if the item carries a **`supersedes`** target (the queue names it on an ADR's `approve` item),
+     warn **"approving this retires `<target>`"** — approving this ADR demotes that prior decision to
+     `superseded` (ADR-0006). Make sure the human intends to retire it.
    Group facts (auto-verified) apart from judgments (need human reasoning) — the judgments are
    the ones that actually need the human.
 5. **Prepare the decisions — the HUMAN commits them.** This is the human-authority gate: per BUREAU.md

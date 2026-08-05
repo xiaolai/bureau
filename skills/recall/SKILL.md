@@ -35,9 +35,11 @@ the answer so an unverified claim can never masquerade as fact.
    effectively canonical (stale). So read the **`effective_status:`** key when present (the derived
    cache; refresh it with `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" fsck --dir <workspace>
    --materialize-pages`), and cross-check `gazette fsck`: a page it flags `stale-approval` or
-   `unbacked-canonical` is **not** effectively canonical no matter what its `status:` says. For each
+   `unbacked-canonical` is **not** effectively canonical no matter what its `status:` says. A page
+   carrying a derived **`superseded_by:`** marker is **superseded** — a later approved decision replaced
+   it (ADR-0006); treat it as settled history, not current fact, and cite its successor. For each
    claim used, name the page, its effective tier (`canonical` / `verified` / `proposed` / `stale` /
-   `contested`), its **freshness** if not `current`, and the `[[session …]]` provenance.
+   `contested` / `superseded`), its **freshness** if not `current`, and the `[[session …]]` provenance.
 6. **Never state a non-`canonical` OR non-`current` claim as fact.** Fact requires *both*: an effective
    `canonical` tier **and** freshness `current`. `verified` is "checked, not approved";
    `proposed`/`contested` are claims to confirm; a `needs-review`/`stale` page — or one whose approval

@@ -8,6 +8,7 @@ import { scan } from "../src/engine/scan.mjs";
 import { fsck, gateCachePath } from "../src/engine/fsck.mjs";
 import { logPath, appendEvent } from "../src/engine/log.mjs";
 import { reviewDigest } from "../src/engine/review-digest.mjs";
+import { loadCorpus, buildModel } from "../src/core/model.mjs";
 
 function ws(files) {
   const root = mkdtempSync(join(tmpdir(), "wb-fsck-"));
@@ -180,5 +181,36 @@ test("WI-3: a hashless (unbound) approved source does NOT activate supersession 
     assert.equal(r.superseded.size, 0); // M not content-current (no hash) → supersession inert
     assert.ok(r.findings.some((f) => f.kind === "unbound-approval" && f.uid === "M"));
     assert.equal(r.ok, true); // unbound-approval is advisory
+  } finally { w.cleanup(); }
+});
+
+// ── G1 (ADR reader surface): --materialize-pages writes a superseded_by marker readers can see ──
+test("G1: --materialize-pages writes a plain-string superseded_by marker; content-binding stays intact", () => {
+  const w = ws({ "m.md": MSN, "n.md": NPLAIN });
+  try {
+    scan({ docsDir: w.dir });
+    approveBound(w.dir, "N", "ADR N", "n.md");
+    approveBound(w.dir, "M", "ADR M", "m.md"); // M supersedes N → effective
+    fsck({ docsDir: w.dir, write: true, materializePages: true });
+    const nRaw = readFileSync(join(w.dir, "n.md"), "utf8");
+    assert.match(nRaw, /^superseded_by: ADR M$/m, "the reader can now see 'superseded by ADR M'");
+    assert.doesNotMatch(nRaw, /^effective_status:\s*canonical/m, "a superseded page is not stamped canonical");
+    // the marker is a plain string, NOT a [[wiki-link]] → it must not mint a phantom superseded_by edge
+    const model = buildModel({ corpus: loadCorpus({ docsDir: w.dir }) });
+    assert.ok(!model.edges.some((e) => e.edgeType === "superseded_by"), "the derived marker must not become an edge");
+    // content-binding: materializing the derived marker (in NON_SEMANTIC_KEYS) must NOT flag N stale-approval
+    const r2 = fsck({ docsDir: w.dir });
+    assert.ok(!r2.findings.some((f) => f.kind === "stale-approval" && f.uid === "N"), "superseded_by is non-semantic — approval stays bound");
+    assert.deepEqual(r2.superseded.get("N"), ["M"], "still superseded after materialize (idempotent)");
+  } finally { w.cleanup(); }
+});
+
+test("G1: --materialize-pages authoritatively REMOVES a spurious/hand-authored superseded_by (spoof-proof)", () => {
+  const w = ws({ "k.md": "---\nid: K\ntitle: ADR K\nsuperseded_by: Somebody\n---\n# ADR K\nbody ^k\n" });
+  try {
+    scan({ docsDir: w.dir });
+    approveBound(w.dir, "K", "ADR K", "k.md"); // K is canonical and NOT superseded — the marker is a lie
+    fsck({ docsDir: w.dir, write: true, materializePages: true });
+    assert.doesNotMatch(readFileSync(join(w.dir, "k.md"), "utf8"), /^superseded_by:/m, "a not-superseded page has its spurious marker stripped");
   } finally { w.cleanup(); }
 });

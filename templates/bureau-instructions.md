@@ -34,6 +34,9 @@ Every cabinet page carries a `status:`. When you use one as memory or context, *
   load-bearing.
 - `proposed` / `stale` / `contested` — **NOT fact** → verify before relying, and state which tier
   you are leaning on.
+- `superseded` — an approved decision a **later, approved** decision replaced (ADR-0006) → **settled
+  history, not current fact**. Never present it as the answer; cite the successor in its derived
+  `superseded_by:` marker. It is the record of what was decided *before*, not a review item.
 
 Never silently treat a non-`canonical` claim as settled. The tier travels with the claim; if you
 cite a cabinet fact, cite its tier too. `bureau:query` enforces this for you.
@@ -118,3 +121,6 @@ dependency gate:
   `proposed` MADR ADR page (`kind: adr`, auto-numbered) — authored only; a human promotes it via
   `bureau:review`. A `supersedes` edge retires its target only once the *superseding* ADR is approved
   and content-current; a superseded page is history, not current fact, and is not flagged for review.
+  Express a supersession via `bureau:adr` (a `supersedes` edge on a proposed ADR) — never by hand-adding
+  `supersedes:` to a canonical page. `fsck` may raise `supersedes-cycle` (**blocking**),
+  `broken-supersedes`, or `supersedes-ineligible-target` (both advisory).

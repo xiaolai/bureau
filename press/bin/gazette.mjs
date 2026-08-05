@@ -23674,6 +23674,7 @@ var NON_SEMANTIC_KEYS = /* @__PURE__ */ new Set([
   "status",
   "trust",
   "effective_status",
+  "superseded_by",
   "reviewed",
   "verified",
   "updated",
@@ -24173,12 +24174,15 @@ function setFrontmatterKey(text2, key, value) {
   if (!changed) return null;
   return "---\n" + lines.join("\n") + "\n---" + text2.slice(m[0].length);
 }
-function materializeEffectiveStatus(docsDir, entries, effCanon) {
+function materializeEffectiveStatus(docsDir, entries, effCanon, supersededBy) {
   let changed = 0;
   for (const e of entries) {
-    const want = effCanon.has(e.uid) ? "canonical" : null;
-    const next = setFrontmatterKey(e.raw, "effective_status", want);
-    if (next == null) continue;
+    let next = e.raw;
+    const a = setFrontmatterKey(next, "effective_status", effCanon.has(e.uid) ? "canonical" : null);
+    if (a != null) next = a;
+    const b = setFrontmatterKey(next, "superseded_by", supersededBy.get(e.uid) || null);
+    if (b != null) next = b;
+    if (next === e.raw) continue;
     const abs = join10(docsDir, e.file);
     if (!existsSync8(abs) || lstatSync6(abs).isSymbolicLink()) continue;
     const tmp = abs + ".bureau-mat-" + process.pid + "-" + randomBytes(6).toString("hex");
@@ -24310,7 +24314,9 @@ function fsck({ docsDir, corpus, events, schemaVersion = SCHEMA_VERSION, write =
   const effCanon = /* @__PURE__ */ new Set();
   for (const d of d1.decided) if (d.trust === "canonical" && !notEff.has(d.uid)) effCanon.add(d.uid);
   let materialized = 0;
-  if (materializePages && write) materialized = materializeEffectiveStatus(c.docsDir || docsDir, c.entries, effCanon);
+  const supersededTitles = /* @__PURE__ */ new Map();
+  for (const [uid, byUids] of superseded.supersededBy) supersededTitles.set(uid, byUids.map((u) => nodeByUid.get(u) ? nodeByUid.get(u).title : u).join(", "));
+  if (materializePages && write) materialized = materializeEffectiveStatus(c.docsDir || docsDir, c.entries, effCanon, supersededTitles);
   const gateFile = gateCachePath(docsDir);
   const cacheDir = dirname2(gateFile);
   const isLink = (p) => existsSync8(p) && lstatSync6(p).isSymbolicLink();
@@ -25498,7 +25504,7 @@ function reviewQueue({ docsDir, corpus, model, events, policy } = {}) {
   }
   const fresh = liveFreshness({ corpus, docsDir, model, policy });
   const freshOf = (uid) => (keyByUid ? fresh.byKey.get(keyByUid.get(uid)) : null) || "current";
-  const restsOn = /* @__PURE__ */ new Map(), contradicts = /* @__PURE__ */ new Map(), brokenEdge = /* @__PURE__ */ new Set();
+  const restsOn = /* @__PURE__ */ new Map(), contradicts = /* @__PURE__ */ new Map(), brokenEdge = /* @__PURE__ */ new Set(), supersedes = /* @__PURE__ */ new Map();
   for (const e of model.edges) {
     const src = e.sourceUid, tgt = uidByKey ? uidByKey.get(e.target) : null;
     if (e.edgeType === "rests_on") {
@@ -25513,6 +25519,9 @@ function reviewQueue({ docsDir, corpus, model, events, policy } = {}) {
       if (!contradicts.has(tgt)) contradicts.set(tgt, /* @__PURE__ */ new Set());
       contradicts.get(src).add(tgt);
       contradicts.get(tgt).add(src);
+    } else if (e.edgeType === "supersedes") {
+      if (!supersedes.has(src)) supersedes.set(src, /* @__PURE__ */ new Set());
+      supersedes.get(src).add(tgt != null && byUid.get(tgt) ? byUid.get(tgt).title : e.target);
     }
   }
   for (const d of fresh.drift || []) if (d.reason && /broken/i.test(d.reason)) {
@@ -25592,7 +25601,7 @@ function reviewQueue({ docsDir, corpus, model, events, policy } = {}) {
     if (!kind) continue;
     const deps = [...restsOn.get(n.uid) || []].sort((a, b) => a < b ? -1 : 1);
     const bind = kind === "approve" || kind === "reapprove" ? { digest: digestOf(n.uid) } : {};
-    items.push({ kind, uids: [n.uid], titles: [title(n.uid)], why: WHY[kind], freshness: freshOf(n.uid), dependsOn: deps, conflictPartners: [], ...bind, pos: posByUid.get(n.uid) ?? 0 });
+    items.push({ kind, uids: [n.uid], titles: [title(n.uid)], why: WHY[kind], freshness: freshOf(n.uid), dependsOn: deps, conflictPartners: [], ...bind, ...supersedes.has(n.uid) ? { supersedes: [...supersedes.get(n.uid)].sort() } : {}, pos: posByUid.get(n.uid) ?? 0 });
   }
   items.sort((a, b) => a.pos - b.pos || ((a.titles[0] || "") < (b.titles[0] || "") ? -1 : 1));
   const counts = {};
@@ -26571,6 +26580,7 @@ function runReview() {
       const who = it.titles.map(disp).join(" \xD7 ");
       console.log("  " + (i + 1) + ". [" + it.kind + "] " + who);
       console.log("      why: " + it.why);
+      if (it.supersedes && it.supersedes.length) console.log("      \u26A0 approving this retires: " + it.supersedes.join(", "));
       console.log("      \u2192 " + action[it.kind](it));
     });
     if (nextRaw != null && items.length < total) console.log("  \u2026 " + (total - items.length) + " more (drop --next to see all)");

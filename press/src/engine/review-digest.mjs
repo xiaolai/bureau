@@ -17,7 +17,7 @@ export const REVIEW_DIGEST_VERSION = 1;
 // the exclusion process-wide (`NON_SEMANTIC_KEYS.add("claim")` → claim edits stop invalidating). Keep
 // it unreachable from outside instead. This set is the v1 contract.
 const NON_SEMANTIC_KEYS = new Set([
-  "status", "trust", "effective_status", "reviewed", "verified", "updated", "age", "words", "icon", "group",
+  "status", "trust", "effective_status", "superseded_by", "reviewed", "verified", "updated", "age", "words", "icon", "group",
 ]);
 
 // Deep-NFC every string in a value (scalars, arrays, plain-object values) so a page re-saved under a

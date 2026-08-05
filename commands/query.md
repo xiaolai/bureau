@@ -30,7 +30,9 @@ Follow the protocol in the **recall** skill (`skills/recall/SKILL.md`). In short
    implies a human vouched. When a load-bearing claim is `canonical`, name who backed it (from the
    board's **Trust · authority** view, or `gazette report`): a human-approved fact and a
    machine-approved one are not the same strength. Flag any `canonical` the policy does not accept
-   (an `unauthorized-canonical` fsck finding) as **not** settled.
+   (an `unauthorized-canonical` fsck finding) as **not** settled. A page carrying a `superseded_by:`
+   marker is **superseded** (ADR-0006) — settled history, not current fact; cite its successor rather
+   than presenting it as the answer.
 5. If the canon does not answer the question, say so plainly — do not invent. Note the gap
    (a `bureau:lint` gap finding, or a session worth filing).
 6. Report the answer with its citations; offer to capture a notable new conclusion

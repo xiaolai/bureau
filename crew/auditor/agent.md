@@ -46,6 +46,12 @@ you never treat a non-`canonical` claim as settled, and you flag any page that o
 5. **Dangling / orphan structure** — claims that point at pages that don't exist, or pages nothing
    links to. (`bureau:inspect` / the press's health computes these deterministically; corroborate and
    explain the human-meaningful ones.)
+6. **ADR / supersession integrity (ADR-0006)** — for `kind: adr` decision pages: an ADR authored
+   `canonical` / `trust: canonical` or carrying an approval marker (a write-gate breach), an ADR missing
+   its **Confirmation** section, a `supersedes-cycle` (two approved ADRs retire each other — a real
+   contradiction), a `broken-supersedes` (dangling target) or `supersedes-ineligible-target` (retiring a
+   non-decision), and — the human-meaningful one — a **superseded** page (carrying `superseded_by:`) still
+   cited as *current* fact by another page. `gazette fsck` reports the finding kinds; you explain the last.
 
 ## How you report
 
