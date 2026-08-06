@@ -116,7 +116,13 @@ unsigned, so not proof against a determined rewrite).
   that accepts a machine authority, `canonical` no longer implies a human vouched — so cite the
   backing authority beside the tier, and treat an `unauthorized-canonical` finding as **not** settled.
 - **Mechanical, code-owned** (never hand-write) — run the bundled press,
-  `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" <verb> --dir bureau`:
+  `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" <verb> --dir bureau`. **Invoke it that way
+  exactly**: `${CLAUDE_PLUGIN_ROOT}` is this plugin's own install directory — pass the variable
+  through literally, and **never** substitute a hand-written `~/.claude/plugins/cache/…/<version>/…`
+  path or pin a version number. If that variable is somehow empty, **stop and say so** rather than
+  guessing a cached version — an arbitrary old cache (e.g. a pre-trust-engine `0.x` build) silently
+  runs the WRONG engine, one that lacks `review --json` / `approve --all` / `trust_policy`, and its
+  output is meaningless. The verbs:
   `scan` (record span-revision events after edits), `gate` (the eager dirty index — a page's real
   freshness), `fsck` (rebuild derived state to a byte-fixpoint; a CI gate), `report` (auditable
   metrics), `approve`/`confirm`/`resolve "<title>"` (the human side of the log), and

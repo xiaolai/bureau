@@ -27,7 +27,9 @@ is all the more reason it is the human's to fire.
    `--workspace <name>`. If no workspace exists, tell the user to run `bureau:init` first and stop.
 
 2. **Build and split the queue.** Run
-   `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" review --json --dir <workspace>`. Parse
+   `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" review --json --dir <workspace>` — invoke it
+   with the `${CLAUDE_PLUGIN_ROOT}` variable **literally**; never substitute a hand-picked
+   `~/.claude/plugins/cache/…/<version>/…` path (a stale cache silently runs the wrong engine). Parse
    `{items, counts, total}` and split by kind:
    - **approvable** — `approve` and `reapprove`: exactly what `approve --all` promotes.
    - **not covered** — `confirm-dependencies`, `resolve-conflict`, `repair-edge`: `approve --all`

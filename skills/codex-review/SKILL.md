@@ -40,8 +40,10 @@ choose it per workspace, eyes open.
 
 2. **Build the machine-readable queue.** Run
    `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" review --json --dir <workspace>` (append
-   `--next <N>` when passed — validate `N` is a positive integer first). Parse `{items, counts,
-   total}`. If `total` is `0`, report "nothing awaiting review" and stop.
+   `--next <N>` when passed — validate `N` is a positive integer first) — invoke it with the
+   `${CLAUDE_PLUGIN_ROOT}` variable **literally**; never substitute a hand-picked
+   `~/.claude/plugins/cache/…/<version>/…` path (a stale cache silently runs the wrong engine). Parse
+   `{items, counts, total}`. If `total` is `0`, report "nothing awaiting review" and stop.
 
 3. **Select what Codex may judge.** Keep only items with `kind` of `approve` or `reapprove` — those
    carry a `digest`. **Exclude and set aside as human-only:**
