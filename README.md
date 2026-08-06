@@ -108,6 +108,7 @@ and `gazette/` as repo-root siblings.
 | `bureau:adr` | record an architecture decision as a proposed MADR **ADR** page — auto-numbered, optionally `supersedes` a prior one (activated only on approval) |
 | `bureau:review` | the human gate — promote vetted claims to `canonical`, confirm dependencies, resolve conflicts |
 | `bureau:codex-review` | let Codex (via cc-suite) pre-review the queue as your representative — advise (you commit `--by human`), or, where the workspace opted the `codex` authority in, commit `--by codex` |
+| `bureau:approve-all` | bulk-approve the whole approvable backlog in one confirmation — the AI shows the batch and confirms, then hands you the single `--by human` line to fire yourself (it never signs for you) |
 | `bureau:lint` | semantic consistency sweep across the cabinets |
 | `bureau:query` | answer from the canon — cited, tier- and freshness-aware, never stating an unverified/stale claim as fact |
 | `bureau:status` | uncompiled sessions · pages by tier · **needs-review / stale (the gate)** |
