@@ -519,6 +519,7 @@ function handle(req, res, ctx) {
   }
   if (req.method === "POST" && path === "/intake") {
     if (!csrfOK(req) || !jsonPost(req)) return sendJson(res, 403, { err: "cross-site request refused" });
+    if (req.headers["x-bureau-review"] !== ctx.reviewToken) return sendJson(res, 403, { err: "reviewer token required — see the bureau:serve terminal output" });
     return readBody(req).then((body) => {
       if (body == null) return sendJson(res, 413, { err: "request body too large or unreadable" });
       const r = writeIntake(ctx, body);
