@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // bureau test orchestrator. Runs the DETERMINISTIC pyramid by default (no API, always green):
-//   L0 static structure · L1 hook-script units · L1 press renderer · L3 judge self-test.
+//   L0 static structure · L1 units (hook scripts, crew, chamber server, press renderer, self-canon,
+//   recursion engine) · L3 judge self-test.
 // Pass --e2e to ALSO run the live behavioral layer (`claude -p`, needs auth + tokens).
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -13,6 +14,24 @@ const LAYER_TIMEOUT_MS = Number(process.env.BUREAU_LAYER_TIMEOUT_MS) || 600000;
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { cwd: ROOT, stdio: "inherit", timeout: LAYER_TIMEOUT_MS, ...opts });
 let failed = 0;
 const step = (label, fn) => { console.log(`\n=== ${label} ===`); try { fn(); } catch { failed++; console.error(`✗ ${label} FAILED`); } };
+const PRESS_DIR = join(ROOT, "press");
+// Preflight for every layer that imports press/src (it needs press's npm deps). A test run must NOT
+// silently hit the network and mutate dependency state every time. Install them once as an explicit
+// setup step. Opt in to an automatic install with BUREAU_ALLOW_NPM_INSTALL=1 (prefers `npm ci` —
+// clean, pinned to the lockfile — falling back to `npm install` when no lockfile is present).
+const ensurePressDeps = (needs) => {
+  if (existsSync(join(PRESS_DIR, "node_modules"))) return;
+  if (process.env.BUREAU_ALLOW_NPM_INSTALL === "1") {
+    const ciable = existsSync(join(PRESS_DIR, "package-lock.json"));
+    run("npm", [ciable ? "ci" : "install", "--no-audit", "--no-fund"], { cwd: PRESS_DIR });
+    return;
+  }
+  console.error(
+    `  press/node_modules is missing — ${needs}.\n` +
+    "  Run `npm ci` (or `npm install`) in press/ once, or set BUREAU_ALLOW_NPM_INSTALL=1 to\n" +
+    "  auto-install. Refusing to hit the network mid-suite.");
+  throw new Error("press deps not installed");
+};
 
 step("L0 · static structure", () => run("node", ["test/static/check.mjs"]));
 step("L1 · hook-script units", () => run("node", ["--test", "test/unit/scripts.test.mjs"]));
@@ -21,26 +40,13 @@ step("L1 · crew engine units", () => run("node", ["--test", "test/unit/crew.tes
 // bureau/crew source (crew check exits non-zero on drift or a hand-edit). This is the gate that
 // makes committing generated artifacts safe — without it, source↔materialized drift lands unnoticed.
 step("L1 · crew materialization in sync (real-repo drift gate)", () => run("node", ["scripts/crew.mjs", "check"]));
-step("L1 · chamber server units", () => run("node", ["--test", "test/unit/serve.test.mjs"]));
+step("L1 · chamber server units", () => {
+  ensurePressDeps("the chamber server units import press/src, which needs press's npm deps");
+  run("node", ["--test", "test/unit/serve.test.mjs"]);
+});
 step("L1 · press renderer", () => {
-  const pressDir = join(ROOT, "press");
-  if (!existsSync(join(pressDir, "node_modules"))) {
-    // The press unit tests need their dev deps, but a test run must NOT silently hit the network
-    // and mutate dependency state every time. Install them once as an explicit setup step. Opt in
-    // to an automatic install with BUREAU_ALLOW_NPM_INSTALL=1 (prefers `npm ci` — clean, pinned to
-    // the lockfile — falling back to `npm install` when no lockfile is present).
-    if (process.env.BUREAU_ALLOW_NPM_INSTALL === "1") {
-      const ciable = existsSync(join(pressDir, "package-lock.json"));
-      run("npm", [ciable ? "ci" : "install", "--no-audit", "--no-fund"], { cwd: pressDir });
-    } else {
-      console.error(
-        "  press/node_modules is missing — the press unit tests need their dev deps.\n" +
-        "  Run `npm ci` (or `npm install`) in press/ once, or set BUREAU_ALLOW_NPM_INSTALL=1 to\n" +
-        "  auto-install. Refusing to hit the network mid-suite.");
-      throw new Error("press dev deps not installed");
-    }
-  }
-  run("node", ["--test"], { cwd: pressDir });
+  ensurePressDeps("the press unit tests need their dev deps");
+  run("node", ["--test"], { cwd: PRESS_DIR });
 });
 step("L3 · judge self-test (deterministic)", () => run("node", ["--test", "test/e2e/judges.test.mjs"]));
 step("L1 · self-canon fixture (dogfood)", () => run("node", ["--test", "test/canon.test.mjs"]));

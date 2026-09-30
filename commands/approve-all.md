@@ -30,7 +30,7 @@ tell the user to run `bureau:init` first. Do nothing else.
 
 ## Steps
 
-Follow the protocol in the **approve-all** skill (`skills/approve-all/SKILL.md`). In short:
+Follow the protocol in the **approve-all** skill (`${CLAUDE_PLUGIN_ROOT}/skills/approve-all/SKILL.md`). In short:
 
 1. Locate the workspace (`bureau.json`; default `canon`). None → tell the user to run `bureau:init`
    and stop.

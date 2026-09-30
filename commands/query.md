@@ -11,7 +11,7 @@ sources.
 
 If no question was given, ask the user what they want to know before proceeding.
 
-Follow the protocol in the **recall** skill (`skills/recall/SKILL.md`). In short:
+Follow the protocol in the **recall** skill (`${CLAUDE_PLUGIN_ROOT}/skills/recall/SKILL.md`). In short:
 
 1. Locate the workspace (`bureau.json`; default `canon`). If none, tell the user to run
    `bureau:init` first and stop.

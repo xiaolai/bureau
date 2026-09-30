@@ -13,15 +13,18 @@ That turns "untestable probabilistic plugin" into a normal pyramid.
 | Layer | What it proves | Deterministic? | Run |
 |---|---|---|---|
 | **L0 static** | manifests parse, frontmatter present, refs resolve, the bundle ships | yes, free | `node test/static/check.mjs` |
-| **L1 substrate** | hook scripts (`capture-stub`, `scribe-checkpoint`) + the gazette renderer | yes | `node --test test/unit/scripts.test.mjs` · `cd gazette && node --test` |
-| **L1 browser render** | the board actually RENDERS in real Chromium: offline/strict-CSP, 0 console errors, nav + routing, mermaid→SVG, echarts→canvas, sortable tables | yes — headless Chromium | `cd gazette && node --test test/browser.test.mjs` (needs `npx playwright install chromium`; skips cleanly without it) |
+| **L1 substrate** | hook scripts (`capture-stub`, `scribe-checkpoint`) + the gazette renderer | yes | `node --test test/unit/scripts.test.mjs` · `cd press && node --test` |
+| **L1 browser render** | the board actually RENDERS in real Chromium: offline/strict-CSP, 0 console errors, nav + routing, mermaid→SVG, echarts→canvas, sortable tables | yes — headless Chromium | `cd press && node --test test/browser.test.mjs` (needs `npx playwright install chromium`; skips cleanly without it) |
 | **L3 judge self-test** | the L3 *assertions themselves* are correct (good workspace passes, bad fails) | yes, no LLM | `node --test test/e2e/judges.test.mjs` |
 | **L3 live behavioral** | the trust model holds when a real LLM drives the flow | no — `claude -p` | `node test/run.mjs --e2e` |
 
-Run the whole deterministic set with **`node test/run.mjs`** (180 checks incl. the 6 browser
-render tests, no API needed). Add **`--e2e`** for the live LLM layer (needs the `claude` CLI
-authenticated; costs tokens). The browser layer needs the Chromium binary
-(`cd gazette && npx playwright install chromium`); without it those 6 skip rather than fail.
+Run the whole deterministic set with **`node test/run.mjs`** (incl. the browser render
+scenario, no API needed). Install press's npm deps once first (`cd press && npm ci`): the chamber
+server and press renderer layers import `press/src`, and the runner stops with this guidance when
+they are missing (or set `BUREAU_ALLOW_NPM_INSTALL=1` to auto-install). Add **`--e2e`** for the
+live LLM layer (needs the `claude` CLI authenticated; costs tokens). The browser layer needs the
+Chromium binary (`cd press && npx playwright install chromium`); without it that scenario skips
+rather than fails (CI sets `BUREAU_REQUIRE_BROWSER=1`, so there it fails instead).
 
 ## How the live layer works (`test/e2e/`)
 

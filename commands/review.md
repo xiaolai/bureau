@@ -10,7 +10,7 @@ Vet what the AI wrote to memory before it is trusted as fact. AI-written claims 
 `canonical`, and only on your approval. The cabinets are repo memory — an un-reviewed claim is
 an unverified claim.
 
-Follow the protocol in the **review** skill (`skills/review/SKILL.md`). In short:
+Follow the protocol in the **review** skill (`${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`). In short:
 
 1. Locate the workspace (`bureau.json`; default `canon`). If none, tell the user to run
    `bureau:init` first and stop.

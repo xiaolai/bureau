@@ -8,7 +8,7 @@ File the **current** session into the logbook as a full entry. Run this at the e
 working session, while you (the agent) still hold the full context — this is where the
 high-fidelity record is written. The `SessionEnd` hook only writes a mechanical stub.
 
-Follow the protocol in the **capture** skill (`skills/capture/SKILL.md`). In short:
+Follow the protocol in the **capture** skill (`${CLAUDE_PLUGIN_ROOT}/skills/capture/SKILL.md`). In short:
 
 1. Locate the workspace (discover a `bureau.json`; default `canon`). If none, tell the user
    to run `bureau:init`.

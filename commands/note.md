@@ -8,7 +8,7 @@ argument-hint: "[--workspace <name>]"
 Jot the current state of the session as a running logbook note — the live minute-taker, so the
 record doesn't depend on end-of-session recall. Run it at decision points, not after every turn.
 
-Follow the protocol in the **scribe** skill (`skills/scribe/SKILL.md`). In short:
+Follow the protocol in the **scribe** skill (`${CLAUDE_PLUGIN_ROOT}/skills/scribe/SKILL.md`). In short:
 
 1. Locate the workspace (`bureau.json`; default `canon`). If none, produce the summary for the
    user (ephemeral) and stop — do not error.

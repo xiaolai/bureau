@@ -14,7 +14,7 @@ when a **human** approves it via `bureau:review`. A supersession likewise takes 
 superseding ADR is approved and content-current (ADR-0006). This command never approves and never
 writes the decision log.
 
-Follow the protocol in the **adr** skill (`skills/adr/SKILL.md`). In short:
+Follow the protocol in the **adr** skill (`${CLAUDE_PLUGIN_ROOT}/skills/adr/SKILL.md`). In short:
 
 If no title was given, ask the user for the decision title before proceeding.
 

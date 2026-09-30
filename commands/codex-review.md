@@ -36,7 +36,7 @@ tell the user to run `bureau:init` first. Do nothing else.
 
 ## Steps
 
-Follow the protocol in the **codex-review** skill (`skills/codex-review/SKILL.md`). In short:
+Follow the protocol in the **codex-review** skill (`${CLAUDE_PLUGIN_ROOT}/skills/codex-review/SKILL.md`). In short:
 
 1. Locate the workspace (`bureau.json`; default `canon`). None → tell the user to run `bureau:init`
    and stop.
