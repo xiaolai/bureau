@@ -1,6 +1,7 @@
 ---
 description: Show the pre-change blast radius of a dossier — which pages (transitively) rest on its claim, so you can see the review cost before you touch it. Use when running bureau:impact, or when the user asks "what depends on this?", "what breaks if I change X?", "who rests on this claim?", or "is this safe to edit?".
 argument-hint: "\"<dossier title>\""
+disable-model-invocation: true
 ---
 
 # bureau:impact — what rests on this claim

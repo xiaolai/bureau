@@ -1,5 +1,5 @@
 ---
-description: Bulk-approve the whole approvable review backlog as canonical, in one confirmation. Shows exactly what would be promoted, confirms in-session, then hands you the single pre-filled `gazette approve --all --by human` line to fire as yourself. The AI never signs `--by human` for you — you run the one line, so the log's human authorship stays true. Use when the user asks to approve everything, approve the whole queue, or bulk-approve at once.
+description: Bulk-approve the review backlog as canonical — preview it, then hand the user the one `--by human` line to run. Use when the user asks to approve everything, approve the whole queue, or bulk-approve at once.
 argument-hint: "[--workspace <name>]"
 ---
 

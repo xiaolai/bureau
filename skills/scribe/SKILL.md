@@ -2,6 +2,7 @@
 name: scribe
 description: The live note-taker — summarize the current session's decisions and open threads on demand or at checkpoints, and (in a bureau workspace) append them to the session's running minute. Use when running bureau:note, or when the user asks to take a note / minute this / summarize where we are.
 argument-hint: "[--workspace <name>]"
+disable-model-invocation: true
 ---
 
 # Scribe — live minutes of the current session

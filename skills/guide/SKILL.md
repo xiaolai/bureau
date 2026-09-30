@@ -1,6 +1,7 @@
 ---
 name: guide
 description: "Orientation for the bureau plugin — the records-office model, the capture → compile → review gate, the trust tiers, the crew, and which bureau: command serves which intent. Read this FIRST before using any bureau: command, or whenever working in a repo that has a bureau workspace (a canon/ directory + a BUREAU.md), so you draw on the project's canon instead of re-deriving or guessing."
+disable-model-invocation: true
 ---
 
 # Bureau — how to use this plugin

@@ -2,6 +2,7 @@
 name: recall
 description: Answer from the bureau canon with citations and trust tiers — read dossiers as memory, honor each page's status, and never present an unverified claim as fact. Use when running bureau:query, or when the user asks what the project knows / what was decided / what the canon says about something.
 argument-hint: "\"<question>\" [--workspace <name>]"
+disable-model-invocation: true
 ---
 
 # Recall — read the canon, tier-aware
