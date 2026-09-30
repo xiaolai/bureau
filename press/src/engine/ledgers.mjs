@@ -2,7 +2,7 @@
 // §4.16, the concrete answer to §0.1). `_verify.json` records artifact fingerprints; `_compile-
 // state.json` the processed-session watermark. Both are mechanical-derived (in the fsck fixpoint).
 // Artifact paths are JAILED inside a root: absolute paths, `..` escapes, and symlinks that leave the
-// tree are rejected - the same zero-trust boundary the compile skill described in prose.
+// tree are rejected - the same zero-trust boundary the compile protocol (protocols/compile.md) describes in prose.
 import { existsSync, readFileSync, writeFileSync, renameSync, realpathSync, lstatSync, openSync, closeSync, fstatSync, readSync, readdirSync, constants } from "fs";
 import { join, resolve, sep, isAbsolute } from "path";
 import { createHash } from "crypto";

@@ -20,7 +20,7 @@ The bundled press is at `${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs`; the works
    `bureau:init` first and stop.
 
 2. **Compile.** Distil every uncompiled minute into dossiers with provenance — follow
-   `${CLAUDE_PLUGIN_ROOT}/skills/compile/SKILL.md` (apply `--since` if given). Facts-about-artifacts verify against the
+   `${CLAUDE_PLUGIN_ROOT}/protocols/compile.md` (apply `--since` if given). Facts-about-artifacts verify against the
    repo (recorded via `gazette ledger verify`); judgments stay `proposed`. A new claim that
    contradicts an existing one becomes `contested` with a `contradicts:` edge — never a silent
    overwrite. If there is nothing to compile, say so and continue.
@@ -33,7 +33,7 @@ The bundled press is at `${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs`; the works
    upstream. Report the introduce/edit/delete counts.
 
 4. **Lint** (unless `--skip-lint`). Sweep the cabinets for free-text contradictions, superseded
-   claims, and vocabulary drift — follow `${CLAUDE_PLUGIN_ROOT}/skills/lint/SKILL.md`. Record only survivors (find →
+   claims, and vocabulary drift — follow `${CLAUDE_PLUGIN_ROOT}/protocols/lint.md`. Record only survivors (find →
    adversarially refute → keep what holds). This is the LLM-judgment pass; it's the slowest step, so
    `--skip-lint` exists for a quick cycle.
 
@@ -49,7 +49,7 @@ The bundled press is at `${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs`; the works
      `unauthorized-confirm`, and `unauthorized-resolve` finding from `gazette fsck` in the queue —
      otherwise they surface only after the cycle's own verification step, once mutations have landed.
 
-   Then present the batch for decision — follow `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. **You do not run the
+   Then present the batch for decision — follow `${CLAUDE_PLUGIN_ROOT}/protocols/review.md`. **You do not run the
    decision commands yourself** (see BUREAU.md): `gazette approve`, `confirm`, and `resolve` are the
    human's, and passing `--by human` on their behalf forges the authority the gate rests on. Surface
    the digest and let the human run them.

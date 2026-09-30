@@ -1,5 +1,5 @@
 ---
-description: Bulk-approve the whole approvable review backlog as canonical, in one confirmation. Shows exactly what would be promoted, confirms in-session, then hands you the single pre-filled `gazette approve --all --by human` line to fire as yourself. The AI never signs `--by human` for you — you run the one line, so the log's human authorship stays true.
+description: Bulk-approve the whole approvable review backlog as canonical, in one confirmation. Shows exactly what would be promoted, confirms in-session, then hands you the single pre-filled `gazette approve --all --by human` line to fire as yourself. The AI never signs `--by human` for you — you run the one line, so the log's human authorship stays true. Use when the user asks to approve everything, approve the whole queue, or bulk-approve at once.
 argument-hint: "[--workspace <name>]"
 ---
 
@@ -30,7 +30,7 @@ tell the user to run `bureau:init` first. Do nothing else.
 
 ## Steps
 
-Follow the protocol in the **approve-all** skill (`${CLAUDE_PLUGIN_ROOT}/skills/approve-all/SKILL.md`). In short:
+Follow the **approve-all** protocol (`${CLAUDE_PLUGIN_ROOT}/protocols/approve-all.md`). In short:
 
 1. Locate the workspace (`bureau.json`; default `canon`). None → tell the user to run `bureau:init`
    and stop.

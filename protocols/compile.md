@@ -1,8 +1,5 @@
----
-name: compile
-description: Distil minutes into consistency-checked dossiers — the canonical SSOT — writing provenance links back to the sessions that introduced each claim. Use when running bureau:compile, or when the user asks to turn the logbook into canon / update the cabinets / build the knowledge base from sessions.
-argument-hint: "[--since <YYYY-MM-DD>] [--workspace <name>]"
----
+<!-- Protocol for the /bureau:compile command: commands/compile.md reads this file by path. It is not a
+     skill (a skills/compile/ folder would register a second bureau:compile and collide with the command). -->
 
 # Compile — logbook → dossiers (the canon)
 
@@ -66,7 +63,7 @@ See [[Logbook model]].
   edges are **proposed** by compile and **confirmed by the human at review** — declare them
   generously (under-scoping is the silent killer; over-scoping only annoys). Omit `rests_on` for a
   standalone claim.
-- `status` is the trust tier (defined in the `review` skill). Compile writes only `proposed`
+- `status` is the trust tier (defined in the `review` protocol, `protocols/review.md`). Compile writes only `proposed`
   (an AI claim, unchecked) or `verified` (a fact it confirmed against the repo). It **never**
   writes `canonical` — that tier is reached only through `bureau:review`, the human gate. A
   conflict yields `contested` (see the conflict policy).
@@ -204,7 +201,7 @@ assistant: "The new claim (tokens last 1h) disagrees with **Token TTL** (24h). P
 
 ## Scope note
 
-This skill covers ONLY distillation: minutes → dossiers with provenance. It does
+This protocol covers ONLY distillation: minutes → dossiers with provenance. It does
 **not** capture sessions (that is the `capture` skill / `bureau:file-session`), does **not**
 render the gazette (that is `bureau:inspect`), and does **not** run the semantic consistency
 sweep (that is `bureau:lint`). It is invoked by the `bureau:compile` command.

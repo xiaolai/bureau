@@ -1,14 +1,11 @@
----
-name: adr
-description: Record an architecture decision as a MADR ADR page in the canon. Use when running bureau:adr, or when the user asks to write/record an ADR or an architecture decision, or to supersede a prior decision. Authors a proposed page only — never approves.
-argument-hint: "\"<title>\" [--supersedes <ADR-N>] [--workspace <name>]"
----
+<!-- Protocol for the /bureau:adr command: commands/adr.md reads this file by path. It is not a
+     skill (a skills/adr/ folder would register a second bureau:adr and collide with the command). -->
 
 # ADR — record an architecture decision (MADR)
 
 An ADR is a durable decision record. bureau treats it as an ordinary cabinet page carrying
 `kind: adr`, so it flows through the same trust gate as every other claim — **capture → review**.
-This skill authors the page; a human ratifies it.
+This protocol authors the page; a human ratifies it.
 
 ## The write-gate (non-negotiable)
 
@@ -48,7 +45,7 @@ scaffolded ADR supersedes nothing until a human approves it. Do not imply otherw
 
 A superseding ADR that took effect the moment an AI wrote it could silently retire a canonical decision
 no human re-read. bureau forbids that: the supersession stays inert until the superseding ADR is
-approved AND its reviewed bytes still match (content-binding). This skill's job ends at a well-formed
+approved AND its reviewed bytes still match (content-binding). This protocol's job ends at a well-formed
 `proposed` page; the human's approval is what makes it — and any supersession — real.
 
 ## Examples
@@ -57,7 +54,7 @@ approved AND its reviewed bytes still match (content-binding). This skill's job 
 Context: In a bureau repo, the team just chose an approach after weighing options.
 user: "bureau:adr record that we're going with content-bound supersession over mere-approval"
 assistant: "Scaffolded decisions/ADR-0007-content-bound-supersession.md (ADR-0007, proposed). I filled the Context, the two considered options (mere-approval vs fresh-approval) and the chosen Decision Outcome with its justification, the Consequences, and a Confirmation naming the fsck test that fingerprints it. It's `proposed` and awaits `bureau:review` — I did not approve it."
-<commentary>The skill authors a proposed page and fills the MADR body from the session; a human promotes it via bureau:review. It never approves.</commentary>
+<commentary>The protocol authors a proposed page and fills the MADR body from the session; a human promotes it via bureau:review. It never approves.</commentary>
 </example>
 
 <example>
@@ -69,7 +66,7 @@ assistant: "Created decisions/ADR-0008-… (proposed) with a `supersedes` edge t
 
 ## Scope note
 
-This skill covers ONLY scaffolding a `proposed` MADR ADR page (and filling its body from the session).
+This protocol covers ONLY scaffolding a `proposed` MADR ADR page (and filling its body from the session).
 It does **not** approve, confirm, or resolve — that is the human gate (`bureau:review`) — **not** distil
 minutes into cabinets (`bureau:compile`), and **not** read the canon to answer questions
 (`bureau:query` / `recall`). It authors one page; the human's approval is what makes it, and any

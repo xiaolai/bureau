@@ -1,5 +1,5 @@
 ---
-description: Distil minutes into consistency-checked dossiers (the canon), with provenance back to each session.
+description: Distil minutes into consistency-checked dossiers (the canon), with provenance back to each session. Use when the user asks to turn the logbook into canon, update the cabinets, or build the knowledge base from sessions.
 argument-hint: "[--since <YYYY-MM-DD>] [--workspace <name>]"
 ---
 
@@ -9,7 +9,7 @@ Turn the append-only logbook into canon: read the sessions that haven't been com
 distil their claims into **dossiers** — the consistency-checked SSOT — each linked back to
 the minute that introduced it.
 
-Follow the protocol in the **compile** skill (`${CLAUDE_PLUGIN_ROOT}/skills/compile/SKILL.md`). In short:
+Follow the **compile** protocol (`${CLAUDE_PLUGIN_ROOT}/protocols/compile.md`). In short:
 
 1. Locate the workspace (`bureau.json`; default `canon`). If none, tell the user to run
    `bureau:init` first and stop.

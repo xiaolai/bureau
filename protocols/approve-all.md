@@ -1,8 +1,5 @@
----
-name: approve-all
-description: Prepare a human bulk-approval of the whole approvable review backlog — show what would be promoted to canonical, take an in-session confirmation, then hand the human the single pre-filled `gazette approve --all --by human` line to fire themselves. Use when running bureau:approve-all, or when the user asks to approve everything / approve the whole queue / bulk-approve at once. The AI never runs approve and never signs `--by human`.
-argument-hint: "[--workspace <name>]"
----
+<!-- Protocol for the /bureau:approve-all command: commands/approve-all.md reads this file by path. It is not a
+     skill (a skills/approve-all/ folder would register a second bureau:approve-all and collide with the command). -->
 
 # Approve-all — a one-confirmation human bulk-approval, prepared not forged
 
@@ -75,7 +72,7 @@ is all the more reason it is the human's to fire.
    not fully cleared; route them to `bureau:review`.
 4. **Name the weakening.** `approve --all` promotes sight-unseen (ADR-0005); say so, and offer the
    `approve --from` per-page alternative.
-5. **Read-only until the handoff.** The skill only reads the queue; the sole state change happens when
+5. **Read-only until the handoff.** The protocol only reads the queue; the sole state change happens when
    the human runs the printed line.
 
 ## Output format
@@ -104,7 +101,7 @@ decision, not an approval, so it stays in the queue. Approve all 6 as canonical,
 
 ## Scope note
 
-This skill ONLY prepares a human bulk-approval and hands off the command. It does not run any
+This protocol ONLY prepares a human bulk-approval and hands off the command. It does not run any
 approval, capture sessions, compile the logbook, resolve conflicts, or render the board. It is
 invoked by `bureau:approve-all`, and is the bulk companion to `bureau:review` (per-page human gate)
 and `bureau:codex-review` (Codex pre-screens the queue as your representative).

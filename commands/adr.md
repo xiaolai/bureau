@@ -1,5 +1,5 @@
 ---
-description: Record an architecture decision — scaffold a proposed MADR ADR page (auto-numbered, optionally superseding a prior one) into the canon. Authors only; a human approves it via bureau:review.
+description: Record an architecture decision — scaffold a proposed MADR ADR page (auto-numbered, optionally superseding a prior one) into the canon. Authors only; a human approves it via bureau:review. Use when the user asks to write or record an ADR or an architecture decision, or to supersede a prior decision.
 argument-hint: "\"<title>\" [--supersedes <ADR-N>] [--workspace <name>]"
 ---
 
@@ -14,7 +14,7 @@ when a **human** approves it via `bureau:review`. A supersession likewise takes 
 superseding ADR is approved and content-current (ADR-0006). This command never approves and never
 writes the decision log.
 
-Follow the protocol in the **adr** skill (`${CLAUDE_PLUGIN_ROOT}/skills/adr/SKILL.md`). In short:
+Follow the **adr** protocol (`${CLAUDE_PLUGIN_ROOT}/protocols/adr.md`). In short:
 
 If no title was given, ask the user for the decision title before proceeding.
 

@@ -12,7 +12,7 @@ That turns "untestable probabilistic plugin" into a normal pyramid.
 
 | Layer | What it proves | Deterministic? | Run |
 |---|---|---|---|
-| **L0 static** | manifests parse, frontmatter present, refs resolve, the bundle ships | yes, free | `node test/static/check.mjs` |
+| **L0 static** | manifests parse, frontmatter present, skill + protocol refs resolve, no command/skill name collision, the bundle ships | yes, free | `node test/static/check.mjs` |
 | **L1 substrate** | hook scripts (`capture-stub`, `scribe-checkpoint`) + the gazette renderer | yes | `node --test test/unit/scripts.test.mjs` · `cd press && node --test` |
 | **L1 browser render** | the board actually RENDERS in real Chromium: offline/strict-CSP, 0 console errors, nav + routing, mermaid→SVG, echarts→canvas, sortable tables | yes — headless Chromium | `cd press && node --test test/browser.test.mjs` (needs `npx playwright install chromium`; skips cleanly without it) |
 | **L3 judge self-test** | the L3 *assertions themselves* are correct (good workspace passes, bad fails) | yes, no LLM | `node --test test/e2e/judges.test.mjs` |

@@ -971,7 +971,7 @@ function runLegacyMigrate() {
   } catch (e) { die(e.message); }
 }
 
-// ledger: the mechanical trust ledgers, callable by the compile/review skills.
+// ledger: the mechanical trust ledgers, callable by the compile/review protocols (protocols/*.md).
 // Positional args to a `ledger` subcommand (the session ids), skipping value-consuming flags — the old
 // `argv.slice(2).filter(a => !a.startsWith("--"))` left a flag's VALUE behind (e.g. `--dir <path>` leaked
 // the path in as a fake session id).

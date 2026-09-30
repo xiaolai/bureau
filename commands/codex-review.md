@@ -1,5 +1,5 @@
 ---
-description: Let Codex (via cc-suite) deliberate over the bureau review queue as your representative — it reads each unapproved claim and recommends approve or hold, then either hands you the exact approve command (advisor, default) or, only where the workspace opted in, commits under its own `codex` authority (delegate).
+description: Let Codex (via cc-suite) deliberate over the bureau review queue as your representative — it reads each unapproved claim and recommends approve or hold, then either hands you the exact approve command (advisor, default) or, only where the workspace opted in, commits under its own `codex` authority (delegate). Use when the user asks to have Codex screen, pre-review, or decide the bureau backlog for them.
 argument-hint: "[--delegate] [--next <N>] [--workspace <name>]"
 ---
 
@@ -36,7 +36,7 @@ tell the user to run `bureau:init` first. Do nothing else.
 
 ## Steps
 
-Follow the protocol in the **codex-review** skill (`${CLAUDE_PLUGIN_ROOT}/skills/codex-review/SKILL.md`). In short:
+Follow the **codex-review** protocol (`${CLAUDE_PLUGIN_ROOT}/protocols/codex-review.md`). In short:
 
 1. Locate the workspace (`bureau.json`; default `canon`). None → tell the user to run `bureau:init`
    and stop.

@@ -1,8 +1,5 @@
----
-name: lint
-description: Sweep the dossiers for semantic inconsistencies that the press's structural check cannot see — free-text contradictions, superseded claims, undocumented gaps, and vocabulary drift. Use when running bureau:lint, before a milestone, or when the user asks to check the canon for contradictions / consistency / drift.
-argument-hint: "[--apply] [--workspace <name>]"
----
+<!-- Protocol for the /bureau:lint command: commands/lint.md reads this file by path. It is not a
+     skill (a skills/lint/ folder would register a second bureau:lint and collide with the command). -->
 
 # Lint — semantic consistency of the canon
 
@@ -117,7 +114,7 @@ assistant: "Same findings, plus markers: I set both TTL pages to status: contest
 
 ## Scope note
 
-This skill covers ONLY the semantic-consistency sweep of dossiers. It does **not** capture
+This protocol covers ONLY the semantic-consistency sweep of dossiers. It does **not** capture
 sessions (`capture` / `bureau:file-session`), does **not** distil the logbook into cabinets
 (`compile` / `bureau:compile`), and does **not** render the gazette (`bureau:inspect`). It reads
 the cabinets that `compile` produced and is invoked by the `bureau:lint` command.

@@ -1,5 +1,5 @@
 ---
-description: The human double-check gate — review AI-written cabinet claims and promote the vetted ones to canonical, reject the rest.
+description: The human double-check gate — review AI-written cabinet claims and promote the vetted ones to canonical, reject the rest. Use when the user asks to approve, vet, or sign off on what the AI wrote to memory before it is trusted as fact.
 argument-hint: "[--workspace <name>]"
 ---
 
@@ -10,7 +10,7 @@ Vet what the AI wrote to memory before it is trusted as fact. AI-written claims 
 `canonical`, and only on your approval. The cabinets are repo memory — an un-reviewed claim is
 an unverified claim.
 
-Follow the protocol in the **review** skill (`${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`). In short:
+Follow the **review** protocol (`${CLAUDE_PLUGIN_ROOT}/protocols/review.md`). In short:
 
 1. Locate the workspace (`bureau.json`; default `canon`). If none, tell the user to run
    `bureau:init` first and stop.

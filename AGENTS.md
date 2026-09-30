@@ -34,7 +34,8 @@ the managed block below imports.
 | Path | Role |
 |------|------|
 | `commands/` | the `bureau:*` slash commands |
-| `skills/` | model-triggered skills — one per pipeline step, plus the `guide` orientation skill |
+| `skills/` | model-triggered skills with no same-named command (`capture`, `recall`, `scribe`, plus the `guide` orientation skill) |
+| `protocols/` | the step-by-step protocol a command reads by path (`commands/<n>.md` → `protocols/<n>.md`). Not skills: a `skills/<n>/` beside `commands/<n>.md` registers a second `bureau:<n>` and the skill is dropped from the listing |
 | `crew/` | crew desk sources (`agent.md` + `brief.md`), materialized into `.claude/` on sync |
 | `scripts/` | hook + crew engine — `crew.mjs` (materializer), capture/scribe session hooks |
 | `press/` | the bundled renderer that builds the gazette; vendored, self-contained. `press/src/engine/` is the recursion engine (ADR-0001): decision log, span revisions, the deterministic gate, ledgers, fsck |

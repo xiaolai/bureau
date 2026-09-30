@@ -1,5 +1,5 @@
 ---
-description: Sweep the cabinets for semantic inconsistencies (contradictions, superseded claims, gaps, drift) and write a findings report.
+description: Sweep the cabinets for semantic inconsistencies (contradictions, superseded claims, gaps, drift) and write a findings report. Use before a milestone, or when the user asks to check the canon for contradictions, consistency, or drift.
 argument-hint: "[--apply] [--workspace <name>]"
 ---
 
@@ -9,7 +9,7 @@ Check the canon for the inconsistencies the press's structural health check cann
 free-text contradictions between pages, claims a newer dossier superseded, undocumented gaps,
 and vocabulary drift. Run it on a cadence or before a milestone, not on every edit.
 
-Follow the protocol in the **lint** skill (`${CLAUDE_PLUGIN_ROOT}/skills/lint/SKILL.md`). In short:
+Follow the **lint** protocol (`${CLAUDE_PLUGIN_ROOT}/protocols/lint.md`). In short:
 
 1. Locate the workspace (`bureau.json`; default `canon`). If none, tell the user to run
    `bureau:init` first and stop.

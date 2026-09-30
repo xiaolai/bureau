@@ -23,7 +23,7 @@ Everything the engine does rests on three additions to an ordinary cabinet page.
 by hand, but you rarely need to: **`bureau:compile` stamps the `id`, anchors the claim with a
 `^span`, and proposes `rests_on` edges** as it distils minutes into dossiers — and **`bureau:review`
 is where a human confirms those proposed edges.** (A canon created before the engine is retrofitted
-the same way — see the compile skill's one-time sweep.) Here's what those three things are:
+the same way — see the compile protocol's one-time sweep (`protocols/compile.md`).) Here's what those three things are:
 
 ### 1. An opaque `id:`
 

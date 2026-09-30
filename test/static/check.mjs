@@ -99,11 +99,32 @@ for (const d of ls("skills").filter((d) => statSync(join(ROOT, "skills", d)).isD
   if (!/## Scope note/i.test(s)) fail(`${p}: no Scope note`);
 }
 
-// 4. command → skill cross-references resolve.
+// 4. command → skill / protocol cross-references resolve, and every protocol is read by its command.
+const protocolRefs = new Set();
 for (const f of ls("commands").filter((f) => f.endsWith(".md"))) {
-  for (const m of read(`commands/${f}`).matchAll(/skills\/([a-z-]+)\/SKILL\.md/g)) {
+  const body = read(`commands/${f}`);
+  for (const m of body.matchAll(/skills\/([a-z-]+)\/SKILL\.md/g)) {
     if (!existsSync(join(ROOT, "skills", m[1], "SKILL.md"))) fail(`commands/${f}: dangling skill ref ${m[1]}`);
   }
+  for (const m of body.matchAll(/protocols\/([a-z-]+)\.md/g)) {
+    protocolRefs.add(m[1]);
+    if (!existsSync(join(ROOT, "protocols", `${m[1]}.md`))) fail(`commands/${f}: dangling protocol ref ${m[1]}`);
+  }
+}
+const protocols = existsSync(join(ROOT, "protocols"))
+  ? ls("protocols").filter((f) => f.endsWith(".md")).map((f) => f.slice(0, -3)) : [];
+for (const n of protocols) {
+  if (!existsSync(join(ROOT, "commands", `${n}.md`))) fail(`protocols/${n}.md: no commands/${n}.md reads it`);
+  else if (!read(`commands/${n}.md`).includes(`protocols/${n}.md`)) fail(`protocols/${n}.md: commands/${n}.md does not reference it`);
+  if (!protocolRefs.has(n)) fail(`protocols/${n}.md: orphan (no command references it)`);
+}
+
+// 4b. no name is both a command and a skill. Both register as bureau:<name>; Claude Code keeps the
+//     command and silently drops the skill from the listing, so the skill's description never
+//     routes. A command's protocol belongs in protocols/<name>.md, not skills/<name>/SKILL.md.
+for (const f of ls("commands").filter((f) => f.endsWith(".md"))) {
+  const n = f.slice(0, -3);
+  if (existsSync(join(ROOT, "skills", n))) fail(`skills/${n}/ collides with commands/${f} (both register bureau:${n}); move the skill body to protocols/${n}.md`);
 }
 
 // 5. every command hook references at least one scripts/<file> and EVERY referenced script exists.

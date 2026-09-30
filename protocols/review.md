@@ -1,12 +1,9 @@
----
-name: review
-description: The human double-check gate for AI-written memory. Show every cabinet claim not yet approved — with its provenance and automatic check result — and let the human promote it to canonical or reject it. Use when running bureau:review, or when the user asks to approve / vet / sign off on what the AI wrote to memory before it is trusted as fact.
-argument-hint: "[--workspace <name>]"
----
+<!-- Protocol for the /bureau:review command: commands/review.md reads this file by path. It is not a
+     skill (a skills/review/ folder would register a second bureau:review and collide with the command). -->
 
 # Review — the gate between AI memory and trusted fact
 
-AI-written memory must never be recalled as fact until a human has checked it. This skill is
+AI-written memory must never be recalled as fact until a human has checked it. This protocol is
 that gate: a batch double-check that promotes vetted claims to `canonical` and discards the
 rest. The cabinets double as repo memory, so an un-reviewed claim is an unverified claim.
 
@@ -16,7 +13,7 @@ rest. The cabinets double as repo memory, so an un-reviewed claim is an unverifi
 |------|---------|------------|-------------|
 | `proposed` | AI claim, unchecked | compile | "unverified — verify before relying" |
 | `verified` | passed an automatic ground-truth check | compile | "checked against the repo on `<date>`" |
-| `canonical` | a human approved it | **review** (this skill) only | fact |
+| `canonical` | a human approved it | **review** (this protocol) only | fact |
 | `stale` | a verified source changed / a claim was superseded | review's staleness re-check; lint (`--apply`) | "was true on `<date>` — re-verify" |
 | `contested` | two claims disagree | compile (conflict); lint (`--apply`) | "disputed — do not rely" |
 
@@ -131,7 +128,7 @@ assistant: "Running bureau:review. Staleness re-check first: `Build command`'s s
 
 ## Scope note
 
-This skill covers ONLY the human approval gate and staleness re-check. It does **not** capture
+This protocol covers ONLY the human approval gate and staleness re-check. It does **not** capture
 sessions (`capture` / `bureau:file-session`), does **not** distil the logbook (`compile` /
 `bureau:compile`), and does **not** run the semantic sweep (`lint` / `bureau:lint`). It acts on
 the cabinets those produce and is invoked by the `bureau:review` command.
@@ -139,4 +136,4 @@ the cabinets those produce and is invoked by the `bureau:review` command.
 To have **Codex** pre-screen the same queue as your representative — recommending approve/hold, then
 either handing you the `--by human` command or (only where the workspace opted the `codex` authority
 in) committing `--by codex` — reach for `bureau:codex-review` (`codex-review`) instead. It drives the
-identical `gazette review --json` / `approve --from` surface; this skill stays the human-only gate.
+identical `gazette review --json` / `approve --from` surface; this protocol stays the human-only gate.

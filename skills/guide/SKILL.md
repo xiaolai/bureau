@@ -8,7 +8,7 @@ description: "Orientation for the bureau plugin — the records-office model, th
 Bureau turns AI sessions into a **maintained, human-reviewed knowledge base** for a repo. This
 skill is the map: the mental model, the one workflow, the invariants you must not break, and a
 decision table from *intent* → *command*. Read it before reaching for any `bureau:` command, then
-drop into the operational skill for the step you're on.
+drop into the operational skill or protocol for the step you're on.
 
 ## The mental model — a records office
 
@@ -73,20 +73,20 @@ route it back through `bureau:review`.
 
 ## Which command for which intent
 
-| You want to… | Run | Backed by skill |
+| You want to… | Run | Backed by |
 |--------------|-----|-----------------|
 | Set bureau up in this repo | `bureau:init` | — |
 | Pair this repo's external (private) workspace to a local path on this machine | `bureau:pair` | — |
 | Ask what the project knows / what was decided | `bureau:query` | `recall` |
 | Jot a durable point mid-session | `bureau:note` | `scribe` |
 | File the whole current session as a minute | `bureau:file-session` | `capture` |
-| Distil minutes into dossiers | `bureau:compile` | `compile` |
-| Record an architecture decision (a MADR ADR page) | `bureau:adr` | `adr` |
-| Find contradictions / stale / unsupported claims | `bureau:lint` | `lint` |
-| Promote vetted claims to `canonical`; confirm dependencies; resolve conflicts (human gate) | `bureau:review` | `review` |
-| Have Codex (via cc-suite) pre-review the queue as your representative — advise, or (opt-in) commit `--by codex` | `bureau:codex-review` | `codex-review` |
-| Bulk-approve the whole backlog in one confirmation — prep + confirm, then you fire the one `--by human` line | `bureau:approve-all` | `approve-all` |
-| Run the whole lifecycle in one pass (compile → scan → lint → review → inspect) | `bureau:cycle` | orchestrates `compile`/`lint`/`review` |
+| Distil minutes into dossiers | `bureau:compile` | `protocols/compile.md` |
+| Record an architecture decision (a MADR ADR page) | `bureau:adr` | `protocols/adr.md` |
+| Find contradictions / stale / unsupported claims | `bureau:lint` | `protocols/lint.md` |
+| Promote vetted claims to `canonical`; confirm dependencies; resolve conflicts (human gate) | `bureau:review` | `protocols/review.md` |
+| Have Codex (via cc-suite) pre-review the queue as your representative — advise, or (opt-in) commit `--by codex` | `bureau:codex-review` | `protocols/codex-review.md` |
+| Bulk-approve the whole backlog in one confirmation — prep + confirm, then you fire the one `--by human` line | `bureau:approve-all` | `protocols/approve-all.md` |
+| Run the whole lifecycle in one pass (compile → scan → lint → review → inspect) | `bureau:cycle` | orchestrates the `compile`/`lint`/`review` protocols |
 | See uncompiled sessions + pages by tier **and freshness (needs-review/stale)** | `bureau:status` | — |
 | See what rests on a claim before changing it (blast radius) | `bureau:impact` | — |
 | Build and open the gazette | `bureau:inspect` | — |
@@ -94,8 +94,9 @@ route it back through `bureau:review`.
 | Version the canon — pin a snapshot, diff two versions, view a past board | `bureau:snapshot` | — |
 | List / enable / author crew desks | `bureau:crew` | — |
 
-The right-hand skills hold the operational detail (steps, rules, edge cases) — this guide does not
-restate them; open the skill for the step you're actually doing.
+The right-hand column holds the operational detail (steps, rules, edge cases) — a skill (`recall`,
+`scribe`, `capture`) or a command protocol under `protocols/`. This guide does not restate them; open
+the one for the step you're actually doing.
 
 ## When to reach for bureau (and when not)
 
@@ -141,6 +142,6 @@ assistant: "That's durable. I'll `bureau:note` it now so it lands in the logbook
 
 This skill is **orientation only** — the plugin's mental model, invariants, and the intent→command
 map. It does not itself capture (`capture`/`scribe`), compile (`compile`), answer from the canon
-(`recall`), promote claims (`review`), lint, or render. Open the per-step skill for that work. Keep
+(`recall`), promote claims (`review`), lint, or render. Open the per-step skill or protocol for that work. Keep
 this guide in lockstep with the command surface: the static gate fails if a `bureau:` command exists
 that this guide doesn't name, or if it names one that no longer exists.
