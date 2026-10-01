@@ -8,7 +8,7 @@ description: The trust-gate rules binding every AI session in this repo — cons
 durable write through the gate — never set `canonical` by hand.**
 
 This repository keeps its durable knowledge in a **bureau** workspace (`bureau/`): topic
-**cabinet** pages (the reviewed canon) plus an append-only **logbook**. `CLAUDE.md` imports this
+**cabinet** pages (the reviewed canon) plus an append-only **logbook**. The project instruction file imports this
 file, so the gate below binds **every** session here — honor it whenever you read or write
 knowledge in this repo.
 

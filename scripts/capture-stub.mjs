@@ -8,7 +8,7 @@
 // unless the cwd is a real bureau workspace. ALL hook-payload values are untrusted — the
 // workspace root comes from process.cwd() (the trusted hook working dir), never the payload,
 // and the session id is sanitized to a safe slug before it touches a path or YAML.
-import { existsSync, mkdirSync, writeFileSync, readSync, realpathSync, lstatSync, opendirSync } from "fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, renameSync, unlinkSync, readSync, realpathSync, lstatSync, opendirSync } from "fs";
 import { join, dirname, sep } from "path";
 import { execFileSync } from "child_process";
 // ADR-0003: an EXTERNAL workspace (private canon under ~/bureaus) is resolved from a USER-LOCAL
@@ -63,8 +63,8 @@ function safeId(v) {
 // SHA is meaningless on a dirty tree and may become unreachable after a rebase. Best-effort + bounded
 // (short timeout), fully safe-wrapped — never blocks session end. Returns null if cwd is not a repo.
 function codeProvenance(cwd) {
-  // tight per-call deadline so two sequential git calls add ≤2s worst-case to SessionEnd (normally <100ms).
-  const git = (args) => safe(() => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 1000 }), null);
+  // tight per-call deadline so two sequential git calls add ≤400ms worst-case to SessionEnd (normally <100ms).
+  const git = (args) => safe(() => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 200 }), null);
   const head = (git(["rev-parse", "HEAD"]) || "").trim();
   if (!/^[0-9a-f]{7,64}$/.test(head)) return null; // SHA-1 (40) and SHA-256 (64) object ids
   const status = git(["status", "--porcelain"]);
@@ -135,7 +135,7 @@ function main() {
   // In EXTERNAL mode only, stamp a descriptive code_head/code_dirty link (ADR-0003 Phase 4). In-repo
   // mode keeps the minimal stub — the knowledge is committed WITH the code, so no cross-repo link is
   // needed.
-  const prov = res.mode === "external" ? codeProvenance(cwd) : null;
+  const prov = null; // Essential capture is persisted before optional Git provenance.
   const fm = ["---", "title: " + title, "updated: " + date, "status: logbook", "session: " + sessionId, "transcript: " + JSON.stringify(transcript)];
   if (prov) { fm.push("code_head: " + prov.head); if (prov.dirty !== null) fm.push("code_dirty: " + prov.dirty); } // omit code_dirty when indeterminate (keep it a boolean)
   fm.push("---");
@@ -151,7 +151,21 @@ function main() {
   ].join("\n");
 
   // exclusive create: if a stub or a richer entry already exists, leave it untouched.
-  try { writeFileSync(file, body, { flag: "wx" }); }
+  try {
+    writeFileSync(file, body, { flag: "wx" });
+    if (res.mode === "external") {
+      const metadata = codeProvenance(cwd);
+      if (metadata && readFileSync(file, "utf8") === body) {
+        const fields = "code_head: " + metadata.head + "\n" + (metadata.dirty === null ? "" : "code_dirty: " + metadata.dirty + "\n");
+        const enriched = body.replace("\n---\n", "\n" + fields + "---\n");
+        const temporary = file + "." + process.pid + ".tmp";
+        try {
+          writeFileSync(temporary, enriched, { flag: "wx" });
+          if (readFileSync(file, "utf8") === body) renameSync(temporary, file);
+        } finally { safe(() => unlinkSync(temporary), null); }
+      }
+    }
+  }
   catch (e) { if (!(e && e.code === "EEXIST")) safe(() => process.stderr.write("bureau capture-stub: could not write logbook entry (" + (e && e.code || "error") + ")\n"), null); }
 }
 

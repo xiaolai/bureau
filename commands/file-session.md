@@ -23,6 +23,7 @@ Follow the protocol in the **capture** skill (`${CLAUDE_PLUGIN_ROOT}/skills/capt
    transcript pointer. For each decision, name the dossier it implies; use a `[[link]]`
    only if that page **already exists** — otherwise write the target as plain text so the
    logbook doesn't ship dangling links (compile will create and link it).
-5. Append-only in spirit: do not edit OTHER sessions' entries.
-6. Do NOT touch dossiers — distilling into the canon is `bureau:compile`.
-7. Report the entry path.
+5. If an external-workspace stub has no `code_head`, optional SessionEnd provenance may have timed out. Preserve that uncertainty: consult the session transcript for the historical commit; never label the current HEAD as the session-end HEAD. A current observation may be recorded separately with its observation time.
+6. Append-only in spirit: do not edit OTHER sessions' entries.
+7. Do NOT touch dossiers — distilling into the canon is `bureau:compile`.
+8. Report the entry path.

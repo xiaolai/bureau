@@ -17,7 +17,7 @@ the append-only logbook drawer, and the config the press needs to render them.
   `board`, `gazette`, …) are rejected (see step 1).
 - `--profile software|story|both` — which starter drawers + lint rules to enable (default `both`).
 - `--reinit` — re-run against an **existing** workspace: keep all cabinet + logbook content, just
-  refresh the wiring (`BUREAU.md`, the `CLAUDE.md` import, profile drawers, board gitignore) and
+  refresh the wiring (`BUREAU.md`, the authoritative instruction import, profile drawers, board gitignore) and
   re-validate. Safe and idempotent — the supported way to "re-init" a repo.
 - `--fresh` — start the workspace over: **back up** the existing one to `<workspace>.bak-<timestamp>`
   (never deleted), then scaffold a clean workspace from the template.
@@ -71,7 +71,7 @@ matter when the workspace already exists; on a first init they are no-ops.
    - **`reinit`** → keep the workspace and ALL its content untouched. **Skip steps 3–4** (no
      template copy, no config rewrite over existing files). Proceed to step 5 (ensure profile
      drawers exist — never overwrite) and steps 6–8 (refresh `BUREAU.md` from the current template,
-     re-assert the `CLAUDE.md` import, re-ignore the gazette, re-validate). This is the safe,
+     re-assert the authoritative instruction import, re-ignore the gazette, re-validate). This is the safe,
      idempotent re-init.
    - **`fresh`** → **back up, never delete**: move `<workspace>/` to `<workspace>.bak-<UTC
      timestamp>` (a sibling at the repo root, recoverable), then proceed with a normal fresh
@@ -117,7 +117,7 @@ matter when the workspace already exists; on a first init they are no-ops.
       always there, just invisible. Report them and point at the fix (a body `**Sources.**` line),
       never a frontmatter `sources:` key.
 
-6. **Write the bureau instructions and wire `CLAUDE.md` to import them.** Two parts:
+6. **Write the bureau instructions and wire the authoritative instruction file to import them.** Two parts:
 
    a. Copy `${CLAUDE_PLUGIN_ROOT}/templates/bureau-instructions.md` to the **repo root** as
       `./BUREAU.md`, replacing `{{WORKSPACE}}` with the resolved workspace name. Do not overwrite an
@@ -127,21 +127,16 @@ matter when the workspace already exists; on a first init they are no-ops.
       (that path auto-loads, so importing it too would load it twice) and never inside the workspace
       (the press would render it as a dossier).
 
-   b. Make `CLAUDE.md` import it. Ensure the repo-root `./CLAUDE.md` exists (create it if absent),
-      then append this idempotent block **once** — if a `<!-- bureau:start -->…<!-- bureau:end -->`
-      block already exists, leave it untouched and do not add a second:
+   b. Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/wire-instructions.mjs" "$PWD"`.
+      It preserves an existing root `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`;
+      otherwise it updates or creates `AGENTS.md`. It adds the managed import exactly once,
+      using the correct relative path. It never creates a CLAUDE.md that would hide AGENTS.md.
+      If an ancestor instruction file or symlink makes loading ambiguous, it exits nonzero
+      before writing. Resolve the reported loading condition and verify the actual loaded
+      instructions before claiming setup complete. Do not bypass the error by creating CLAUDE.md.
 
-      ```
-      <!-- bureau:start -->
-      @BUREAU.md
-      <!-- bureau:end -->
-      ```
-
-   The `@BUREAU.md` import (relative to `CLAUDE.md`, i.e. the repo root) is what loads the
-   instructions into **every** session: `CLAUDE.md` auto-loads, and the import pulls `BUREAU.md` in
-   with it. That is what makes every AI session in the repo honor the trust tiers when reading the
-   cabinets as memory — the gate binds all work, not just bureau commands. (A future Codex
-   `AGENTS.md` can import the same `BUREAU.md`, so the instructions stay single-sourced.)
+   The returned instruction file imports `BUREAU.md`; record that path for validation and
+   the final report. Existing project instructions and human content must remain intact.
 
 7. **Gitignore the board at the repo root.** Add the board's repo-root-relative path to the
    **repo root** `.gitignore` (create it if absent): `/<board>/` in the default layout (the board
@@ -156,13 +151,13 @@ matter when the workspace already exists; on a first init they are no-ops.
    `bureau:crew`.
 
 9. **Validate the scaffold.** Confirm `_config.json` and `bureau.json` parse as JSON, no
-   `{{DATE}}`/`{{WORKSPACE}}` tokens remain (including in `./BUREAU.md`), `./CLAUDE.md` contains an
-   `@BUREAU.md` import line, a `bureau:inspect` build succeeds, and `crew.mjs check` passes (or is a
+   `{{DATE}}`/`{{WORKSPACE}}` tokens remain (including in `./BUREAU.md`), the returned instruction file contains the
+   reported BUREAU import line, a `bureau:inspect` build succeeds, and `crew.mjs check` passes (or is a
    clean no-op). Report any failure with the offending file — do not claim success on a workspace
    that won't build.
 
 10. **Report.** State the mode and what it did: `default`/`fresh` → the created tree (note
-    `./BUREAU.md` + the `CLAUDE.md` import); `fresh` → also where the old workspace was backed up;
+    `./BUREAU.md` + the authoritative instruction import); `fresh` → also where the old workspace was backed up;
     `reinit` → what was refreshed and that all cabinet/logbook content was preserved. Then the next
     steps: `bureau:inspect` to build/open the gazette, `bureau:file-session` (or `bureau:note`) during
     a session, `bureau:query` to ask the canon, and `bureau:crew` to add specialized agents.
@@ -194,7 +189,7 @@ steps above — instead:
 4. **Mark the code repo.** Write `./.bureau-id` containing ONLY `<id>` (no path), and commit it. Add
    NOTHING else to this repo — no workspace dir, no board.
 
-5. **Wire + validate.** Refresh `./BUREAU.md` and the `CLAUDE.md` `@BUREAU.md` import as in the
+5. **Wire + validate.** Refresh `./BUREAU.md` and the authoritative instruction import as in the
    in-repo steps 6–7. Validate with
    `node "${CLAUDE_PLUGIN_ROOT}/press/bin/gazette.mjs" fsck --dir ~/bureaus/<name>/canon` (from this
    repo, `gazette` also resolves it automatically via the `.bureau-id`).

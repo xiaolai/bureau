@@ -244,3 +244,12 @@ test("scribe: a symlinked logbook can't redirect a logbook ENTRY outside the wor
   assert.deepEqual(mdOutside, [], "no logbook entry was written through the symlink");
   rmSync(outside, { recursive: true, force: true });
 });
+
+test("capture: essential stub exists before optional Git provenance starts", (t) => {
+ const s=externalSetup(t); const marker=join(s.code,'observed');const preload=join(s.code,'preload.mjs');
+ writeFileSync(preload, `import cp from 'node:child_process'; import {syncBuiltinESMExports} from 'node:module'; import fs from 'node:fs';
+ cp.execFileSync = () => {fs.writeFileSync(${JSON.stringify(marker)}, fs.readdirSync(${JSON.stringify(s.ws)}, {recursive:true}).join('\\n')); throw new Error('simulated Git timeout');}; syncBuiltinESMExports();`);
+ execFileSync(process.execPath,['--import',preload,CAPTURE],{cwd:s.code,input:JSON.stringify({session_id:'before-git'}),env:{...process.env,XDG_CONFIG_HOME:s.xdg}});
+ assert.match(readFileSync(marker,'utf8'), /before-git\.md/);
+ assert.equal(wsLogEntries(s.ws).length,1);
+});

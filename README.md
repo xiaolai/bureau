@@ -15,7 +15,7 @@ each other. **bureau** turns sessions into memory you can trust:
   it matters, and the verdict is memoized. No more silent staleness.
 - **Read, tier- and freshness-aware.** **`query`** answers from the canon, citing each claim's trust
   tier *and* its freshness, refusing to state an unverified or stale one as fact. **`BUREAU.md`** —
-  written by `init` at your repo root and imported from `CLAUDE.md` — makes *every* AI session honor
+  written by `init` at your repo root and imported from the project instruction file — makes *every* AI session honor
   those rules, so the gate governs all work, not just bureau commands.
 - **Inspect, live & versioned.** A navigable offline **gazette** (the board), built by the bundled
   **press** — with a **live Engine view** (`serve`) that lights up as you edit: page↔page *freshness*,

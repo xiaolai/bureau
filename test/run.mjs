@@ -34,6 +34,7 @@ const ensurePressDeps = (needs) => {
 };
 
 step("L0 · static structure", () => run("node", ["test/static/check.mjs"]));
+step("L1 · instruction wiring", () => run("node", ["--test", "test/unit/wire-instructions.test.mjs"]));
 step("L1 · hook-script units", () => run("node", ["--test", "test/unit/scripts.test.mjs"]));
 step("L1 · crew engine units", () => run("node", ["--test", "test/unit/crew.test.mjs"]));
 // Drift gate on the REAL repo: the committed .claude/ materialization must still match its
